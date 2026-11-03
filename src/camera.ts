@@ -182,7 +182,7 @@ export class CameraController {
     event.preventDefault();
     if (this.placement) return;
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.viewportHeight : 1);
-    this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.82, 1.4);
+    this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.70, 2.6);
   };
 
   private onContextMenu = (event: MouseEvent): void => event.preventDefault();

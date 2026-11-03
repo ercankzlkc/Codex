@@ -8,9 +8,13 @@ Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build -- --bas
 
 ## Serbest oyun
 
-Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Her ev iki, büyük ev dört yeni sakin getirir. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini kapsama alanındaki depoya taşır. Kaynaklar sadece teslimatta eklenir. Yiyecek otomatik tüketilmez; mevcut sürüm rahat bir serbest yerleşim akışıdır.
+Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Her ev iki, büyük ev dört yeni sakin getirir. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini kapsama alanındaki depoya taşır. Kaynaklar sadece teslimatta eklenir. Her sakin dakikada 2 yiyecek tüketir. Çilek, buğday ve balık ayrı stoklanır; toplam ve tüketim HUD’da, döküm ise yiyeceğin üzerine gelince görünür. Yiyecek yoksa refah yavaşça azalır; oyun sona ermez.
 
-Merkez deposunun kapsaması 2, depoların kapsaması 3 altıgendir. Kapsama dışında kalan kaynaklara depo kurmak gerekir. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Kesilen ağaçlar ve toplanan çilekler yeniden büyür.
+Merkez deposunun kapsaması 2, depoların kapsaması 3 altıgendir. Kapsama dışında kalan kaynaklara depo kurmak gerekir. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Ağaçlar 14, çilekler 12, buğday 18 saniyede yenilenir; küçük halkalar kalan süreyi gösterir. Hasatta ürünler kademeli azalır. Balıkçılar kıyıdaki iskelelerinden olta atar; yakalanan balık teslimatta stoğa eklenir.
+
+## İş öncelikleri
+
+Sağ alttaki Görevler panelinde odun, çilek, buğday ve balık ağırlıklarını ayarlayın. Yüzdeler mevcut işlere göre çalışan hedeflerine dönüşür; taşıma halindeki sakinler teslimatlarını bitirir. Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur.
 
 ## Kontroller
 

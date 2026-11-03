@@ -28,7 +28,27 @@ function berryPlot(){
   }
   fence(plot,-.49);return plot;
 }
+function wheatPlot(){
+  const plot=new T.Group();let order=0;
+  for(const z of [-.3,0,.3]){box(plot,0x816044,0,.025,z,.9,.05,.18);for(let x=-.34;x<.4;x+=.17){
+    const plant=new T.Group();plant.position.set(x,0,z);plant.userData.cropOrder=order++;
+    for(let j=0;j<3;j++){box(plant,0xb5a45b,(j-1)*.035,.19,0,.015,.32,.018);part(plant,new T.ConeGeometry(.036,.15,4),0xe7cf83,(j-1)*.035,.39,0)}plot.add(plant);
+  }}fence(plot,-.49);return plot;
+}
+function fishingHut(){
+  const g=new T.Group();box(g,0x86674d,0,.04,-.22,.62,.08,.59);box(g,0xd5c498,0,.29,-.24,.48,.5,.42);
+  const roof=part(g,new T.ConeGeometry(.46,.34,4),0x668d91,0,.68,-.24);roof.rotation.y=Math.PI/4;
+  box(g,0x785e47,0,.22,-.01,.15,.34,.025);box(g,0x8cb9b0,-.15,.39,-.015,.12,.13,.025);
+  for(let i=0;i<12;i++)box(g,i%2?0xb49a70:0xcab184,0,.025,.25+i*.095,.39,.045,.087);
+  for(const x of [-.15,.15])for(const z of [.45,1.15])box(g,0x826c52,x,-.18,z,.045,.43,.045);
+  part(g,new T.CylinderGeometry(.095,.075,.15,8),0x7f9993,.28,.1,.13);
+  box(g,0xc9b78f,-.27,.14,.03,.13,.25,.15);return g;
+}
 export function model(kind: Kind): T.Group {
+  if(kind==='fisher'||kind==='farm'){
+    if(!templates.has(kind))templates.set(kind,kind==='fisher'?fishingHut():wheatPlot());
+    return templates.get(kind)!.clone();
+  }
   if(kind==='forest'){
     if(!templates.has(kind)){
       const plot=new T.Group();tree(plot,-.23,-.2,0,.88);tree(plot,.23,-.03,1,.79);tree(plot,-.08,.27,2,.7);
