@@ -1,24 +1,28 @@
 import * as T from 'three';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {fromWorld,position} from './hex';
 import {SEA_Y} from './scenery';
 /** Small shared meshes keep the coast alive without adding simulation workers. */
 export class Wildlife {
   private root=new T.Group();
-  private birds:{root:T.Group;wings:T.Group[];phase:number}[]=[];
+  private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
   private center=new T.Vector3();private radius=4;
   private board:ReadonlyMap<number,unknown>=new Map();
   constructor(scene:T.Scene,private splash:(x:number,z:number)=>void){
     scene.add(this.root);
-    const white=new T.MeshStandardMaterial({color:0xf5f1dc,roughness:.85}),dark=new T.MeshStandardMaterial({color:0x718286,roughness:.85});
-    const bodyGeo=new T.SphereGeometry(.055,6,4),wingGeo=new T.BufferGeometry().setAttribute('position',new T.Float32BufferAttribute([0,0,0,.23,.015,-.03,.14,0,.06],3));wingGeo.computeVertexNormals();white.side=T.DoubleSide;dark.side=T.DoubleSide;
-    for(let i=0;i<5;i++){
-      const root=new T.Group(),body=new T.Mesh(bodyGeo,white);body.scale.set(.65,.7,1.6);root.add(body);
-      const head=new T.Mesh(bodyGeo,white);head.scale.setScalar(.6);head.position.set(0,.025,.09);root.add(head);
-      const beak=new T.Mesh(new T.ConeGeometry(.015,.055,4),new T.MeshStandardMaterial({color:0xd8ac63}));beak.rotation.x=Math.PI/2;beak.position.set(0,.02,.14);root.add(beak);
-      const wings=[-1,1].map(sign=>{const pivot=new T.Group(),wing=new T.Mesh(wingGeo,white);wing.scale.x=sign;pivot.add(wing);const tip=new T.Mesh(wingGeo,dark);tip.scale.set(sign*.3,1,.65);tip.position.x=sign*.16;pivot.add(tip);root.add(pivot);return pivot});
-      this.root.add(root);this.birds.push({root,wings,phase:i*1.93});
-    }
+    new GLTFLoader().load(`${(import.meta as unknown as {env:{BASE_URL:string}}).env.BASE_URL}models/seagull.glb`,gltf=>{
+      const clip=gltf.animations.find(a=>a.name==='ArmatureAction');
+      if(!clip){console.error('Martı uçuş animasyonu bulunamadı');return}
+      for(let i=0;i<5;i++){
+        const root=new T.Group(),bird=clone(gltf.scene);root.add(bird);
+        const bounds=new T.Box3().setFromObject(bird),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3());
+        const scale=.55/Math.max(size.x,size.y,size.z);bird.scale.multiplyScalar(scale);bird.position.addScaledVector(center,-scale);
+        const mixer=new T.AnimationMixer(bird);mixer.clipAction(clip).play();mixer.update(i*.27);
+        this.root.add(root);this.birds.push({root,mixer,phase:i*1.93});
+      }
+    },undefined,error=>console.error('Martı modeli yüklenemedi',error));
     const silver=new T.MeshStandardMaterial({color:0x88b5b5,metalness:.18,roughness:.5}),tailGeo=new T.ConeGeometry(.055,.12,3);
     for(let i=0;i<2;i++){
       const root=new T.Group(),body=new T.Mesh(new T.SphereGeometry(.09,7,5),silver);body.scale.set(.5,.65,1.7);root.add(body);
@@ -37,7 +41,7 @@ export class Wildlife {
       const a=time*(.11+i*.007)+bird.phase,r=this.radius+Math.sin(time*.09+bird.phase)*.8;
       bird.root.position.set(this.center.x+Math.cos(a)*r,2.4+i*.24+Math.sin(time*.6+bird.phase)*.14,this.center.z+Math.sin(a)*r*.7);
       bird.root.rotation.set(0,Math.atan2(-Math.sin(a),Math.cos(a)*.7),Math.sin(a+bird.phase)*.15);
-      const flap=Math.sin(time*4.8+bird.phase)*.38;bird.wings[0].rotation.z=-flap;bird.wings[1].rotation.z=flap;
+      bird.mixer.update(dt);
     });
     for(const f of this.fish){
       if(f.age<0){

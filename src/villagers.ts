@@ -1,15 +1,17 @@
 import * as T from 'three';
 import {icon} from './icons';
-import {box,ball} from './models';
+import {box,ball,resourceModel} from './models';
 import {CENTER,position,fromWorld,adjacent} from './hex';
 import {Game,hexDistance,WORK_CATEGORIES,type Resource,type WorkCategory} from './game';
 import {LAND_Y,SEA_Y} from './scenery';
 import {Walkways,type WalkPoint} from './navigation';
 type Job={source:number;store:number;resource:Resource;amount:number;tree:number;category:WorkCategory|null};
-type Citizen={id:number;root:T.Group;body:T.Group;arms:T.Group[];legs:T.Group[];bundle:T.Mesh;axe:T.Group;pickaxe:T.Group;rod:T.Group;line:T.Line;bobber:T.Mesh;fish:T.Group;stage:'idle'|'to-work'|'working'|'to-store';path:WalkPoint[];target:T.Vector3|null;job:Job|null;clock:number;retry:number;phase:number;birth:number;speed:number;wait:number;status:HTMLElement;lastStatus:string;eatUntil:number;hungry:boolean;waitReason:string;searchUntil:number;stuck:number;bestDistance:number;nodeMarker:string;avoid:{x:number;z:number;until:number}[]};
+type Citizen={id:number;root:T.Group;body:T.Group;arms:T.Group[];legs:T.Group[];bundle:T.Group;axe:T.Group;pickaxe:T.Group;rod:T.Group;line:T.Line;bobber:T.Mesh;fish:T.Group;stage:'idle'|'to-work'|'working'|'to-pickup'|'picking'|'to-store';path:WalkPoint[];target:T.Vector3|null;job:Job|null;clock:number;retry:number;phase:number;birth:number;speed:number;wait:number;status:HTMLElement;lastStatus:string;eatUntil:number;hungry:boolean;waitReason:string;searchUntil:number;stuck:number;bestDistance:number;nodeMarker:string;avoid:{x:number;z:number;until:number}[]};
 export interface VillageHooks {
   ready(id:number):boolean;yaw(id:number):number;resourceReady(id:number):boolean;
   pickTree(id:number,preferred:number):number;workPoint(id:number,tree:number):T.Vector3;
+  obstacles(id:number):{x:number;z:number;r:number}[];
+  pickup(id:number,index:number,take:boolean):T.Vector3|null;
   harvest(id:number,resource:Resource,tree:number,actor:number):boolean;
   harvestProgress(id:number,actor:number,progress:number):void;
   fishingSpot(id:number):{stand:T.Vector3;water:T.Vector3}|null;
@@ -28,12 +30,12 @@ export class Villagers {
   refreshNavigation(){this.nav?.invalidate()}
   rebalance(){
     if(!this.game)return;const targets=this.game.workTargets(),counts=this.assignedCounts();
-    for(const c of [...this.citizens].reverse())if(c.job?.category&&c.stage!=='to-store'&&counts[c.job.category]>targets[c.job.category]){counts[c.job.category]--;this.releaseJob(c)}
+    for(const c of [...this.citizens].reverse())if(c.job?.category&&!['to-store','to-pickup','picking'].includes(c.stage)&&counts[c.job.category]>targets[c.job.category]){counts[c.job.category]--;this.releaseJob(c)}
   }
   private releaseJob(c:Citizen){if(c.job)this.hooks.harvestProgress(c.job.source,c.id,0);c.job=null;c.stage='idle';c.path=[];c.retry=.1;c.bundle.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.waitReason='';c.target=null}
   reset(game:Game){
-    for(const c of this.citizens){c.status.remove();c.bundle.geometry.dispose();(c.bundle.material as T.Material).dispose();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
-    this.root.clear();this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id));
+    for(const c of this.citizens){c.status.remove();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
+    this.root.clear();this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
   }
   private neighbors(x:number,z:number){const result:Citizen[]=[];const bx=Math.floor(x/.32),bz=Math.floor(z/.32);for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)result.push(...(this.buckets.get(`${bx+a}:${bz+b}`)??[]));return result}
   private clear(c:Citizen,x:number,z:number){return this.neighbors(x,z).every(other=>other===c||Math.hypot(other.root.position.x-x,other.root.position.z-z)>.21)}
@@ -51,9 +53,13 @@ export class Villagers {
     // Facing +Z: local -X is the citizen's anatomical right hand.
     const arms=[-1,1].map(sign=>{const g=new T.Group();g.position.set(sign*.083,.125,0);body.add(g);box(g,0xdfb28b,0,-.065,0,.035,.13,.035);return g});
     const legs=[-1,1].map(sign=>{const g=new T.Group();g.position.set(sign*.035,.155,0);root.add(g);box(g,0x59655d,0,-.065,0,.044,.13,.045);box(g,0x665647,0,-.13,.018,.05,.035,.075);return g});
-    const bundle=new T.Mesh(new T.BoxGeometry(.11,.10,.09),new T.MeshStandardMaterial({color:0xac8655,roughness:1}));bundle.position.set(0,.235,.11);bundle.visible=false;root.add(bundle);
+    const bundle=new T.Group();bundle.position.set(0,.235,.12);bundle.visible=false;root.add(bundle);
     const axe=new T.Group();box(axe,0x8b6947,0,-.13,.04,.022,.19,.022);box(axe,0x9faeaa,.025,-.19,.04,.09,.045,.025);arms[0].add(axe);axe.visible=false;
-    const pickaxe=new T.Group();box(pickaxe,0x8b6947,0,-.13,.04,.022,.22,.022);const pickHead=box(pickaxe,0xaeb7b2,0,-.23,.04,.17,.025,.027);pickHead.rotation.z=.16;arms[0].add(pickaxe);pickaxe.visible=false;
+    const pickaxe=new T.Group();pickaxe.position.set(0,.125,.015);body.add(pickaxe);
+    box(pickaxe,0x8b6947,0,-.095,0,.023,.29,.023);
+    const head=box(pickaxe,0xaeb7b2,0,-.25,0,.16,.028,.035);
+    for(const sign of [-1,1]){const tip=new T.Mesh(new T.ConeGeometry(.023,.095,4),head.material);tip.position.set(sign*.112,-.25,0);tip.rotation.z=-sign*Math.PI/2;pickaxe.add(tip)}
+    pickaxe.visible=false;
     const rod=new T.Group();rod.position.set(0,-.12,0);box(rod,0x84684b,0,.28,0,.013,.58,.013);rod.rotation.x=1.0;arms[0].add(rod);rod.visible=false;
     const line=new T.Line(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(36),3)),new T.LineBasicMaterial({color:0xe2e5d1,transparent:true,opacity:.8}));line.frustumCulled=false;line.visible=false;
     const floatGeometry=new T.SphereGeometry(.032,12,12).toNonIndexed(),floatColors:number[]=[];
@@ -78,8 +84,8 @@ export class Villagers {
     for(const {source,recipe,category} of options){
       const store=g.storageFor(source).find(id=>this.hooks.ready(id)&&g.canStore(id,recipe!.resource));if(store===undefined)continue;
       let tree=(recipe!.resource==='wood'||recipe!.resource==='stone')?-1:c.id%2;
-      if(category==='farm'||category==='berry'){tree=[0,1].find(slot=>!this.citizens.some(a=>a.job?.source===source&&a.job.tree===slot&&a.stage!=='to-store'))??-1;if(tree<0)continue}
-      if((recipe!.resource==='wood'||recipe!.resource==='stone'))for(let j=0;j<3;j++){const index=this.hooks.pickTree(source,(c.id+j)%3);if(index>=0&&!this.citizens.some(a=>a.job?.source===source&&a.job.tree===index&&a.stage!=='to-store')){tree=index;break}}
+      if(category==='farm'||category==='berry'){tree=[0,1].find(slot=>!this.citizens.some(a=>a.job?.source===source&&a.job.tree===slot&&!['to-store','to-pickup','picking'].includes(a.stage)))??-1;if(tree<0)continue}
+      if((recipe!.resource==='wood'||recipe!.resource==='stone'))for(let j=0;j<3;j++){const index=this.hooks.pickTree(source,(c.id+j)%3);if(index>=0&&!this.citizens.some(a=>a.job?.source===source&&a.job.tree===index&&!['to-store','to-pickup','picking'].includes(a.stage))){tree=index;break}}
       if((recipe!.resource==='wood'||recipe!.resource==='stone')&&tree<0)continue;
       const fishing=g.board.get(source)==='fisher'?this.hooks.fishingSpot(source):null;if(g.board.get(source)==='fisher'&&!fishing)continue;
       if(!this.route(c,source,fishing?.stand??this.hooks.workPoint(source,tree)))continue;
@@ -116,8 +122,13 @@ export class Villagers {
     if(c.path[0])c.avoid.push({x:c.path[0].x,z:c.path[0].z,until:this.time+4});
     c.path=[];
     if(c.stage==='to-store'){c.target=null;if(c.job)c.job.store=-1;c.retry=0;return}
+    if(c.stage==='to-pickup'){c.target=null;c.retry=.2;return}
     if(c.job){const goal=c.job.category==='fish'?this.hooks.fishingSpot(c.job.source)?.stand:this.hooks.workPoint(c.job.source,c.job.tree);if(goal&&this.route(c,c.job.source,goal))return;c.retry=.5}
     else c.retry=.2;
+  }
+  private carry(c:Citizen){
+    if(!c.job)return;c.bundle.clear();c.bundle.add(resourceModel(c.job.resource==='food'?(c.job.category==='fish'?'fish':c.job.category==='farm'?'wheat':'berry'):c.job.resource));
+    c.bundle.visible=true;c.stage='to-store';c.path=[];c.target=null;c.retry=0;c.body.rotation.x=0;
   }
   private sendToStorage(c:Citizen){
     const job=c.job;if(!job)return;const g=this.game!;if(job.resource==='happy'&&g.happy>=100){this.releaseJob(c);return}
@@ -194,12 +205,16 @@ export class Villagers {
         else{const goal=c.job.category==='fish'?this.hooks.fishingSpot(c.job.source)?.stand:this.hooks.workPoint(c.job.source,c.job.tree);if(!goal||!this.route(c,c.job.source,goal)){c.retry=.6;c.searchUntil=this.time+1}}
       }
       c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;
-      const working=c.stage==='working',wood=working&&(c.job?.resource==='wood'||c.job?.resource==='stone'),fishing=working&&c.job?.category==='fish',phase=this.time*9+c.phase;
+      const working=c.stage==='working',mining=working&&c.job?.resource==='stone',wood=working&&(c.job?.resource==='wood'||c.job?.resource==='stone'),fishing=working&&c.job?.category==='fish',phase=this.time*9+c.phase;
       c.root.position.y=LAND_Y+(fishing?.035:0)+(walking?Math.abs(Math.sin(phase))*.012:Math.sin(this.time*2+c.phase)*.002);
       c.body.rotation.x=working?(wood?.12:.45+Math.sin(c.clock*4)**2*.22):walking?.05:Math.sin(this.time*1.4+c.phase)*.02;
       const chop=(c.clock*1.7)%1,windup=T.MathUtils.smoothstep(chop,0,.60),strike=T.MathUtils.smoothstep(chop,.60,.76),recover=T.MathUtils.smoothstep(chop,.76,1);
       c.arms[0].rotation.x=wood?-.3-windup*1.9+strike*2.1-recover*.2:working?-.9:walking?Math.sin(phase)*.45:Math.sin(this.time*1.7+c.phase)*.08;
-      c.arms[1].rotation.x=wood?-.25:working?-.9:walking?-Math.sin(phase)*.45:-Math.sin(this.time*1.7+c.phase)*.08;
+      c.arms[1].rotation.x=mining?c.arms[0].rotation.x:wood?-.25:working?-.9:walking?-Math.sin(phase)*.45:-Math.sin(this.time*1.7+c.phase)*.08;
+      c.arms[0].rotation.z=mining?.45:0;c.arms[1].rotation.z=mining?-.45:0;
+      const miningSwing=-.95-windup*1.95+strike*1.65+recover*.3;
+      if(mining)c.arms.forEach(arm=>arm.rotation.x=miningSwing);
+      c.pickaxe.rotation.x=mining?miningSwing:0;
       c.legs[0].rotation.x=walking?Math.sin(phase)*.55:0;c.legs[1].rotation.x=walking?-Math.sin(phase)*.55:0;c.axe.visible=!!wood&&c.job?.resource==='wood';c.pickaxe.visible=!!wood&&c.job?.resource==='stone';
       if(working&&c.job){
         if(fishing){const spot=this.hooks.fishingSpot(c.job.source);if(!spot||Math.hypot(c.root.position.x-spot.stand.x,c.root.position.z-spot.stand.z)>.22){c.clock=0;c.stage='to-work';c.path=[];c.target=null;c.retry=0;continue}}
@@ -210,10 +225,23 @@ export class Villagers {
         else{const p=this.hooks.workPoint(c.job.source,c.job.tree);c.root.rotation.y=Math.atan2(p.x-.12-c.root.position.x,p.z-.15-c.root.position.z);this.hooks.harvestProgress(c.job.source,c.id,Math.min(1,c.clock/duration))}
         if(c.clock>=duration){
           if(this.hooks.harvest(c.job.source,c.job.resource,c.job.tree,c.id)){
-            c.bundle.visible=true;(c.bundle.material as T.MeshStandardMaterial).color.setHex(c.job.category==='fish'?0x8aafbb:c.job.category==='farm'?0xd7b85e:c.job.resource==='stone'?0x96a29c:c.job.resource==='wood'?0xa5784f:0xb76555);c.stage='to-store';c.path=[];c.retry=0;
+            if(c.job.resource==='wood'){
+              c.stage='to-pickup';c.path=[];c.target=null;c.retry=.9;
+            }else this.carry(c);
+
           }else this.releaseJob(c);
           c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.rod.visible=false;
         }
+      }
+      if(c.stage==='to-pickup'&&c.job&&!c.path.length&&c.retry<=0){
+        const p=this.hooks.pickup(c.job.source,c.job.tree,false);
+        if(!p){this.releaseJob(c);continue}
+        if(c.target&&c.root.position.distanceTo(c.target)<.17){c.stage='picking';c.clock=0;c.root.rotation.y=Math.atan2(p.x-c.root.position.x,p.z-.23-c.root.position.z)}
+        else if(!this.route(c,c.job.source,p,true))c.retry=.4;
+      }
+      if(c.stage==='picking'&&c.job){
+        c.clock+=dt;c.body.rotation.x=Math.sin(Math.min(1,c.clock/.85)*Math.PI)*.85;c.arms.forEach(a=>a.rotation.x=-.8);
+        if(c.clock>=.85){if(this.hooks.pickup(c.job.source,c.job.tree,true))this.carry(c);else{c.stage='to-pickup';c.retry=.25}}
       }
       if(c.stage==='to-store'&&c.job&&!c.path.length&&c.retry<=0)this.sendToStorage(c);
       if(c.bundle.visible)c.arms.forEach(arm=>arm.rotation.x=-.8);

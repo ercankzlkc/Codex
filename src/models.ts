@@ -6,7 +6,32 @@ function material(c:number){if(!mats.has(c))mats.set(c,new T.MeshStandardMateria
 export function part(p:T.Group,g:T.BufferGeometry,c:number,x=0,y=0,z=0){const m=new T.Mesh(g,material(c));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;p.add(m);return m}
 export function box(p:T.Group,c:number,x:number,y:number,z:number,w:number,h:number,d:number){const key=`b${w},${h},${d}`;if(!geometries.has(key))geometries.set(key,new T.BoxGeometry(w,h,d));return part(p,geometries.get(key)!,c,x,y,z)}
 export function ball(p:T.Group,c:number,x:number,y:number,z:number,r:number){const key=`s${r}`;if(!geometries.has(key))geometries.set(key,new T.IcosahedronGeometry(r,0));return part(p,geometries.get(key)!,c,x,y,z)}
-export function tree(p:T.Group,x:number,z:number,v=0,s=1){let g=new T.Group();g.position.set(x,0,z);g.scale.setScalar(s);p.add(g);part(g,new T.CylinderGeometry(.045,.07,.7,5),0x77573a,0,.35,0);if(v%2===0){for(let j=0;j<3;j++)part(g,new T.ConeGeometry(.35-j*.065,.55,7),[0x47755a,0x57856a,0x396650][(v+j)%3],0,.55+j*.23,0)}else{ball(g,0x73966a,-.12,.78,0,.33);ball(g,0x8ba66e,.15,.85,.04,.31);ball(g,0x668d61,0,1.07,0,.29)}}
+export function tree(p:T.Group,x:number,z:number,v=0,s=1){
+  const g=new T.Group();g.position.set(x,0,z);g.scale.setScalar(s);p.add(g);
+  const variant=v%10,h=.65+(variant%3)*.1;
+  part(g,new T.CylinderGeometry(.035,.065,h,6),variant%2?0x806044:0x705137,0,h/2,0);
+  const colors=[0x47755a,0x73966a,0x568568,0x8ba66e,0x396650,0x67945d,0x658875,0x94aa70,0x4c7952,0x7d9d59];
+  if(variant<4){for(let j=0;j<3+variant%2;j++)part(g,new T.ConeGeometry(.29-j*.047,.46,6+variant),colors[(variant+j)%10],0,h*.65+j*.2,0)}
+  else if(variant<8){for(let j=0;j<4;j++){const a=j*2.4;const leaf=ball(g,colors[(variant+j)%10],Math.cos(a)*.15,h+.12+j*.065,Math.sin(a)*.13,.26+(variant%2)*.035);leaf.scale.y=variant===7?1.5:1}}
+  else{for(let j=0;j<3;j++){const leaf=ball(g,colors[variant],(j-1)*.13,h+j*.17,0,.25);leaf.scale.set(.85,1.3,.85)}}
+}
+const resourceTemplates=new Map<string,T.Group>();
+export function resourceModel(kind:string){
+  const cached=resourceTemplates.get(kind);if(cached)return cached.clone();
+  const g=new T.Group();
+  if(kind==='wood')for(let i=0;i<3;i++){
+    const log=new T.Group();log.position.set((i%2-.5)*.065,.035+Math.floor(i/2)*.058,0);g.add(log);
+    const bark=part(log,new T.CylinderGeometry(.035,.035,.22,8),0x88603c);bark.rotation.x=Math.PI/2;
+    for(const z of [-.112,.112]){const end=part(log,new T.CircleGeometry(.028,8),0xd6b17c,0,0,z);end.rotation.y=z<0?Math.PI:0}
+  }
+  else if(kind==='fish')for(let i=0;i<2;i++){const fish=new T.Group();fish.position.set((i-.5)*.065,.035,0);const body=ball(fish,0x8fb9bf,0,0,0,.065);body.scale.set(.45,.5,1.4);const tail=part(fish,new T.ConeGeometry(.034,.052,3),0x588e9b,0,0,-.10);tail.rotation.x=Math.PI/2;ball(fish,0x243c3b,.022,.014,.055,.008);g.add(fish)}
+  else if(kind==='wheat')for(let i=0;i<7;i++){const x=(i%4-1.5)*.023,z=(Math.floor(i/4)-.5)*.045;box(g,0xb9a45a,x,.04,z,.012,.17,.012);const grain=part(g,new T.ConeGeometry(.024,.075,5),0xe9cb72,x,.14,z);grain.rotation.z=(i%3-1)*.15}
+  else if(kind==='berry') {for(let i=0;i<6;i++){const x=(i%3-1)*.048,z=(Math.floor(i/3)-.5)*.055;const fruit=ball(g,0xd65d53,x,.032,z,.034);fruit.scale.y=1.15;part(g,new T.ConeGeometry(.026,.018,5),0x5e8d4a,x,.072,z)}}
+  else if(kind==='stone')for(let i=0;i<3;i++)ball(g,0x97a6a0,(i%2-.5)*.065,.035+Math.floor(i/2)*.045,0,.052);
+  else for(let i=0;i<3;i++){box(g,0x6e9050,(i-1)*.04,.05,0,.01,.13,.01);ball(g,0xe7c08c,(i-1)*.04,.12,0,.03)}
+  resourceTemplates.set(kind,g);return g.clone();
+}
+
 function fence(p:T.Group,z:number){for(let x=-.45;x<=.46;x+=.3)box(p,0xbca57a,x,.17,z,.045,.34,.045);for(let y=.13;y<.3;y+=.13)box(p,0xcdb68c,0,y,z,.95,.035,.035)}
 function house(p:T.Group,big=false,lumber=false,store=false){let w=big?.83:.64,h=big?.7:.48,d=.62;box(p,0xa38d6d,0,.06,0,w+.08,.12,d+.08);box(p,store?0xb58e5b:0xf1dfb8,0,h/2+.1,0,w,h,d);for(let x of [-w/2,w/2])box(p,0x866345,x,h/2+.1,.32,.045,h,.025);box(p,0x866345,0,.2,.325,.16,.32,.035);box(p,0xc7a36d,.025,.19,.35,.02,.025,.025);for(let x of [-.22,.22]){box(p,0x876541,x,.42,.322,.16,.17,.035);box(p,0x91b7b2,x,.42,.345,.115,.12,.02);box(p,0xe5d8b0,x,.42,.36,.018,.13,.015)}let roof=new T.BufferGeometry();let rw=w/2+.12,rd=d/2+.1,base=h+.1,peak=base+.38;roof.setAttribute('position',new T.Float32BufferAttribute([-rw,base,-rd,rw,base,-rd,0,peak,-rd,-rw,base,rd,0,peak,rd,rw,base,rd,-rw,base,-rd,0,peak,-rd,0,peak,rd,-rw,base,-rd,0,peak,rd,-rw,base,rd,rw,base,-rd,rw,base,rd,0,peak,rd,rw,base,-rd,0,peak,rd,0,peak,-rd],3));roof.computeVertexNormals();const roofMesh=part(p,roof,lumber?0x5d7978:store?0x967655:0xba7051);(roofMesh.material as T.MeshStandardMaterial).side=T.DoubleSide;box(p,0xe3d3b4,.2,peak-.06,-.12,.13,.4,.13);box(p,0x9c8a72,.2,peak+.15,-.12,.17,.06,.17);for(let j=0;j<3;j++)box(p,0x78553c,-.27+j*.24,.11,.48,.19,.035,.16);if(lumber){for(let j=0;j<4;j++){let log=part(p,new T.CylinderGeometry(.075,.075,.46,7),0x9f7a4c,.43,.1+j%2*.13,-.16+Math.floor(j/2)*.18);log.rotation.x=Math.PI/2}}if(store){for(let x of [-.38,.38]){box(p,0xb4935e,x,.16,.43,.2,.3,.2);box(p,0x735b3f,x,.17,.535,.22,.03,.02)}}ball(p,0x759557,-.43,.13,.32,.16)}
 function createModel(kind:Kind){let p=new T.Group();if(kind==='forest'){tree(p,-.23,-.2,0,.88);tree(p,.23,-.03,1,.79);tree(p,-.08,.27,2,.7)}else if(kind==='house'||kind==='manor'||kind==='lumber'||kind==='store')house(p,kind==='manor',kind==='lumber',kind==='store');else if(kind==='berry'||kind==='farm'){for(let z of [-.3,0,.3]){box(p,0x816044,0,.035,z,.9,.065,.18);for(let x=-.34;x<.4;x+=.17){if(kind==='berry'){ball(p,0x5f894c,x,.15,z,.12);for(let k=0;k<2;k++)ball(p,0xc25b50,x+(k-.5)*.07,.24,z,.037)}else{for(let k=0;k<3;k++){let a=x+(k-1)*.035;box(p,0xb49d50,a,.2,z,.014,.35,.014);part(p,new T.ConeGeometry(.035,.14,4),0xe6c776,a,.4,z)}}}}fence(p,-.49);if(kind==='farm'){box(p,0xa28b52,.4,.2,.4,.12,.4,.1);box(p,0xd8c596,.4,.35,.4,.34,.12,.1)}}else if(kind==='garden'){part(p,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(p,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(p,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(p,0xced2b5,0,.42,0,.09);for(let j=0;j<8;j++){let a=j/8*Math.PI*2;ball(p,0x678952,Math.cos(a)*.4,.12,Math.sin(a)*.4,.13);ball(p,j%2?0xdfae86:0xe8d7aa,Math.cos(a)*.4,.24,Math.sin(a)*.4,.055)}}else if(kind==='festival'){for(let x of [-.35,.35])box(p,0x8b6748,x,.4,0,.04,.8,.04);box(p,0xd8ba70,0,.73,0,.75,.035,.035);for(let j=0;j<5;j++)part(p,new T.ConeGeometry(.08,.18,3),j%2?0xa86155:0xe4c77a,-.28+j*.14,.64,0)}else{for(let j=0;j<3;j++){ball(p,0xc6a76d,(j-1)*.2,.18,0,.2);box(p,0x7c8d51,(j-1)*.2,.36,0,.04,.15,.04)}}return p}
@@ -56,11 +81,9 @@ export function model(kind: Kind): T.Group {
     return templates.get(kind)!.clone();
   }
   if(kind==='forest'){
-    if(!templates.has(kind)){
-      const plot=new T.Group();tree(plot,-.23,-.2,0,.88);tree(plot,.23,-.03,1,.79);tree(plot,-.08,.27,2,.7);
-      plot.children.forEach((t,i)=>t.userData.treeIndex=i);templates.set(kind,plot);
-    }
-    return templates.get(kind)!.clone();
+    const plot=new T.Group(),offset=Math.random()*Math.PI*2;
+    for(let i=0;i<3;i++){const a=offset+i*Math.PI*2/3+(Math.random()-.5)*.32,r=.40+Math.random()*.10;tree(plot,Math.cos(a)*r,Math.sin(a)*r,Math.floor(Math.random()*10),.66+Math.random()*.17);plot.children[i].userData.treeIndex=i}
+    return plot;
   }
   if(kind==='berry'){
     if(!templates.has(kind))templates.set(kind,berryPlot());

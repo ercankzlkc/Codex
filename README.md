@@ -14,7 +14,7 @@ Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebi
 
 Taş Ocağı kartında köylüler kazmayla çalışır; vuruşlarda kaya sallanır, küçük kıvılcım ve taş parçaları çıkar. Ağaç kesimi 6, taş çıkarma 6,8 saniye sürer. Taş, odun ve yiyecekle birlikte HUD’da ve depolarda ayrı stoklanır. Kaynak sayaçları yumuşak geçişlerle değişir; artış yeşil, azalış kırmızı görünür.
 
-Martılar kıyıda uçar; balıklar ara sıra sudan kavis çizerek atlar. Balıkçı iskelesi açık denize otomatik yönelir ve köylü iskelenin ucunda çalışır; R ile başka bir açık su yönü seçilebilir.
+Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction` animasyonuyla kıyıda uçar; model ve lisans bilgileri [model künyesinde](public/models/CREDITS.txt) bulunur. balıklar ara sıra sudan kavis çizerek atlar. Balıkçı iskelesi açık denize otomatik yönelir ve köylü iskelenin ucunda çalışır; R ile başka bir açık su yönü seçilebilir.
 
 ## İş öncelikleri
 
@@ -35,3 +35,5 @@ Sesler yerel örneklerden çalınır. Kaynaklar ve lisanslar: [ses künyesi](pub
 Bu geliştirme aşamasında oyun ve cihaz denemeleri kullanıcı tarafından yapılır.
 
 İkonlar: [Font Awesome Free](https://fontawesome.com/), CC BY 4.0 / MIT. Lisanslar: [ikonlar](public/licenses/fontawesome-icons.txt), [SVG çekirdeği](public/licenses/fontawesome-core.txt).
+
+Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele dağıtılmasıyla oluşur. Kesilen ağaç devrilir, toz bulutu çıkarır ve kütükler yerçekimi, sekme, sürtünme ve birbirleriyle temasla yere yerleşir. Çalışan kütüklere yürür, eğilerek alır ve depoya taşır. Elde taşınan balık, çilek, buğday, taş ve odun ayrı modellerle görünür. Çimenler kökleri sabit kalacak şekilde farklı fazlarda rüzgârda salınır. Taşların çarpışma alanları gerçek konumlarını izler; kazma iki elle baş üstünden savrulur ve parçalar yere düşüp seker. Depo yükseltmesi kapasite önizlemesi, seviye işaretleri, sandıklar ve bildirimle gösterilir.

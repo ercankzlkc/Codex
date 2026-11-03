@@ -62,14 +62,15 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
   return geometry;
 }
 /** One small batched set of flowers, stepping stones and meadow tufts per cell. */
+export const grassTime={value:0};
 export function meadow(id:number){
   const group=new T.Group();const p=position(id);group.position.set(p.x,LAND_Y,p.z);
   const pos:number[]=[],color:number[]=[];
   function triangle(points:number[],tint:number){
     pos.push(...points);const c=new T.Color(tint);for(let i=0;i<3;i++)color.push(c.r,c.g,c.b);
   }
-  for(let j=0;j<21;j++){
-    const a=(j*2.399+id*.44),r=.59+.18*(.5+.5*Math.sin(j*12+id));
+  for(let j=0;j<42;j++){
+    const a=(j*2.399+id*.44),r=.56+Math.random()*.15;
     const x=Math.cos(a)*r,z=Math.sin(a)*r;
     const seed=(n:number)=>{const v=Math.sin(id*17.31+j*71.13+n*29.7)*43758.5453;return v-Math.floor(v)};
     const count=3+Math.floor(seed(0)*4),angle=seed(1)*Math.PI*2;
@@ -92,6 +93,12 @@ export function meadow(id:number){
     }
   }
   const geom=new T.BufferGeometry();geom.setAttribute('position',new T.Float32BufferAttribute(pos,3));geom.setAttribute('color',new T.Float32BufferAttribute(color,3));geom.computeVertexNormals();
-  group.add(new T.Mesh(geom,new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide})));return group;
+  const mat=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
+  mat.onBeforeCompile=shader=>{shader.uniforms.grassTime=grassTime;shader.vertexShader='uniform float grassTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+    float phase=position.x*31.0+position.z*23.0;
+    float bend=sin(grassTime*1.8+phase)*0.18+sin(grassTime*2.7+phase*1.7)*0.09;
+    transformed.x+=bend*position.y;transformed.z+=cos(grassTime*1.6+phase)*position.y*0.12;`)};
+  mat.customProgramCacheKey=()=>'meadow-wind';
+  group.add(new T.Mesh(geom,mat));return group;
 }
 

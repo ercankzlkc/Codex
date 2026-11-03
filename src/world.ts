@@ -6,13 +6,13 @@ import {CENTER, position, fromWorld,corner,RADIUS,adjacent} from './hex';
 import {terrainGeometry} from './scenery';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
-import { model, part, box } from './models';
+import { model, resourceModel, part, box } from './models';
 import {Game,BUILDING_SCALE,cards,type Resource,type Card,type Kind,type Production} from './game';
 import {Villagers} from './villagers';
 import type {WalkPoint} from './navigation';
 
 type Build = { id:number; group:T.Group; time:number; kind:Kind };
-type Mote = { mesh:T.Mesh; velocity:T.Vector3; life:number };
+type Mote = { mesh:T.Mesh; velocity:T.Vector3; life:number;dust?:boolean };
 type Label = { el:HTMLElement; position:T.Vector3; life:number; delay:number };
 
 function contactMaterial() {
@@ -51,6 +51,8 @@ export class World {
   private game:Game|null=null;
   private fullStores=new Map<number,HTMLElement>();
   private treeCycles=new Map<string,{id:number;tree:T.Object3D;age:number;scale:T.Vector3}>();
+  private drops=new Map<string,{group:T.Group;age:number;claimed:boolean;pieces:{mesh:T.Object3D;velocity:T.Vector3;spin:T.Vector3}[]}>();
+  private storageDecor=new Map<number,T.Group>();
   private fields=new Map<number,{stock:number;max:number;age:number}>();
   private harvestParts=new Map<string,{id:number;progress:number}>();
   private loaders=new Map<string,{id:number;el:HTMLElement;point:T.Vector3;total:number}>();
@@ -121,7 +123,7 @@ export class World {
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);
     this.villagers=new Villagers(this.scene,{
-      ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),
+      ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
       harvestProgress:(id,actor,progress)=>{const key=`${id}:${actor}`;if(progress)this.harvestParts.set(key,{id,progress});else this.harvestParts.delete(key)},
       fishingSpot:id=>this.fishingSpot(id),impact:(id,index)=>this.woodImpact(id,index),splash:(x,z)=>this.environment.stir(x,z,1,0,.45,.1),trail:points=>this.addTrail(points),deliver:(source,store,resource,amount)=>this.onDelivery(source,store,resource,amount),
@@ -168,9 +170,38 @@ export class World {
   }
   private workPoint(id:number,index:number){
     const p=position(id),g=this.buildings.get(id),tree=g?.children.find(t=>t.userData.treeIndex===index);
-    if(tree){tree.updateWorldMatrix(true,false);const v=tree.getWorldPosition(new T.Vector3());return new T.Vector3(v.x+.18,LAND_Y,v.z+.18)}
+    if(tree){tree.updateWorldMatrix(true,false);const v=tree.getWorldPosition(new T.Vector3());const stone=this.board.get(id)==='stone';return new T.Vector3(v.x+.05,LAND_Y,v.z+(stone?.38:.26))}
     const yaw=g?.rotation.y??0,x=['farm','berry'].includes(this.board.get(id)??'')?(index%2?-.18:.18):0,z=.62;
     return new T.Vector3(p.x+x*Math.cos(yaw)+z*Math.sin(yaw),LAND_Y,p.z-x*Math.sin(yaw)+z*Math.cos(yaw));
+  }
+  private obstacles(id:number){
+    const g=this.buildings.get(id);if(!g)return [];
+    return g.children.filter(t=>t.userData.treeIndex!==undefined&&t.visible&&!this.treeCycles.has(`${id}:${t.userData.treeIndex}`)).map(t=>{const p=t.getWorldPosition(new T.Vector3());return {x:p.x,z:p.z,r:this.board.get(id)==='stone'?.31:.14}});
+  }
+  private pickup(id:number,index:number,take:boolean){
+    const key=`${id}:${index}`,drop=this.drops.get(key);if(!drop||drop.claimed)return null;
+    const p=drop.group.position.clone();p.z+=.23;p.y=LAND_Y;
+    if(take){if(drop.age<1.7)return null;drop.claimed=true;this.scene.remove(drop.group);this.drops.delete(key)}
+    return p;
+  }
+  private dust(p:T.Vector3,count=18){
+    for(let i=0;i<count;i++){
+      const material=new T.MeshBasicMaterial({color:i%2?0xc4b38e:0xd5c6a6,transparent:true,opacity:.42,depthWrite:false});
+      const mesh=new T.Mesh(this.moteGeo,material);mesh.position.copy(p);mesh.position.y+=.08;this.scene.add(mesh);
+      this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.65,.12+Math.random()*.22,(Math.random()-.5)*.65),life:1.3+Math.random()*.5,dust:true});
+    }
+  }
+  upgradeStorage(id:number){
+    const g=this.buildings.get(id);if(!g||!this.game)return;
+    let decor=this.storageDecor.get(id);if(!decor){decor=new T.Group();g.add(decor);this.storageDecor.set(id,decor)}
+    decor.clear();const level=this.game.storageLevels.get(id)??1;
+    for(let i=0;i<Math.min(level-1,8);i++){
+      const x=i%2?-.47:.47,z=-.24+Math.floor(i/2)*.16;
+      box(decor,0xb38a56,x,.12,z,.19,.23,.14);box(decor,0x72533b,x,.12,z+.075,.20,.026,.018);
+    }
+    for(let i=0;i<Math.min(level,8);i++)part(decor,new T.OctahedronGeometry(.04),0xe6bd66,-.21+i*.06,.64,.34);
+    decor.userData.upgradedAt=this.time;this.burst(id);
+    const el=document.createElement('div');el.className='float bonus';el.textContent=`Depo seviye ${level} · ${this.game.storageCapacity(id)} kapasite`;this.el.append(el);this.labels.push({el,position:cellPosition(id,1.1),life:2.5,delay:0});
   }
   private harvest(id:number,resource:Resource,index:number,actor:number){
     this.harvestParts.delete(`${id}:${actor}`);
@@ -178,10 +209,20 @@ export class World {
     if(resource==='wood'||resource==='stone'){
       const key=`${id}:${index}`,tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
       if(!tree||this.treeCycles.has(key))return false;
-      this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});
+      this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});this.villagers.refreshNavigation();
+      if(resource==='wood'){
+        const group=new T.Group();group.position.copy(tree.getWorldPosition(new T.Vector3()));group.position.z-=.12;
+        const logs=resourceModel('wood');group.add(logs);logs.scale.setScalar(1.65);
+        const pieces=logs.children.map(mesh=>({mesh,velocity:new T.Vector3((Math.random()-.5)*.14,1+Math.random()*.35,(Math.random()-.5)*.14),spin:new T.Vector3(Math.random()*3,Math.random()*2,Math.random()*3)}));
+        group.visible=false;this.scene.add(group);this.drops.set(key,{group,age:0,claimed:false,pieces});
+      }
       tree.updateWorldMatrix(true,false);this.makeLoader(key,id,tree.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.5,0)),30);
     }else if(this.board.get(id)==='berry'||this.board.get(id)==='farm'||this.board.get(id)==='garden'){
       const field=this.fieldState(id);if(field.stock<=0)return false;field.stock--;
+      const p=this.workPoint(id,index);this.dust(p,6);if(this.board.get(id)==='berry'){
+        const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined)??[];
+        plants.slice(Math.floor(field.stock/field.max*plants.length),Math.ceil((field.stock+1)/field.max*plants.length)).forEach(plant=>plant.userData.hitAt=this.time);
+      }
       if(field.stock===0){field.age=0;const p=position(id);this.makeLoader(`field:${id}`,id,new T.Vector3(p.x,LAND_Y+.6,p.z),30)}
     }else if(this.board.get(id)==='fisher'&&!this.fishingSpot(id))return false;
     return true;
@@ -200,7 +241,7 @@ export class World {
     const tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);if(!tree)return;
     this.woodHits.set(tree,.20);tree.updateWorldMatrix(true,false);const p=tree.getWorldPosition(new T.Vector3());
     const stone=this.board.get(id)==='stone';
-    for(let i=0;i<(stone?7:5);i++){const mesh=new T.Mesh(this.moteGeo,stone?(i<2?this.sparkMat:this.stoneChipMat):this.moteMats[0]);mesh.scale.setScalar(.45);mesh.position.copy(p).add(new T.Vector3(0,.25,0));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.45,.35+Math.random()*.25,(Math.random()-.5)*.45),life:stone?.35:.45})}
+    for(let i=0;i<(stone?14:7);i++){const mesh=new T.Mesh(this.moteGeo,stone?(i<2?this.sparkMat:this.stoneChipMat):this.moteMats[0]);mesh.scale.setScalar(.85);mesh.position.copy(p).add(new T.Vector3(.02,.22,.16));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.9,.65+Math.random()*.55,.25+Math.random()*.65),life:stone?1.1:.7})}
   }
   private fieldState(id:number){if(!this.fields.has(id)){const max=this.board.get(id)==='farm'?4:3;this.fields.set(id,{stock:max,max,age:0})}return this.fields.get(id)!}
   private resourceReady(id:number){
@@ -417,9 +458,9 @@ export class World {
     for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
     this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
     this.loaders.forEach(l=>l.el.remove());this.loaders.clear();this.trailPoints=[];this.trailKeys.clear();this.trails.count=0;
-    this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
+    for(const d of this.drops.values())this.scene.remove(d.group);this.drops.clear();this.storageDecor.clear();this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
     for(const {el} of this.labels)el.remove();this.labels=[];
-    for(const {mesh} of this.motes)this.scene.remove(mesh);this.motes=[];
+    for(const {mesh,dust} of this.motes){this.scene.remove(mesh);if(dust)(mesh.material as T.Material).dispose()}this.motes=[];
     for(const {mesh} of this.rings){this.scene.remove(mesh);(mesh.material as T.Material).dispose()}this.rings=[];
   }
   private frame=(now:number)=>{
@@ -476,17 +517,34 @@ export class World {
       if(b.time>=BUILD_END)this.villagers.refreshNavigation();
       return b.time<BUILD_END;
     });
+    for(const [key,drop] of this.drops){
+      const id=Number(key.split(':')[0]);if(!this.board.has(id)){this.scene.remove(drop.group);this.drops.delete(key);continue}
+      const before=drop.age;drop.age+=dt;drop.group.visible=drop.age>.72;
+      if(before<=.72&&drop.age>.72)this.dust(drop.group.position,28);
+      if(drop.age>.72)for(const piece of drop.pieces){
+        piece.velocity.y-=dt*3.5;piece.mesh.position.addScaledVector(piece.velocity,dt);
+        if(piece.mesh.position.y<.035){piece.mesh.position.y=.035;piece.velocity.y=Math.abs(piece.velocity.y)*.27;piece.velocity.x*=.75;piece.velocity.z*=.75;piece.spin.multiplyScalar(.65)}
+        piece.velocity.x*=Math.exp(-dt*1.8);piece.velocity.z*=Math.exp(-dt*1.8);piece.mesh.rotation.x+=piece.spin.x*dt;piece.mesh.rotation.z+=piece.spin.z*dt;
+      }
+      for(let i=0;i<drop.pieces.length;i++)for(let j=i+1;j<drop.pieces.length;j++){
+        const a=drop.pieces[i],b=drop.pieces[j],dx=b.mesh.position.x-a.mesh.position.x,dz=b.mesh.position.z-a.mesh.position.z,d=Math.hypot(dx,dz);
+        if(d>0&&d<.07&&Math.abs(a.mesh.position.y-b.mesh.position.y)<.055){const push=(.07-d)*.5;a.mesh.position.x-=dx/d*push;b.mesh.position.x+=dx/d*push;a.mesh.position.z-=dz/d*push;b.mesh.position.z+=dz/d*push}
+      }
+      const center=position(id);
+      for(const piece of drop.pieces){const wx=drop.group.position.x+piece.mesh.position.x*1.65-center.x,wz=drop.group.position.z+piece.mesh.position.z*1.65-center.z,r=Math.hypot(wx,wz);if(r>.63){piece.mesh.position.x=(center.x+wx/r*.63-drop.group.position.x)/1.65;piece.mesh.position.z=(center.z+wz/r*.63-drop.group.position.z)/1.65;piece.velocity.x*=-.2;piece.velocity.z*=-.2}}
+    }
+    for(const decor of this.storageDecor.values()){const t=this.time-(decor.userData.upgradedAt??-99);decor.scale.setScalar(1+(t<1?Math.sin(t*Math.PI)*.13:0))}
     this.villagers.update(document.hidden?0:dt);
     this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}
     for(const [key,cycle] of this.treeCycles){
       if(!this.board.has(cycle.id)){this.updateLoader(key,99);this.treeCycles.delete(key);continue}
       cycle.age+=dt;this.updateLoader(key,cycle.age);
-      if(this.board.get(cycle.id)==='stone'&&cycle.age<.6){cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-easeBetween(cycle.age,0,.6));cycle.tree.position.y=-.08*easeBetween(cycle.age,0,.6)}
-      else if(cycle.age<.6){cycle.tree.rotation.z=easeBetween(cycle.age,0,.6)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.6)}
+      if(this.board.get(cycle.id)==='stone'&&cycle.age<.85){cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-easeBetween(cycle.age,0,.85));cycle.tree.position.y=-.08*easeBetween(cycle.age,0,.85)}
+      else if(cycle.age<.85){cycle.tree.rotation.z=easeBetween(cycle.age,0,.85)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.85)}
       else if(cycle.age<26){cycle.tree.visible=false}
       else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.position.y=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,26,30)))}
-      if(cycle.age>=30){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key)}
+      if(cycle.age>=30){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key);this.villagers.refreshNavigation()}
     }
     for(const [id,field] of this.fields){
       if(!this.board.has(id)){this.updateLoader(`field:${id}`,99);this.fields.delete(id);continue}
@@ -495,14 +553,17 @@ export class World {
       const partial=[...this.harvestParts.values()].filter(p=>p.id===id).reduce((n,p)=>n+p.progress,0);
       const available=field.stock===0?easeBetween(field.age,duration-4,duration):Math.max(0,(field.stock-partial)/field.max);
       const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined||p.userData.cropOrder!==undefined||p.userData.flowerOrder!==undefined)??[];
-      plants.forEach((plant,index)=>{const fraction=T.MathUtils.clamp(available*plants.length-index,0,1);
+      plants.forEach((plant,index)=>{const hit=this.time-(plant.userData.hitAt??-99);plant.rotation.z=hit<.55?Math.sin(hit*30)*.16*(1-hit/.55):0;const fraction=T.MathUtils.clamp(available*plants.length-index,0,1);
         if(kind==='farm')plant.scale.y=.08+.92*fraction;
         else plant.children.slice(1).forEach(fruit=>fruit.scale.setScalar(Math.max(.01,fraction)));
       });
     }
     this.motes=this.motes.filter(m=>{
-      m.life-=dt*1.65;m.velocity.y-=dt*2.7;m.mesh.position.addScaledVector(m.velocity,dt);
-      m.mesh.scale.setScalar(Math.max(0,m.life));if(m.life<=0)this.scene.remove(m.mesh);return m.life>0;
+      m.life-=dt*(m.dust?1:1.15);m.velocity.y-=dt*(m.dust?.12:2.7);m.mesh.position.addScaledVector(m.velocity,dt);
+      if(m.mesh.position.y<LAND_Y+.015){m.mesh.position.y=LAND_Y+.015;m.velocity.y=Math.abs(m.velocity.y)*.28;m.velocity.x*=.85;m.velocity.z*=.85}
+      m.mesh.scale.setScalar(m.dust?2.5+(1.8-m.life)*3:Math.max(0,Math.min(1.5,m.life)));
+      if(m.dust)(m.mesh.material as T.MeshBasicMaterial).opacity=Math.min(.42,m.life*.4);
+      if(m.life<=0){this.scene.remove(m.mesh);if(m.dust)(m.mesh.material as T.Material).dispose()}return m.life>0;
     });
     this.rings=this.rings.filter(r=>{
       r.time+=dt*1.65;r.mesh.scale.setScalar(.4+r.time*1.15);const mat=r.mesh.material as T.MeshBasicMaterial;

@@ -88,11 +88,11 @@ world.onTileSelect=i=>{
 function renderStorage(){
   const panel=get('#storage-upgrade'),id=editedTile;panel.hidden=!game.storageStocks.has(id);if(panel.hidden)return;
   const used=game.storageUsed(id),max=game.storageCapacity(id),cost=game.upgradeCost(id);
-  get('#storage-meter').textContent=`Depo ${game.storageLevels.get(id)} · ${used} / ${max}`;
+  get('#storage-meter').textContent=`Seviye ${game.storageLevels.get(id)} · ${used} / ${max} dolu`;
   const progress=get<HTMLProgressElement>('#storage-progress');progress.max=max;progress.value=used;
-  const button=get<HTMLButtonElement>('#upgrade-store');button.innerHTML=`Yükselt ${icon('wood')} ${cost}`;button.disabled=game.wood<cost;button.title=`Kapasite +${id===CENTER?80:60}`;
+  const button=get<HTMLButtonElement>('#upgrade-store');button.innerHTML=`${icon('carry')} ${max} → ${max+(id===CENTER?80:60)} kapasite <span>${icon('wood')} ${cost} · Yükselt</span>`;button.disabled=game.wood<cost;button.title=`Kapasite +${id===CENTER?80:60}`;
 }
-get('#upgrade-store').onclick=()=>{if(game.upgradeStore(editedTile)){world.burst(editedTile);renderHud();renderStorage();sound.play('build')}};
+get('#upgrade-store').onclick=()=>{if(game.upgradeStore(editedTile)){world.upgradeStorage(editedTile);renderHud();renderStorage();sound.play('build');toast(`Depo yükseltildi · Seviye ${game.storageLevels.get(editedTile)} · ${game.storageCapacity(editedTile)} kapasite`)}};
 get('[data-tile-left]').onclick=()=>world.rotateSelection(-1);
 get('[data-tile-right]').onclick=()=>world.rotateSelection(1);
 get('[data-tile-close]').onclick=()=>world.editTile(-1);
@@ -198,7 +198,8 @@ world.onInspect=(id,x,y,bounds)=>{
   else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
-  tooltip.querySelector('strong')!.textContent=id===CENTER?'Krallık merkezi':card?.name??'Yerleşim';
+  const graphic=id===CENTER?'crest':({forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
+  tooltip.querySelector('strong')!.innerHTML=`${icon(graphic)}<span>${id===CENTER?'Krallık merkezi':card?.name??'Yerleşim'}</span>`;
   tooltip.querySelector('div')!.innerHTML=lines.map(line=>`<span>${line}</span>`).join('');tooltip.hidden=false;
   const width=tooltip.offsetWidth,height=tooltip.offsetHeight,pad=14;
   let left=x+26,top=y+22;

@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
-import {terrainGeometry,meadow,LAND_Y,SEA_Y} from './scenery';
+import {terrainGeometry,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
 import {tree} from './models';
 import {Wildlife} from './wildlife';
 import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
@@ -56,7 +56,7 @@ export class Environment {
   }
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
-    const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);
+    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);
     for(const tile of this.land.values())if(tile.age<LAND_END){
       tile.age=Math.min(LAND_END,tile.age+dt);
       const progress=easeBetween(tile.age,LAND_START,LAND_END);

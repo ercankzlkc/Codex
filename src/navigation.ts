@@ -5,7 +5,7 @@ export type WalkPoint={tile:number;x:number;z:number};
 export class Walkways {
   private cache=new Map<string,boolean>();
   readonly step=.10;
-  constructor(private game:Game,private ready:(id:number)=>boolean,private yaw:(id:number)=>number){}
+  constructor(private game:Game,private ready:(id:number)=>boolean,private yaw:(id:number)=>number,private obstacles:(id:number)=>{x:number;z:number;r:number}[]=()=>[]){}
   invalidate(){this.cache.clear()}
   free(x:number,z:number){
     // A narrow walkable strip reaches the outer end of each coastal pier.
@@ -28,7 +28,7 @@ export class Walkways {
     }else if(kind==='fisher'){if(rect(-.34,.34,-.57,.16))return false}
     else if(kind==='berry'||kind==='farm'){if(rect(-.50,.50,-.57,.40,.75))return false}
     else if(kind==='garden'){if(Math.hypot(lx,lz)<.44)return false}
-    else if(kind==='forest'||kind==='stone')for(const [tx,tz] of (kind==='stone'?[[-.27,-.18],[.24,-.1],[0,.29]]:[[-.23,-.2],[.23,-.03],[-.08,.27]]))if(Math.hypot(lx-tx,lz-tz)<(kind==='stone'?.23:.14))return false;
+    else if(kind==='forest'||kind==='stone')for(const o of this.obstacles(id))if(Math.hypot(x-o.x,z-o.z)<o.r)return false;
     return true;
   }
   segment(a:{x:number;z:number},b:{x:number;z:number}){
