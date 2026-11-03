@@ -24,10 +24,14 @@ interface Gesture {
   started: boolean;
   valid: boolean;
   ghost: HTMLElement | null;
+  visualX:number;
+  visualY:number;
+  tilt:number;
+  visualTilt:number;
 }
 
 /**
- * Pointer/touch drag with a six-pixel threshold and a click/keyboard fallback.
+ * Pointer/touch drag with a four-pixel threshold and a click/keyboard fallback.
  * Capture stays on the hand, so rebuilding its card buttons during selection
  * cannot lose the gesture. Game effects happen only in the drop callback.
  */
@@ -36,6 +40,7 @@ export class CardDrag {
   private readonly listeners = new AbortController();
   private readonly settling = new Set<HTMLElement>();
   private disposed = false;
+  private animationFrame=0;
 
   constructor(
     private readonly hand: HTMLElement,
@@ -91,7 +96,7 @@ export class CardDrag {
       anchorY: Math.min(1, Math.max(0, (event.clientY - origin.top) / origin.height)),
       started: false,
       valid: false,
-      ghost: null,
+      ghost: null,visualX:event.clientX,visualY:event.clientY,tilt:0,visualTilt:0,
     };
     // Prevent native image dragging, text selection and touch scrolling.
     event.preventDefault();
@@ -103,12 +108,13 @@ export class CardDrag {
     if (!gesture || event.pointerId !== gesture.pointerId) return;
     event.preventDefault();
     if (!gesture.started) {
-      if (Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) < 6) return;
+      if (Math.hypot(event.clientX - gesture.startX, event.clientY - gesture.startY) < 4) return;
       if (!this.isAvailable(gesture.source, gesture.index)) {
         this.cancel();
         return;
       }
       gesture.started = true;
+      gesture.visualX=event.clientX;gesture.visualY=event.clientY;
       // Clone before start(): selection is allowed to rebuild the hand.
       const ghost = gesture.source.cloneNode(true) as HTMLElement;
       ghost.removeAttribute('id');
@@ -134,28 +140,42 @@ export class CardDrag {
       this.hand.querySelector<HTMLElement>(`[data-card="${gesture.index}"]`)
         ?.classList.add('drag-source');
       gesture.source.classList.add('drag-source');
+      this.follow(gesture,performance.now());
     }
     if (this.gesture !== gesture) return;
     gesture.valid = this.callbacks.move(event.clientX, event.clientY);
     gesture.ghost?.classList.toggle('drop-valid', gesture.valid);
     gesture.ghost?.classList.toggle('drop-invalid', !gesture.valid);
-    const tilt = Math.max(-9, Math.min(9, (event.clientX - gesture.lastX) * 0.35));
+    gesture.tilt = Math.max(-7, Math.min(7, (event.clientX - gesture.lastX) * 0.22));
     gesture.lastX = event.clientX;
     gesture.lastY = event.clientY;
-    if (gesture.ghost) {
-      gesture.ghost.style.transform = this.followTransform(gesture, tilt);
-    }
+
   };
 
-  private followTransform(gesture: Gesture, tilt = 0): string {
-    const x = gesture.lastX - gesture.width * gesture.anchorX;
-    const y = gesture.lastY - gesture.height * gesture.anchorY;
-    return `translate3d(${x}px, ${y}px, 0) rotate(${tilt}deg) scale(.82)`;
+  private follow(gesture:Gesture,last:number){
+    if(this.gesture!==gesture||!gesture.ghost)return;
+    const now=performance.now(),dt=Math.min(.05,Math.max(.001,(now-last)/1000));
+    const ease=1-Math.exp(-38*dt);
+    gesture.visualX+=(gesture.lastX-gesture.visualX)*ease;
+    gesture.visualY+=(gesture.lastY-gesture.visualY)*ease;
+    gesture.visualTilt+=(gesture.tilt-gesture.visualTilt)*(1-Math.exp(-22*dt));
+    gesture.tilt*=Math.exp(-12*dt);
+    gesture.ghost.style.transform=this.followTransform(gesture);
+    this.animationFrame=requestAnimationFrame(()=>this.follow(gesture,now));
+  }
+  private followTransform(gesture: Gesture): string {
+    const scale=.84;
+    const x=gesture.visualX-gesture.width*(.5+(gesture.anchorX-.5)*scale);
+    const y=gesture.visualY-gesture.height*(.5+(gesture.anchorY-.5)*scale);
+    return `translate3d(${x}px, ${y}px, 0) rotate(${gesture.visualTilt}deg) scale(${scale})`;
   }
 
   private onUp = (event: PointerEvent): void => {
     const gesture = this.gesture;
     if (!gesture || event.pointerId !== gesture.pointerId) return;
+    // A fast flick can reach pointerup before its final coalesced move event.
+    if(!gesture.started&&Math.hypot(event.clientX-gesture.startX,event.clientY-gesture.startY)>=4)this.onMove(event);
+    if(this.gesture!==gesture)return;
     // Clear state before invoking caller code, allowing safe synchronous reset.
     this.release(gesture);
     if (!gesture.started) {
@@ -172,6 +192,7 @@ export class CardDrag {
 
   private release(gesture: Gesture): void {
     this.gesture = null;
+    cancelAnimationFrame(this.animationFrame);this.animationFrame=0;
     document.body.classList.remove('is-dragging');
     gesture.source.classList.remove('drag-source');
     this.hand.querySelectorAll('.drag-source').forEach(card => card.classList.remove('drag-source'));
@@ -184,6 +205,7 @@ export class CardDrag {
     const ghost = gesture.ghost;
     if (!ghost) return;
     if(accepted){ghost.remove();return}
+    ghost.classList.remove('drop-valid','drop-invalid');
     this.settling.add(ghost);
     const currentCard = this.hand.querySelector<HTMLElement>(`[data-card="${gesture.index}"]`);
     const target = currentCard?.getBoundingClientRect() ?? gesture.origin;

@@ -88,31 +88,25 @@ void main() {
     ring=(gather*.45+outward*.65)*broken;
     arrivalFoam=(max(outward,0.)*.36+exp(-second*second*80.)*fade*.16)*broken;
   }
-  // Gentle strokes leave irregular ripples; faster strokes open a feathered V wake.
+  // Every stroke stays round. Speed controls travel, spacing and lifetime.
   float wake=0.;vec2 wakeSlope=vec2(0.);
   for(int i=0;i<12;i++){
     float elapsed=uTime-uWakes[i].z;
-    if(elapsed>=0.&&elapsed<1.65&&uWakes[i].w>0.){
+    if(elapsed>=0.&&elapsed<1.5&&uWakes[i].w>0.){
       float speed=uWakes[i].w,seed=uWakeDirs[i].w*6.28318;
       vec2 dir=uWakeDirs[i].xy;
-      vec2 delta=p-uWakes[i].xy-dir*elapsed*(.10+.32*speed);
-      vec2 local=vec2(dot(delta,dir),dot(delta,vec2(-dir.y,dir.x)));
-      float theta=atan(local.y,local.x);
-      float radius=length(local*vec2(1.+speed*.3,1.));
-      float front=radius-(.07+elapsed*(.55+.38*speed));
-      front+=.018*sin(theta*3.+seed+elapsed*3.);
-      float ripple=exp(-front*front*130.)*cos(front*30.+seed*.3);
-      float behind=-local.x;
-      float arm=abs(local.y)-behind*(.36+.25*speed);
-      float wakeLength=.28+uWakeDirs[i].z+elapsed*.30;
-      float taper=smoothstep(-.04,.08,behind)*(1.-smoothstep(wakeLength*.3,wakeLength,behind));
-      float feather=.65+.35*sin(behind*15.-elapsed*5.+seed);
-      float bow=exp(-arm*arm/(.002+.004*speed))*taper*feather;
-      float trough=exp(-pow((arm+.075)*14.,2.))*taper;
-      float shape=mix(ripple,bow-trough*.38,smoothstep(.22,.65,speed));
-      float fade=exp(-elapsed*(2.1+.3*sin(seed)))*speed;
+      vec2 delta=p-uWakes[i].xy-dir*elapsed*.12*speed;
+      float radius=length(delta),theta=atan(delta.y,delta.x);
+      float travel=.07+elapsed*(.50+1.05*speed);
+      float front=radius-travel+.009*sin(theta*3.+seed+elapsed*2.);
+      float width=.065+.035*speed;
+      float crest=exp(-pow(front/width,2.));
+      float trough=exp(-pow((front+.09)/(.085+.02*speed),2.));
+      float second=exp(-pow((radius-travel*.70-.015)/width,2.))*.30;
+      float fade=exp(-elapsed*(2.2+.4*speed))*speed;
+      float shape=crest-trough*.30+second;
       wake+=shape*fade;
-      wakeSlope+=(dir*shape*.025+vec2(-dir.y,dir.x)*sign(local.y)*shape*.055)*fade;
+      wakeSlope+=delta/max(radius,.02)*(crest-trough)*fade*.065;
     }
   }
   float seaGate=smoothstep(.06,.38,shore);

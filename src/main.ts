@@ -31,16 +31,18 @@ const thumbs=world.thumbnails();
 const sound=new TableSound();
 let game=new Game();
 let selected:Card|null=null,turnTimer:number|undefined,toastTimer:number|undefined,locked=false;
+let pendingPlacement:number|null=null;
 
 function affordable(c:Card) { return c.cost<=game.wood&&(c.id!=='festival'||game.food>=3); }
 function select(c:Card|null,carrying=false) {
+  if(!c)pendingPlacement=null;
   selected=c;get('#event-target').hidden=!c?.event;world.setSelection(c,carrying);
   hand.classList.toggle('choosing',!!c);
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{
     const active=!!c&&game.hand[Number(b.dataset.card)]===c;
     b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));
   });
-  get('.hand-label span').textContent=c?(c.event?'Adanın üzerine bırak':'Kıyıdaki bir altıgene bırak'):'Bir kartı adaya sürükle';
+  get('.hand-label span').textContent=c?(c.event?'Adanın üzerine bırak':'Kıyıya bırak · Tekerlek / R ile döndür'):'Bir kartı adaya sürükle';
 }
 function label(text:string) {
   placement.textContent=text;placement.hidden=!text;
@@ -61,19 +63,23 @@ function toast(text:string) {
   toastTimer=window.setTimeout(()=>log.classList.remove('visible'),2400);
 }
 function commit(i:number) {
-  if(!selected||locked||i<0||!world.valid(i))return false;
+  if(!selected||i<0||!world.valid(i))return false;
+  if(locked){pendingPlacement=i;world.holdSelection();label('Ada hazırlanıyor…');return true}
+  const rotation=world.placementRotation;
   const card=selected,preview=game.preview(card,i)!;
   const production=game.play(card,i);
   if(!production)return false;
   locked=true;
-  sound.sequence(!!card.event,['house','manor','store','lumber'].includes(card.id),preview.localBonus||preview.neighbors.length>0);select(null);world.sync(game.board,card.event?-1:i);
+  sound.sequence(!!card.event,['house','manor','store','lumber'].includes(card.id),preview.localBonus||preview.neighbors.length>0);select(null);world.sync(game.board,card.event?-1:i,rotation);
   if(card.event)world.burst(i);
   world.feedback(production,i,preview.neighbors);render();
   toast(game.log);
   hand.animate([{opacity:.35,transform:'translateY(17px)'},{opacity:1,transform:'translateY(0)'}],{duration:330,easing:'ease-out'});
   const settle=()=>{
     if(world.placing){turnTimer=window.setTimeout(settle,100);return}
-    locked=false;if(game.over)finish();
+    locked=false;
+    if(game.over){finish();return}
+    if(pendingPlacement!==null){const i=pendingPlacement;pendingPlacement=null;commit(i)}
   };
   clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,2000);return true;
 }
@@ -88,7 +94,7 @@ hand.addEventListener('pointerover',event=>{
   if(b&&!b.disabled&&!b.contains(event.relatedTarget as Node|null)&&!locked&&!selected)sound.play('hover');
 });
 const drag=new CardDrag(hand,{
-  canStart:i=>!locked&&!game.over&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
+  canStart:i=>pendingPlacement===null&&!game.over&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
   start:i=>{sound.play('lift');select(game.hand[i],true)},
   move:(x,y)=>world.valid(dragPosition(x,y)),
   drop:(x,y)=>commit(dragPosition(x,y)),
@@ -131,7 +137,7 @@ get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Adada yaşam</h1>
  <p>Kartı kıyıdaki boş bir altıgene bırak. Yeni kara denizden yükselir. Merkez her tur 2 odun ve bir işçiyle 4 yiyecek üretir. Anlık kartlar adanın herhangi bir hücresinde kullanılır. İstersen kartı seçip hücreye tıklayabilirsin. Esc seçimi iptal eder.</p>
  <p>Her tur önce üretim yapılır, ardından her kişi 1 yiyecek tüketir. İşçiler önce yiyecek yapılarına atanır. Kıtlık 1 nüfus ve 14 refah götürür.</p>
  <p>Komşu yapılar birbirini güçlendirir. Ormanlar oduncu kartlarını sıklaştırır. 6 nüfusta çiftlik ve büyük ev açılır. 15 tur sonunda 10 nüfus ve 50 refaha ulaş.</p>
- <p class="controls">Sağ tuş · döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · kamerayı ortala</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
+ <p class="controls">Sağ tuş · döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · kamerayı ortala<br>Kart seçiliyken tekerlek / R · döndür &nbsp; Shift + R · ters yön</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){drag.cancel();select(null)}});
 reset();
 

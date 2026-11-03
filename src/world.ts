@@ -47,6 +47,11 @@ export class World {
   private root=new T.Group();
   private buildings=new Map<number,T.Group>();
   private ghost:T.Group|null=null;
+  private ghostModel:T.Group|null=null;
+  private desiredGhostYaw=0;
+  private lastRotationWake=0;
+  private wheelRotation=0;
+  private placementQueued=false;
   private previewLand:T.Mesh|null=null;
   private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
   private readonly seaRay=new T.Raycaster();
@@ -99,12 +104,31 @@ export class World {
     canvas.addEventListener('pointerleave',()=>{this.setHover(-1);this.lastSea=null});
     canvas.addEventListener('pointermove',e=>this.stirSea(e));
     canvas.addEventListener('click',e=>{if(e.button===0&&this.selected){const i=this.point(e.clientX,e.clientY);if(i>=0)this.onPick(i)}});
+    window.addEventListener('wheel',event=>{
+      if(!this.selected||this.selected.event||document.querySelector('dialog[open]'))return;
+      event.preventDefault();event.stopImmediatePropagation();
+      const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?300:1);
+      this.wheelRotation=T.MathUtils.clamp(this.wheelRotation+delta,-240,240);
+      const steps=Math.trunc(this.wheelRotation/60);
+      if(steps){this.wheelRotation-=steps*60;this.rotateSelection(steps)}
+    },{capture:true,passive:false});
+    window.addEventListener('keydown',event=>{
+      if(event.key.toLowerCase()!=='r'||event.repeat||event.ctrlKey||event.metaKey||event.altKey||document.querySelector('dialog[open]'))return;
+      if(event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable]'))return;
+      if(this.selected&&!this.selected.event){event.preventDefault();this.rotateSelection(event.shiftKey?-1:1)}
+    });
     this.renderer.setAnimationLoop(this.frame);
   }
 
+  holdSelection(){this.placementQueued=true;this.cameraControl.setPlacement(false)}
+  get placementRotation(){return this.desiredGhostYaw}
+  rotateSelection(steps:number){
+    if(this.selected&&!this.selected.event)this.desiredGhostYaw+=steps*Math.PI/3;
+  }
   get placing(){return this.builds.length>0}
 
   point(x:number,y:number) {
+    if(this.placementQueued)return this.hover;
     // Pointer capture delivers the gesture even over HUD. Only the visible sea/land is playable.
     const hit=document.elementFromPoint(x,y);
     const i=hit===this.renderer.domElement?this.grid.pick(x,y,this.cameraControl.camera,this.el):-1;
@@ -150,13 +174,15 @@ export class World {
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {
+    const same=!!card&&card===this.selected;
+    const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
     this.cameraControl.setPlacement(carrying);
     if(this.previewLand){this.previewLand.geometry.dispose();this.previewLand=null}
     if(this.ghost){this.scene.remove(this.ghost);this.ghost=null}
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
-    this.selected=card;
+    this.selected=card;this.placementQueued=false;this.ghostModel=null;this.desiredGhostYaw=targetYaw;this.wheelRotation=0;
     if(card){
-      this.ghost=model(card.id);this.ghost.scale.setScalar(.70);
+      this.ghost=new T.Group();this.ghostModel=model(card.id);this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);this.ghost.scale.setScalar(.70);
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
         const mat=(o.material as T.MeshStandardMaterial).clone();
         this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.72;mat.depthWrite=false;
@@ -166,7 +192,7 @@ export class World {
     }
     this.grid.showAvailable(!!card&&!card.event,this.valid);this.setHover(-1,true);
   }
-  sync(board:ReadonlyMap<number,Kind>,placed=-1) {
+  sync(board:ReadonlyMap<number,Kind>,placed=-1,rotation=0) {
     const opening=this.buildings.size===0;
     this.board=board;
     if(opening||placed>=0){
@@ -187,7 +213,7 @@ export class World {
       const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
+      if(i===placed){g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
   }
   private pulse(i:number,color:number) {
@@ -223,7 +249,18 @@ export class World {
   private frame=(now:number)=>{
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
     this.cameraControl.update(dt);this.environment.update(this.time);
-    if(this.ghost?.visible)this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-28*dt));
+    if(this.ghost?.visible){
+      this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-32*dt));
+      if(this.ghostModel){
+        const difference=this.desiredGhostYaw-this.ghostModel.rotation.y;
+        this.ghostModel.rotation.y+=difference*(1-Math.exp(-16*dt));
+        if(Math.abs(difference)>.025&&this.time-this.lastRotationWake>.05&&this.valid(this.hover)){
+          const angle=this.ghostModel.rotation.y,sign=Math.sign(difference),p=this.ghost.position;
+          this.environment.stir(p.x+Math.cos(angle)*.68,p.z+Math.sin(angle)*.68,-Math.sin(angle)*sign,Math.cos(angle)*sign,.32,.10);
+          this.lastRotationWake=this.time;
+        }
+      }
+    }
     this.builds=this.builds.filter(b=>{
       const previous=b.time;
       b.time=Math.min(BUILD_END,b.time+dt);
