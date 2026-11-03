@@ -66,7 +66,7 @@ function commit(i:number) {
   const production=game.play(card,i);
   if(!production)return false;
   locked=true;
-  sound.sequence(!!card.event,['house','manor','store','lumber'].includes(card.id),preview.localBonus||preview.neighbors.length>0);select(null);world.sync(game.board,card.event?-1:i,rotation);
+  sound.sequence(card.id,preview.localBonus);select(null);world.sync(game.board,card.event?-1:i,rotation);
   if(card.event)world.burst(i);
   render();
   toast(card.event?`${card.name} uygulandı`:`${card.name} · yerleşim hazırlanıyor`);

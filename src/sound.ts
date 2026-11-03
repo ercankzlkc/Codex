@@ -1,4 +1,6 @@
 import * as T from 'three';
+import type { Kind } from './game';
+import { BUILD_START, BUILD_END, LAND_START } from './emergence';
 
 type Bus='master'|'sfx'|'ambience';
 const cues={
@@ -18,7 +20,8 @@ export class TableSound {
   private buses:Partial<Record<Bus,GainNode>>={};
   private wave:HTMLAudioElement|null=null;
   private clips=new Map<string,AudioBuffer>();
-  private live=new Set<AudioBufferSourceNode>();
+  private live=new Set<AudioScheduledSourceNode>();
+  private noise:AudioBuffer|null=null;
   private pending=new Set<number>();
   private lastHover=0;
   private birdVoice:BirdVoice|null=null;
@@ -71,7 +74,7 @@ export class TableSound {
     if(this.wave?.paused&&!this.muted&&!document.hidden&&this.levels.ambience*this.levels.master>0)void this.wave.play().catch(()=>{});
   }
   set(bus:Bus,value:number){this.levels[bus]=clamp(value);this.apply();this.save()}
-  toggle(){this.muted=!this.muted;this.apply();this.save()}
+  toggle(){this.muted=!this.muted;if(this.muted)this.cancel();this.apply();this.save()}
   private save(){try{localStorage.setItem('lk-audio-v2',JSON.stringify({...this.levels,muted:this.muted}))}catch{}}
   private apply(){
     if(!this.ctx)return;
@@ -173,12 +176,94 @@ export class TableSound {
     player.connect(gain).connect(this.buses.sfx!);player.onended=()=>{this.live.delete(player);player.disconnect();gain.disconnect()};
     this.live.add(player);player.start();
   }
-  sequence(event:boolean,wooden:boolean,bonus:boolean){
-    this.cancel();this.play('drop');
-    const later=(cue:Cue,delay:number)=>{const token=window.setTimeout(()=>{this.pending.delete(token);this.play(cue)},delay);this.pending.add(token)};
-    if(!event)later('earth',145);
-    if(wooden)later('build',325);
-    later(bonus?'bonus':'reward',520);later('turn',855);
+  /** Every placed material has a short, soft voice on the existing effects bus. */
+  private canVoice(){
+    return !!this.ctx&&this.ctx.state==='running'&&!this.muted&&!document.hidden&&
+      this.levels.master>0&&this.levels.sfx>0&&this.live.size<8;
   }
-  cancel(){for(const token of this.pending)clearTimeout(token);this.pending.clear()}
+  private trackVoice(source:AudioScheduledSourceNode,nodes:AudioNode[]){
+    this.live.add(source);
+    source.onended=()=>{this.live.delete(source);source.disconnect();for(const node of nodes)node.disconnect()};
+  }
+  private note(frequency:number,volume:number,duration=.18,delay=0,fall=1){
+    if(!this.canVoice())return;
+    const ctx=this.ctx!,now=ctx.currentTime+delay,voice=ctx.createOscillator(),gain=ctx.createGain();
+    voice.type='sine';voice.frequency.setValueAtTime(frequency,now);
+    voice.frequency.exponentialRampToValueAtTime(Math.max(30,frequency*fall),now+duration);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(volume,now+.012);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
+    voice.connect(gain).connect(this.buses.sfx!);this.trackVoice(voice,[gain]);
+    voice.start(now);voice.stop(now+duration+.025);
+  }
+  private rustle(frequency:number,volume:number,duration=.26,delay=0){
+    if(!this.canVoice())return;
+    const ctx=this.ctx!,now=ctx.currentTime+delay;
+    if(!this.noise){
+      this.noise=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*.6),ctx.sampleRate);
+      const data=this.noise.getChannelData(0);
+      for(let i=0;i<data.length;i++)data[i]=Math.random()*2-1;
+    }
+    const voice=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
+    voice.buffer=this.noise;voice.playbackRate.value=.94+Math.random()*.12;
+    filter.type='bandpass';filter.frequency.value=frequency;filter.Q.value=.45;
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(volume,now+.025);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+duration);
+    voice.connect(filter).connect(gain).connect(this.buses.sfx!);
+    this.trackVoice(voice,[filter,gain]);voice.start(now,Math.random()*.06,duration);voice.stop(now+duration+.03);
+  }
+  private material(kind:Kind){
+    const pitch=.97+Math.random()*.06;
+    switch(kind){
+      case 'forest':
+        this.rustle(1250,.105,.36);this.rustle(1900,.045,.25,.10);break;
+      case 'berry':
+        this.rustle(1650,.065,.23);this.note(420*pitch,.035,.14,.06,1.25);break;
+      case 'farm':
+        this.rustle(950,.09,.34);this.rustle(1500,.035,.24,.12);break;
+      case 'garden':
+        this.rustle(2200,.06,.32);this.note(660*pitch,.023,.22,.08);break;
+      case 'stone':
+        this.note(185*pitch,.09,.13,0,.63);this.rustle(650,.06,.10);
+        this.note(310*pitch,.045,.09,.08,.68);break;
+      case 'fisher':
+        this.play('build');this.note(330*pitch,.065,.17,.08,1.65);
+        this.note(470*pitch,.035,.12,.20,1.4);break;
+      case 'house':
+        this.play('build');this.note(220*pitch,.035,.14,0,.72);break;
+      case 'manor':
+        this.play('build');this.note(150*pitch,.05,.20,0,.72);
+        this.note(240*pitch,.025,.12,.10,.8);break;
+      case 'lumber':
+        this.play('build');this.note(260*pitch,.045,.10,0,.65);
+        this.note(210*pitch,.035,.11,.10,.7);break;
+      case 'store':
+        this.play('build');this.note(175*pitch,.045,.17,0,.7);
+        this.note(350*pitch,.023,.09,.09,.75);break;
+      case 'festival':
+        this.note(523.25*pitch,.055,.24);this.note(659.25*pitch,.045,.25,.11);
+        this.note(783.99*pitch,.035,.30,.22);break;
+      case 'harvest':
+        this.rustle(1100,.085,.30);this.note(392*pitch,.045,.17,.06);
+        this.note(523.25*pitch,.035,.22,.18);break;
+    }
+  }
+  sequence(kind:Kind,bonus:boolean){
+    this.cancel();this.play('drop');
+    const later=(action:()=>void,delay:number)=>{
+      const token=window.setTimeout(()=>{this.pending.delete(token);action()},delay);
+      this.pending.add(token);
+    };
+    if(kind==='festival'||kind==='harvest'){this.material(kind);return}
+    // The land rises first; its material voice follows the visible building.
+    later(()=>this.play('earth'),LAND_START*1000);
+    later(()=>this.material(kind),(BUILD_START+.2)*1000);
+    if(bonus)later(()=>this.note(587.33,.025,.24),BUILD_END*1000);
+  }
+  cancel(){
+    for(const token of this.pending)clearTimeout(token);this.pending.clear();
+    for(const source of this.live){try{source.stop()}catch{/* A voice may already have ended. */}}
+    this.live.clear();
+  }
 }
+
+
