@@ -1,6 +1,6 @@
 # Proje tercihleri
 
-- Commit başlıklarını ve açıklamalarını Türkçe yaz.
+- Commit başlıklarını ve açıklamalarını Türkçe yaz. Açıklama gövdesinde yapılan somut değişiklikleri kısa ve anlamlı maddelerle anlat; gereksiz maddeler ekleme.
 - Kaynak ve yayın depolarında yerel Git kimliğini `ercankzlkc <ercankzlkc@users.noreply.github.com>` olarak ayarla.
 - Steam/masaüstüne odaklan; kullanıcı istemedikçe mobil çalışma yapma.
 - Oyun, tarayıcı ve otomatik testleri kullanıcı yapar. İstenmedikçe çalıştırma; yayın için gereken derlemeyi al: `npm run build -- --base=/Codex/`.

@@ -71,8 +71,18 @@ export function meadow(id:number){
   for(let j=0;j<21;j++){
     const a=(j*2.399+id*.44),r=.59+.18*(.5+.5*Math.sin(j*12+id));
     const x=Math.cos(a)*r,z=Math.sin(a)*r;
-    for(let n=0;n<3;n++){const dx=x+n*.019;
-      triangle([dx,.003,z,dx+.033,.003,z-.009,dx+.04,.05+n*.013,z+.01],n%2?0x8ba466:0x839b63);
+    const seed=(n:number)=>{const v=Math.sin(id*17.31+j*71.13+n*29.7)*43758.5453;return v-Math.floor(v)};
+    const count=3+Math.floor(seed(0)*4),angle=seed(1)*Math.PI*2;
+    const palette=[0x73965e,0x86a86b,0x9bb97b,0xb1c88a,0x7fa56c];
+    for(let n=0;n<count;n++){
+      const heading=angle+(seed(n+2)-.5)*2.4,ux=Math.cos(heading),uz=Math.sin(heading);
+      const bx=x+(seed(n+20)-.5)*.06,bz=z+(seed(n+40)-.5)*.06;
+      const height=.035+seed(n+60)*.07,width=.009+seed(n+80)*.008,lean=.012+seed(n+100)*.035;
+      const mx=bx+ux*lean*.3,mz=bz+uz*lean*.3,tx=bx+ux*lean,tz=bz+uz*lean;
+      const tint=palette[Math.floor(seed(n+120)*palette.length)];
+      triangle([bx-uz*width,.004,bz+ux*width,bx+uz*width,.004,bz-ux*width,mx+uz*width*.55,height*.55,mz-ux*width*.55],tint);
+      triangle([bx-uz*width,.004,bz+ux*width,mx+uz*width*.55,height*.55,mz-ux*width*.55,mx-uz*width*.55,height*.55,mz+ux*width*.55],tint);
+      triangle([mx-uz*width*.55,height*.55,mz+ux*width*.55,mx+uz*width*.55,height*.55,mz-ux*width*.55,tx,height,tz],tint);
     }
     if(j%4===0){
       triangle([x-.025,.054,z+.012,x+.027,.053,z,x,.083,z-.014],j%2?0xf4d590:0xf1ebc5);

@@ -54,7 +54,15 @@ export class Villagers {
     const axe=new T.Group();box(axe,0x8b6947,0,-.13,.04,.022,.19,.022);box(axe,0x9faeaa,.025,-.19,.04,.09,.045,.025);arms[0].add(axe);axe.visible=false;
     const rod=new T.Group();rod.position.set(0,-.12,0);box(rod,0x84684b,0,.28,0,.013,.58,.013);rod.rotation.x=1.0;arms[0].add(rod);rod.visible=false;
     const line=new T.Line(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(36),3)),new T.LineBasicMaterial({color:0xe2e5d1,transparent:true,opacity:.8}));line.frustumCulled=false;line.visible=false;
-    const bobber=new T.Mesh(new T.SphereGeometry(.024,6,4),new T.MeshBasicMaterial({color:0xe7ad74}));bobber.visible=false;
+    const floatGeometry=new T.SphereGeometry(.032,12,12).toNonIndexed(),floatColors:number[]=[];
+    const floatPositions=floatGeometry.getAttribute('position');
+    for(let i=0;i<floatPositions.count;i+=3){
+      const y=(floatPositions.getY(i)+floatPositions.getY(i+1)+floatPositions.getY(i+2))/3;
+      const tint=new T.Color(Math.floor((y+.032)/.016)%2===0?0xe45c50:0xfff5df);
+      for(let j=0;j<3;j++)floatColors.push(tint.r,tint.g,tint.b);
+    }
+    floatGeometry.scale(.85,1.25,.85);floatGeometry.setAttribute('color',new T.Float32BufferAttribute(floatColors,3));
+    const bobber=new T.Mesh(floatGeometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.55}));bobber.visible=false;
     const fish=new T.Group(),belly=ball(fish,0x94babb,0,0,0,.055);belly.scale.set(.55,.7,1.6);const tail=partFishTail();fish.add(tail);fish.visible=false;
     root.position.set(free.x,LAND_Y,free.z);root.rotation.y=yaw+Math.PI;
     const status=document.createElement('div');status.className='citizen-status';status.setAttribute('role','img');this.overlay.append(status);
