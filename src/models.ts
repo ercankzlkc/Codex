@@ -49,6 +49,7 @@ function fishingHut(){
   box(g,0xc9b78f,-.27,.14,.03,.13,.25,.15);return g;
 }
 export function model(kind: Kind): T.Group {
+  if(kind==='stone'){if(!templates.has(kind)){const g=new T.Group();for(let i=0;i<3;i++){const rock=new T.Group();rock.userData.treeIndex=i;rock.position.set([-.27,.24,0][i],0,[-.18,-.1,.29][i]);const m=ball(rock,[0x8c9a99,0xa5afa5,0x7c8e8b][i],0,.13,0,.23);m.scale.set(1,.85,1.05);ball(rock,0xc7c3a4,.08,.23,.05,.055);g.add(rock)}templates.set(kind,g)}return templates.get(kind)!.clone()}
   if(kind==='garden'){if(!templates.has(kind))templates.set(kind,flowerGarden());return templates.get(kind)!.clone()}
   if(kind==='fisher'||kind==='farm'){
     if(!templates.has(kind))templates.set(kind,kind==='fisher'?fishingHut():wheatPlot());

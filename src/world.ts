@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {icon} from './icons';
 import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld,corner,RADIUS,adjacent} from './hex';
@@ -6,7 +7,7 @@ import {terrainGeometry} from './scenery';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, part, box } from './models';
-import {Game,STORAGE_RADIUS,BUILDING_SCALE,hexDistance,cards,type Resource,type Card,type Kind,type Production} from './game';
+import {Game,BUILDING_SCALE,cards,type Resource,type Card,type Kind,type Production} from './game';
 import {Villagers} from './villagers';
 import type {WalkPoint} from './navigation';
 
@@ -48,20 +49,17 @@ export class World {
   readonly environment:Environment;
   readonly villagers:Villagers;
   private game:Game|null=null;
-  private readonly storageRange=new T.Group();
+  private fullStores=new Map<number,HTMLElement>();
   private treeCycles=new Map<string,{id:number;tree:T.Object3D;age:number;scale:T.Vector3}>();
   private fields=new Map<number,{stock:number;max:number;age:number}>();
   private harvestParts=new Map<string,{id:number;progress:number}>();
   private loaders=new Map<string,{id:number;el:HTMLElement;point:T.Vector3;total:number}>();
-  private readonly coveredTiles=new T.Group();
-  private readonly coverageGeo=new T.CircleGeometry(RADIUS*.90,6,Math.PI/2).rotateX(-Math.PI/2);
-  private readonly coverageFill=new T.MeshBasicMaterial({color:0xd4edaa,transparent:true,opacity:.11,depthWrite:false,depthTest:false,side:T.DoubleSide});
-  private readonly coverageLine=new T.LineBasicMaterial({color:0xf6edbd,transparent:true,opacity:.85,depthWrite:false,depthTest:false});
-  private readonly coverageRim=new T.BufferGeometry().setFromPoints(Array.from({length:6},(_,i)=>{const p=corner(i,RADIUS*.94);return new T.Vector3(p.x,0,p.z)}));
   private readonly trails=new T.InstancedMesh(new T.CircleGeometry(.055,5).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:0xccbc95,transparent:true,opacity:.42,depthWrite:false}),8000);
   private trailPoints:{tile:number;x:number;z:number}[]=[];
   private trailKeys=new Set<string>();
   private fisherOffset=0;
+  private sparkMat=new T.MeshBasicMaterial({color:0xffdc8a});
+  private stoneChipMat=new T.MeshStandardMaterial({color:0x99a6a0,roughness:1});
   private woodHits=new Map<T.Object3D,number>();
   private root=new T.Group();
   private buildings=new Map<number,T.Group>();
@@ -71,6 +69,8 @@ export class World {
   private ghost:T.Group|null=null;
   private ghostModel:T.Group|null=null;
   private desiredGhostYaw=0;
+  private ghostManualCell=-1;
+  private placedManualCell=-1;
   private lastRotationWake=0;
   private wheelRotation=0;
   private placementQueued=false;
@@ -126,10 +126,7 @@ export class World {
       harvestProgress:(id,actor,progress)=>{const key=`${id}:${actor}`;if(progress)this.harvestParts.set(key,{id,progress});else this.harvestParts.delete(key)},
       fishingSpot:id=>this.fishingSpot(id),impact:(id,index)=>this.woodImpact(id,index),splash:(x,z)=>this.environment.stir(x,z,1,0,.45,.1),trail:points=>this.addTrail(points),deliver:(source,store,resource,amount)=>this.onDelivery(source,store,resource,amount),
     },this.el);
-    const radius=RADIUS*Math.sqrt(3)*STORAGE_RADIUS+.55;
-    const fill=new T.Mesh(new T.CircleGeometry(radius,6).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:0xf4db99,transparent:true,opacity:.065,depthWrite:false,side:T.DoubleSide}));
-    const outline=new T.LineLoop(new T.BufferGeometry().setFromPoints(Array.from({length:6},(_,i)=>new T.Vector3(Math.cos(i*Math.PI/3)*radius,0,Math.sin(i*Math.PI/3)*radius))),new T.LineBasicMaterial({color:0xffe7ac,transparent:true,opacity:.75,depthWrite:false}));
-    this.storageRange.add(fill,outline);this.storageRange.visible=false;this.scene.add(this.storageRange,this.coveredTiles,this.trails);
+    this.scene.add(this.trails);
     this.trails.count=0;this.trails.frustumCulled=false;
 
     this.grid=new PlacementGrid(this.scene);
@@ -178,7 +175,7 @@ export class World {
   private harvest(id:number,resource:Resource,index:number,actor:number){
     this.harvestParts.delete(`${id}:${actor}`);
     if(!this.ready(id))return false;
-    if(resource==='wood'){
+    if(resource==='wood'||resource==='stone'){
       const key=`${id}:${index}`,tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
       if(!tree||this.treeCycles.has(key))return false;
       this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});
@@ -189,24 +186,26 @@ export class World {
     }else if(this.board.get(id)==='fisher'&&!this.fishingSpot(id))return false;
     return true;
   }
-  showStorageRange(id:number,preview=false){
-    const show=id>=0&&(preview||id===CENTER||this.board.get(id)==='store');this.storageRange.visible=show;this.coveredTiles.clear();
-    if(!show)return;
-    const range=id===CENTER&&!preview?2:STORAGE_RADIUS,p=position(id);this.storageRange.position.set(p.x,LAND_Y+.025,p.z);this.storageRange.scale.setScalar(range/STORAGE_RADIUS);
-    for(const cell of new Set([...this.board.keys(),...(preview?[id]:[])]))if(hexDistance(id,cell)<=range){
-      const p=position(cell),root=new T.Group();root.position.set(p.x,LAND_Y+.045,p.z);
-      const fill=new T.Mesh(this.coverageGeo,this.coverageFill),rim=new T.LineLoop(this.coverageRim,this.coverageLine);fill.renderOrder=8;rim.renderOrder=9;root.add(fill,rim);this.coveredTiles.add(root);
+  private updateStorageLabels(){
+    const game=this.game;if(!game)return;
+    const camera=this.cameraControl.camera,pixels=this.el.clientHeight/((camera.top-camera.bottom)/camera.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);
+    for(const [id,el] of this.fullStores)if(!game.storageStocks.has(id)||game.storageFree(id)>0){el.remove();this.fullStores.delete(id)}
+    for(const id of game.storageStocks.keys()){
+      if(game.storageFree(id)>0||!this.ready(id))continue;
+      let el=this.fullStores.get(id);if(!el){el=document.createElement('div');el.className='storage-full';el.innerHTML=`${icon('full')}<span>Depo dolu</span>`;el.setAttribute('role','status');this.el.append(el);this.fullStores.set(id,el)}
+      const p=this.screenPoint(id,1.1);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;el.style.opacity=String(fade);el.style.setProperty('--status-scale',String(.35+.65*fade));el.hidden=fade<.01;
     }
   }
   private woodImpact(id:number,index:number){
     const tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);if(!tree)return;
     this.woodHits.set(tree,.20);tree.updateWorldMatrix(true,false);const p=tree.getWorldPosition(new T.Vector3());
-    for(let i=0;i<3;i++){const mesh=new T.Mesh(this.moteGeo,this.moteMats[0]);mesh.scale.setScalar(.45);mesh.position.copy(p).add(new T.Vector3(0,.25,0));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.45,.35+Math.random()*.25,(Math.random()-.5)*.45),life:.3})}
+    const stone=this.board.get(id)==='stone';
+    for(let i=0;i<(stone?7:5);i++){const mesh=new T.Mesh(this.moteGeo,stone?(i<2?this.sparkMat:this.stoneChipMat):this.moteMats[0]);mesh.scale.setScalar(.45);mesh.position.copy(p).add(new T.Vector3(0,.25,0));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.45,.35+Math.random()*.25,(Math.random()-.5)*.45),life:stone?.35:.45})}
   }
   private fieldState(id:number){if(!this.fields.has(id)){const max=this.board.get(id)==='farm'?4:3;this.fields.set(id,{stock:max,max,age:0})}return this.fields.get(id)!}
   private resourceReady(id:number){
     const kind=this.board.get(id);
-    return kind==='forest'?this.pickTree(id,0)>=0:kind==='berry'||kind==='farm'||kind==='garden'?this.fieldState(id).stock>0:kind==='fisher'?!!this.fishingSpot(id):true;
+    return (kind==='forest'||kind==='stone')?this.pickTree(id,0)>=0:kind==='berry'||kind==='farm'||kind==='garden'?this.fieldState(id).stock>0:kind==='fisher'?!!this.fishingSpot(id):true;
   }
   private coastalYaw(id:number,current=0,steps=0){
     const p=position(id),open=adjacent(id).filter(n=>!this.board.has(n)).map(n=>{const q=position(n);return Math.atan2(q.x-p.x,q.z-p.z)});
@@ -221,12 +220,16 @@ export class World {
       }
       return value;
     }
-    const angle=open.sort((a,b)=>Math.abs(delta(a,current))-Math.abs(delta(b,current)))[0];return current+delta(angle,current);
+    const points=[...this.board.keys()].map(position),center=points.reduce((v,q)=>({x:v.x+q.x/points.length,z:v.z+q.z/points.length}),{x:0,z:0});
+    const score=(a:number)=>{const x=p.x+Math.sin(a)*2.8,z=p.z+Math.cos(a)*2.8;return Math.min(...points.map(q=>Math.hypot(x-q.x,z-q.z)))+Math.hypot(x-center.x,z-center.z)*.15};
+    const angle=open.sort((a,b)=>score(b)-score(a)||Math.abs(delta(a,current))-Math.abs(delta(b,current)))[0];return current+delta(angle,current);
   }
   private alignFisheries(){
     for(const [id,kind] of this.board)if(kind==='fisher'){
       const g=this.buildings.get(id);if(!g)continue;
-      const current=this.rotationTargets.get(id)??g.rotation.y,target=this.coastalYaw(id,current);
+      const current=this.rotationTargets.get(id)??g.rotation.y;
+      if(g.userData.manualCoast){const p=position(id);if(!this.board.has(fromWorld(p.x+Math.sin(current)*1.75,p.z+Math.cos(current)*1.75)))continue;g.userData.manualCoast=false}
+      const target=this.coastalYaw(id,current);
       if(Math.abs(target-current)>.01)this.rotationTargets.set(id,target);
     }
   }
@@ -234,7 +237,7 @@ export class World {
     const g=this.buildings.get(id);if(!g||this.board.get(id)!=='fisher'||!this.ready(id))return null;
     const p=position(id),yaw=this.rotationTargets.get(id)??g.rotation.y,dx=Math.sin(yaw),dz=Math.cos(yaw),water=new T.Vector3(p.x+dx*1.75,SEA_Y+.03,p.z+dz*1.75);
     if(this.board.has(fromWorld(water.x,water.z)))return null;
-    return {stand:new T.Vector3(p.x+dx*.70,LAND_Y,p.z+dz*.70),water};
+    return {stand:new T.Vector3(p.x+dx*.94,LAND_Y,p.z+dz*.94),water};
   }
   private makeLoader(key:string,id:number,point:T.Vector3,total:number){
     this.loaders.get(key)?.el.remove();const el=document.createElement('div');el.className='regrowth-loader';el.innerHTML='<i></i><span></span>';el.setAttribute('aria-label','Yeniden büyüyor');this.el.append(el);this.loaders.set(key,{id,el,point,total});
@@ -242,7 +245,8 @@ export class World {
   private updateLoader(key:string,age:number){
     const loader=this.loaders.get(key);if(!loader)return;
     if(!this.board.has(loader.id)||age>=loader.total){loader.el.remove();this.loaders.delete(key);return}
-    const p=loader.point.clone().project(this.cameraControl.camera);loader.el.style.left=`${(p.x+1)*this.el.clientWidth/2}px`;loader.el.style.top=`${(1-p.y)*this.el.clientHeight/2}px`;
+    const camera=this.cameraControl.camera,pixels=this.el.clientHeight/((camera.top-camera.bottom)/camera.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);loader.el.style.opacity=String(fade);loader.el.hidden=fade<.01;
+    const p=loader.point.clone().project(camera);loader.el.style.left=`${(p.x+1)*this.el.clientWidth/2}px`;loader.el.style.top=`${(1-p.y)*this.el.clientHeight/2}px`;
     loader.el.style.setProperty('--progress',`${age/loader.total*360}deg`);loader.el.querySelector('span')!.textContent=`${Math.ceil(loader.total-age)}s`;
   }
   private addTrail(points:WalkPoint[]){
@@ -267,18 +271,18 @@ export class World {
   }
 
   holdSelection(){this.placementQueued=true;this.cameraControl.setPlacement(false)}
-  get placementRotation(){return this.desiredGhostYaw}
+  get placementRotation(){this.placedManualCell=this.ghostManualCell;return this.desiredGhostYaw}
   rotateSelection(steps:number){
     this.lastRotationWake=this.time-.06;this.villagers.refreshNavigation();
-    if(this.selected&&!this.selected.event){this.desiredGhostYaw=this.selected.id==='fisher'&&this.hover>=0?this.coastalYaw(this.hover,this.desiredGhostYaw,steps):this.desiredGhostYaw+steps*Math.PI/3}
+    if(this.selected&&!this.selected.event){if(this.selected.id==='fisher')this.ghostManualCell=this.hover;this.desiredGhostYaw=this.selected.id==='fisher'&&this.hover>=0?this.coastalYaw(this.hover,this.desiredGhostYaw,steps):this.desiredGhostYaw+steps*Math.PI/3}
     else if(this.editing>=0&&!this.placing){
-      const g=this.buildings.get(this.editing);if(g){const current=this.rotationTargets.get(this.editing)??g.rotation.y;this.rotationTargets.set(this.editing,this.board.get(this.editing)==='fisher'?this.coastalYaw(this.editing,current,steps):current+steps*Math.PI/3)}
+      const g=this.buildings.get(this.editing);if(g){if(this.board.get(this.editing)==='fisher')g.userData.manualCoast=true;const current=this.rotationTargets.get(this.editing)??g.rotation.y;this.rotationTargets.set(this.editing,this.board.get(this.editing)==='fisher'?this.coastalYaw(this.editing,current,steps):current+steps*Math.PI/3)}
     }
   }
   get placing(){return this.builds.length>0||this.demolitions.length>0}
   editTile(id:number){
     this.editing=id;this.wheelRotation=0;
-    this.grid.setHover(id,true,id>=0);this.showStorageRange(id);this.onTileSelect(id);
+    this.grid.setHover(id,true,id>=0);this.onTileSelect(id);
   }
   demolish(board:ReadonlyMap<number,Kind>,id:number){
     const group=this.buildings.get(id);if(!group)return;
@@ -317,7 +321,7 @@ export class World {
       const wasVisible=this.ghost.visible;
       this.ghost.visible=i>=0;
       if(i>=0){
-        if(this.selected?.id==='fisher')this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
+        if(this.selected?.id==='fisher'&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
         this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.035:LAND_Y+.025));
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
         this.ghostPalette.forEach(({mat,base})=>{
@@ -333,10 +337,10 @@ export class World {
       this.previewLand.position.y=-LAND_Y-.025/.70;
       this.previewLand.receiveShadow=true;this.ghost.add(this.previewLand);
     }
-    if(this.selected?.id==='store')this.showStorageRange(valid?i:-1,true);
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {
+    this.ghostManualCell=-1;
     this.editTile(-1);this.onInspect(-1,0,0,null);
     const same=!!card&&card===this.selected;
     const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
@@ -382,10 +386,9 @@ export class World {
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.scale.setScalar(['house','manor','store','lumber','fisher'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
+      if(i===placed){if(kind==='fisher'&&this.placedManualCell===i)g.userData.manualCoast=true;g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
     this.alignFisheries();
-    if(placed>=0&&board.get(placed)==='store')this.showStorageRange(placed);
   }
   private pulse(i:number,color:number) {
     const material=new T.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false});
@@ -411,6 +414,7 @@ export class World {
     });
   }
   reset(){
+    for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
     this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
     this.loaders.forEach(l=>l.el.remove());this.loaders.clear();this.trailPoints=[];this.trailKeys.clear();this.trails.count=0;
     this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
@@ -473,14 +477,15 @@ export class World {
       return b.time<BUILD_END;
     });
     this.villagers.update(document.hidden?0:dt);
-    this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);
+    this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}
     for(const [key,cycle] of this.treeCycles){
       if(!this.board.has(cycle.id)){this.updateLoader(key,99);this.treeCycles.delete(key);continue}
       cycle.age+=dt;this.updateLoader(key,cycle.age);
-      if(cycle.age<.6){cycle.tree.rotation.z=easeBetween(cycle.age,0,.6)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.6)}
+      if(this.board.get(cycle.id)==='stone'&&cycle.age<.6){cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-easeBetween(cycle.age,0,.6));cycle.tree.position.y=-.08*easeBetween(cycle.age,0,.6)}
+      else if(cycle.age<.6){cycle.tree.rotation.z=easeBetween(cycle.age,0,.6)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.6)}
       else if(cycle.age<26){cycle.tree.visible=false}
-      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,26,30)))}
+      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.position.y=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,26,30)))}
       if(cycle.age>=30){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key)}
     }
     for(const [id,field] of this.fields){

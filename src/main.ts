@@ -1,23 +1,11 @@
 import './style.css';
 import {CENTER} from './hex';
-import {Game,cards,STORAGE_RADIUS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card} from './game';
+import {Game,cards,WORK_CATEGORIES,type WorkCategory,type Resource,type Card} from './game';
 import {World} from './world';
 import {CardDrag} from './drag';
 import {TableSound} from './sound';
 
-const paths: Record<string,string> = {
-  wood:'M4 15 13 5c2-2 7 0 7 3l-9 11M4 15c2-3 7 0 7 3s-5 3-7 0c-1-1-1-2 0-3Zm9-5 3-3',
-  fish:'M3 12c5-7 11-7 15 0-4 7-10 7-15 0Zm15 0 4-5v10ZM7 11h.1',
-  berry:'M7 7c-7 4-2 12 5 14 7-2 12-10 5-14ZM7 7l5 2 5-2-3-2-2-3-2 3ZM8 12h.1m7-1h.1m-4 5h.1',
-  wheat:'M12 22V4m0 6C4 11 4 7 5 3c4 1 7 3 7 7Zm0 5c7 0 8-4 7-8-4 1-7 3-7 8Zm0 4c-6 0-8-3-7-7 4 1 6 3 7 7Z',
-  food:'M6 21 18 4M10 16c-5 0-6-4-6-7 5 1 7 4 6 7Zm3-5c-3-1-4-4-3-7 3 1 4 4 3 7Zm0 3c4-4 6-4 9-4-1 4-5 6-9 4Z',
-  people:'M8 7a4 4 0 1 0 8 0 4 4 0 1 0-8 0ZM4 21v-3a8 8 0 0 1 16 0v3M8 18v3m8-3v3',
-  happy:'M12 20S3 14 3 8c0-5 6-6 9-1 3-5 9-4 9 1 0 6-9 12-9 12Z',
-  crest:'M4 12 2 6l6 3 4-7 4 7 6-3-2 6-1 4H5ZM7 20h10',
-  help:'M9 8c0-4 7-4 7 0 0 3-4 3-4 6m0 3v1',
-  reset:'M4 10a8 8 0 1 1 1 8M4 4v6h6',
-};
-const icon=(id:string)=>`<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="${paths[id]}"/></svg>`;
+import {icon} from './icons';
 const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
@@ -61,7 +49,7 @@ world.onHover=i=>{
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}
   const p=game.preview(selected,i)!;
-  const effects=[p.wood&&`+${p.wood} odun / teslimat`,p.food&&`+${p.food} yiyecek / teslimat`,p.happy&&`+${p.happy} refah / teslimat`,p.people&&`+${p.people} nüfus`].filter(Boolean);
+  const effects=[p.stone&&`+${p.stone} taş / teslimat`,p.wood&&`+${p.wood} odun / teslimat`,p.food&&`+${p.food} yiyecek / teslimat`,p.happy&&`+${p.happy} refah / teslimat`,p.people&&`+${p.people} nüfus`].filter(Boolean);
   const adjacentBonus=p.localBonus||p.neighbors.length>0;
   label((adjacentBonus?'Komşuluk · ':'')+(effects.join('  ·  ')||'Yerleşime uygun'));
 };
@@ -132,8 +120,8 @@ const drag=new CardDrag(hand,{
   cancel:()=>{sound.play('invalid');select(null)},
   tap:i=>{const c=game.hand[i];select(selected===c?null:c)},
 });
-const workNames:Record<WorkCategory,string>={wood:'Odun',berry:'Çilek',farm:'Buğday',fish:'Balık'};
-const workIcons:Record<WorkCategory,string>={wood:'wood',berry:'berry',farm:'wheat',fish:'fish'};
+const workNames:Record<WorkCategory,string>={stone:'Taş',wood:'Odun',berry:'Çilek',farm:'Buğday',fish:'Balık'};
+const workIcons:Record<WorkCategory,string>={stone:'stone',wood:'wood',berry:'berry',farm:'wheat',fish:'fish'};
 get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<label class="work-row" data-work="${category}"><span>${icon(workIcons[category])}<b>${workNames[category]}</b><small></small><em></em></span><input type="range" min="0" max="100" value="${game.priorities[category]}" aria-label="${workNames[category]} iş önceliği" data-priority="${category}"></label>`).join('');
 function renderWork(){
   const counts=world.villagers.assignedCounts(),targets=game.workTargets();
@@ -149,7 +137,7 @@ function renderWork(){
 function toggleWork(){const panel=get('#work-panel');panel.hidden=!panel.hidden;get('#population-toggle').setAttribute('aria-expanded',String(!panel.hidden));renderWork()}
 get('#population-toggle').onclick=toggleWork;
 get('[data-work-close]').onclick=()=>{get('#work-panel').hidden=true;get('#population-toggle').setAttribute('aria-expanded','false')};
-get('[data-work-balance]').onclick=()=>{game.priorities={wood:25,berry:25,farm:25,fish:25};world.villagers.rebalance();renderWork()};
+get('[data-work-balance]').onclick=()=>{game.priorities={wood:20,stone:20,berry:20,farm:20,fish:20};world.villagers.rebalance();renderWork()};
 app.querySelectorAll<HTMLInputElement>('[data-priority]').forEach(input=>input.oninput=()=>{game.setPriority(input.dataset.priority as WorkCategory,Number(input.value));world.villagers.rebalance();renderWork()});
 function renderFood(){
   const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${icon(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>−${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
@@ -158,14 +146,24 @@ function showFood(){
   const panel=get('#food-details'),rect=get('[data-resource="food"]').getBoundingClientRect();renderFood();panel.hidden=false;
   panel.style.left=`${Math.max(12,Math.min(innerWidth-panel.offsetWidth-12,rect.left+rect.width/2-panel.offsetWidth/2))}px`;panel.style.top=`${rect.bottom+14}px`;
 }
+const counters=new Map<string,{value:number;target:number;frame:number}>();
+function animateCounter(id:string,target:number){
+  const el=get(`[data-resource="${id}"] b`),state=counters.get(id);
+  if(!state){el.textContent=String(target);counters.set(id,{value:target,target,frame:0});return}
+  if(state.target===target)return;
+  cancelAnimationFrame(state.frame);const from=state.value,previous=state.target,start=performance.now();state.target=target;
+  el.dataset.change=target>previous?'up':'down';
+  const tick=(now:number)=>{const t=Math.min(1,(now-start)/550);state.value=from+(target-from)*(1-(1-t)**3);el.textContent=String(Math.round(state.value));if(t<1)state.frame=requestAnimationFrame(tick);else{el.textContent=String(target);window.setTimeout(()=>{if(state.target===target)delete el.dataset.change},500)}};
+  state.frame=requestAnimationFrame(tick);
+}
 function renderHud(){
   const stats=get('#stats');
-  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['food','Yiyecek'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
+  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
   const foodStat=get('[data-resource="food"]');
   foodStat.onmouseenter=showFood;foodStat.onmouseleave=()=>get('#food-details').hidden=true;foodStat.onfocus=showFood;foodStat.onblur=()=>get('#food-details').hidden=true;foodStat.tabIndex=0;foodStat.setAttribute('aria-describedby','food-details');
   get('[data-resource="people"]').onclick=toggleWork;
-  for(const id of ['wood','food','people','happy'] as const){
-    get(`[data-resource="${id}"] b`).textContent=String(id==='happy'?Math.round(game.happy):game[id]);
+  for(const id of ['wood','stone','food','people','happy'] as const){
+    animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
     get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':id==='food'?`−${game.foodPerMinute}/dk`:'Depoda';
   }
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
@@ -194,9 +192,9 @@ world.onInspect=(id,x,y,bounds)=>{
   if(id<0||!bounds||selected||dialog.open){tooltip.hidden=true;return}
   const kind=game.board.get(id),card=cards.find(c=>c.id===kind),product=game.productAt(id);
   const lines:string[]=[];
-  if(id===CENTER)lines.push('Merkez deposu · 2 altıgen',`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`);
-  else if(kind==='store')lines.push(`${STORAGE_RADIUS} altıgen yarıçap`,`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapsam ve yükseltme');
-  else if(product){lines.push(`+${product.amount} ${product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,game.storageFor(id).length?'Depo kapsamında':'Depo kapsamı dışında');}
+  if(id===CENTER)lines.push('Merkez deposu',`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`);
+  else if(kind==='store')lines.push(`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapasiteyi yükselt');
+  else if(product){lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,'Ürünler depoya taşınır');}
   else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
@@ -211,7 +209,7 @@ world.onInspect=(id,x,y,bounds)=>{
   tooltip.style.left=`${Math.max(pad,Math.min(innerWidth-width-pad,left))}px`;
   tooltip.style.top=`${Math.max(pad,Math.min(innerHeight-height-pad,top))}px`;
 };
-window.setInterval(renderHud,700);
+window.setInterval(renderHud,200);
 function modal(html:string) {
   drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
@@ -225,15 +223,15 @@ function modal(html:string) {
 function reset(){
   clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
   document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());get('#food-details').hidden=true;get('#work-panel').hidden=true;get('#population-toggle').setAttribute('aria-expanded','false');
-  drag.cancel();sound.cancel();game=new Game();selected=null;locked=false;
+  drag.cancel();sound.cancel();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();selected=null;locked=false;
   world.reset();world.sync(game.board);world.bindGame(game);select(null);render();
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
  <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
- <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Merkez 2, depolar 3 altıgen içindeki kaynakları toplar. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
- <p>Sağ alttaki Görevler panelinden odun, çilek, buğday ve balık işlerinin önceliğini değiştirebilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
- <p>Depoyu seçerek veya yerleştirirken toplama alanını görebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
+ <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
+ <p>Sağ alttaki Görevler panelinden odun, taş, çilek, buğday ve balık işlerinin önceliğini değiştirebilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
+ <p>Depoyu seçerek kapasitesini görebilir, odunla yükseltebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
  <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · ortala<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){drag.cancel();select(null)}});
 reset();

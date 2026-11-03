@@ -1,6 +1,6 @@
 import { CENTER, adjacent, canGrow,axial } from './hex.ts';
 export type Kind =
-  | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
+  | 'stone' | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
   | 'fisher' | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
 
 export interface Card {
@@ -14,13 +14,14 @@ export interface Card {
 }
 
 export const cards: Card[] = [
+  {id:'stone',name:'Taş Ocağı',cost:3,workers:2,desc:'+3 taş / teslimat',bonus:'Kazmayla çıkarılır · yeniden oluşur'},
   { id:'fisher',name:'Balıkçı Kulübesi',cost:7,workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
   { id: 'forest', name: 'Orman', cost: 0, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
   { id: 'berry', name: 'Çilek Bahçesi', cost: 2, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
   { id: 'house', name: 'Ev', cost: 5, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'lumber', name: 'Oduncu Kulübesi', cost: 5, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
   { id: 'farm', name: 'Çiftlik', cost: 7, workers: 2, desc: '+4 yiyecek / teslimat', bonus: 'Komşu depo: +2 yiyecek' },
-  { id: 'store', name: 'Depo', cost: 6, workers: 0, desc: '3 altıgen toplama alanı', bonus: 'Ürünler teslim edilince depoya eklenir' },
+  { id: 'store', name: 'Depo', cost: 6, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
   { id: 'garden', name: 'Bahçe', cost: 3, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
   { id: 'manor', name: 'Büyük Ev', cost: 10, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'festival', name: 'Şenlik', cost: 4, workers: 0, desc: '+16 refah · −3 yiyecek', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
@@ -43,11 +44,10 @@ export interface Production {
   }[];
 }
 
-export type Resource='wood'|'food'|'happy';
-export type WorkCategory='wood'|'berry'|'farm'|'fish';
+export type Resource='wood'|'stone'|'food'|'happy';
+export type WorkCategory='stone'|'wood'|'berry'|'farm'|'fish';
 export type FoodKind='berry'|'wheat'|'fish';
-export const WORK_CATEGORIES:WorkCategory[]=['wood','berry','farm','fish'];
-export const STORAGE_RADIUS=3;
+export const WORK_CATEGORIES:WorkCategory[]=['wood','stone','berry','farm','fish'];
 export const BUILDING_SCALE=.80;
 export function hexDistance(a:number,b:number){
   const p=axial(a),q=axial(b);
@@ -55,14 +55,14 @@ export function hexDistance(a:number,b:number){
 }
 export class Game {
   board=new Map<number,Kind>([[CENTER,'house']]);
-  wood=18;happy=70;
+  wood=18;stone=0;happy=70;
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
-  priorities:Record<WorkCategory,number>={wood:35,berry:35,farm:20,fish:10};
+  priorities:Record<WorkCategory,number>={wood:30,stone:15,berry:30,farm:15,fish:10};
   private meal=0;
   private mealPerson=0;
   private meals:{id:number;ate:boolean}[]=[];
   storageLevels=new Map<number,number>([[CENTER,1]]);
-  storageStocks=new Map<number,{wood:number;berry:number;wheat:number;fish:number}>([[CENTER,{wood:18,berry:8,wheat:4,fish:0}]]);
+  storageStocks=new Map<number,{wood:number;stone:number;berry:number;wheat:number;fish:number}>([[CENTER,{wood:18,stone:0,berry:8,wheat:4,fish:0}]]);
   storageCapacity(id:number){return this.storageStocks.has(id)?(id===CENTER?80:60)*(this.storageLevels.get(id)??1):0}
   storageUsed(id:number){const stock=this.storageStocks.get(id);return stock?Object.values(stock).reduce((a,b)=>a+b,0):0}
   storageFree(id:number){return Math.max(0,this.storageCapacity(id)-this.storageUsed(id))}
@@ -101,11 +101,11 @@ export class Game {
     }
   }
   categoryFor(id:number):WorkCategory|null{
-    const kind=this.board.get(id);return kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':null;
+    const kind=this.board.get(id);return kind==='stone'?'stone':kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':null;
   }
   workTargets(){
     const active=WORK_CATEGORIES.filter(category=>[...this.board.keys()].some(id=>this.categoryFor(id)===category&&this.storageFor(id).length));
-    const result:Record<WorkCategory,number>={wood:0,berry:0,farm:0,fish:0};
+    const result:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0};
     const sum=active.reduce((n,c)=>n+this.priorities[c],0);if(!sum)return result;
     const shares=active.map(c=>({c,raw:this.people*this.priorities[c]/sum}));
     for(const x of shares)result[x.c]=Math.floor(x.raw);
@@ -201,14 +201,15 @@ export class Game {
     const near=adjacent(i).map(n=>this.board.get(n)),people=card.id==='house'?2:card.id==='manor'?4:0;
     const wood=card.id==='forest'?2+near.filter(k=>k==='forest').length+2*near.filter(k=>k==='lumber').length:0;
     const food=card.id==='berry'?4+near.filter(k=>k==='forest').length:card.id==='farm'?4+near.filter(k=>k==='store').length*2:card.id==='fisher'?3:0;
+    const stone=card.id==='stone'?3:0;
     const happy=card.id==='garden'?2+near.filter(k=>k==='house'||k==='manor').length:0;
-    return {wood,food,happy,people,neighbors:adjacent(i).filter(n=>this.board.has(n)),localBonus:wood>2||food>4||happy>2};
+    return {wood,stone,food,happy,people,neighbors:adjacent(i).filter(n=>this.board.has(n)),localBonus:wood>2||food>4||happy>2};
   }
   play(card:Card,i=CENTER){
     if(!this.valid(card,i))return null;
     this.spendWood(card.cost);
     if(!card.event)this.board.set(i,card.id);
-    if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,berry:0,wheat:0,fish:0})}
+    if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,stone:0,berry:0,wheat:0,fish:0})}
     const count=card.id==='house'?2:card.id==='manor'?4:0;
     for(let j=0;j<count;j++)this.residents.push({id:this.residents.length,home:i});
     if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);this.consumeFood(3)}
@@ -218,13 +219,14 @@ export class Game {
   remove(i:number){
     if(i===CENTER||!this.board.has(i))return false;
     const stock=this.storageStocks.get(i);
-    if(stock){this.wood-=stock.wood;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
+    if(stock){this.wood-=stock.wood;this.stone-=stock.stone;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
     this.board.delete(i);for(const r of this.residents)if(r.home===i)r.home=CENTER;
     return true;
   }
   productAt(id:number):{resource:Resource;amount:number;capacity:number}|null{
     const kind=this.board.get(id),near=adjacent(id).map(i=>this.board.get(i));
     if(kind==='fisher'&&adjacent(id).some(n=>!this.board.has(n)))return {resource:'food',amount:3,capacity:1};
+    if(kind==='stone')return {resource:'stone',amount:3,capacity:2};
     if(kind==='forest')return {resource:'wood',amount:2+near.filter(k=>k==='forest').length+2*near.filter(k=>k==='lumber').length,capacity:3};
     if(kind==='berry')return {resource:'food',amount:4+near.filter(k=>k==='forest').length,capacity:2};
     if(kind==='farm')return {resource:'food',amount:4+near.filter(k=>k==='store').length*2,capacity:2};
@@ -232,7 +234,7 @@ export class Game {
     return null;
   }
   storageFor(source:number){
-    return [...this.board].filter(([id,kind])=>(id===CENTER||kind==='store')&&hexDistance(source,id)<=(id===CENTER?2:STORAGE_RADIUS))
+    return [...this.board].filter(([id,kind])=>(id===CENTER||kind==='store'))
       .sort(([a],[b])=>hexDistance(source,a)-hexDistance(source,b)).map(([id])=>id);
   }
   deliver(source:number,store:number,resource:Resource,amount:number){
@@ -241,7 +243,7 @@ export class Game {
     const accepted=Math.max(0,Math.min(recipe.amount,Math.floor(amount),resource==='happy'?Infinity:this.storageFree(store)));
     if(resource==='happy'){const before=this.happy;this.happy=Math.min(100,this.happy+accepted);return Number((this.happy-before).toFixed(2))}
     const stock=this.storageStocks.get(store);if(!stock)return 0;
-    if(resource==='food'){const kind=this.board.get(source),food:FoodKind=kind==='fisher'?'fish':kind==='farm'?'wheat':'berry';this.foods[food]+=accepted;stock[food]+=accepted}else{this.wood+=accepted;stock.wood+=accepted}
+    if(resource==='food'){const kind=this.board.get(source),food:FoodKind=kind==='fisher'?'fish':kind==='farm'?'wheat':'berry';this.foods[food]+=accepted;stock[food]+=accepted}else if(resource==='stone'){this.stone+=accepted;stock.stone+=accepted}else{this.wood+=accepted;stock.wood+=accepted}
     return accepted;
   }
 }

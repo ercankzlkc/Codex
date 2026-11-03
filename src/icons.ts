@@ -1,0 +1,4 @@
+import {icon as faIcon,type IconDefinition} from '@fortawesome/fontawesome-svg-core';
+import {faTree,faMountain,faFish,faAppleWhole,faWheatAwn,faUtensils,faUsers,faHeart,faCrown,faCircleQuestion,faRotateLeft,faMugHot,faBoxOpen,faTriangleExclamation,faSeedling,faRoute} from '@fortawesome/free-solid-svg-icons';
+const icons:Record<string,IconDefinition>={wood:faTree,stone:faMountain,fish:faFish,berry:faAppleWhole,wheat:faWheatAwn,farm:faWheatAwn,food:faUtensils,people:faUsers,happy:faHeart,crest:faCrown,help:faCircleQuestion,reset:faRotateLeft,rest:faMugHot,carry:faBoxOpen,full:faTriangleExclamation,garden:faSeedling,eat:faUtensils,hungry:faUtensils,search:faRoute};
+export const icon=(id:string)=>faIcon(icons[id]??faSeedling,{attributes:{'aria-hidden':'true'}}).html.join('');
