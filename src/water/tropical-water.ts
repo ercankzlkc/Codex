@@ -27,6 +27,21 @@ export class TropicalWater {
     uMint:{value:new T.Color('#87efd4')},uTurquoise:{value:new T.Color('#20d0c6')},
     uLagoon:{value:new T.Color('#22b7c7')},uDeep:{value:new T.Color('#318fc4')},
   };
+  private readonly viewCorner=new T.Vector3();
+  private readonly viewDirection=new T.Vector3();
+  /** Cover all four sea intersections, including wide, low orthographic views. */
+  fitView(camera:T.OrthographicCamera){
+    camera.getWorldDirection(this.viewDirection);
+    if(this.viewDirection.y>=-.01)return;
+    let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
+    for(const x of [-1,1])for(const y of [-1,1]){
+      const p=this.viewCorner.set(x,y,-1).unproject(camera);
+      p.addScaledVector(this.viewDirection,(SEA_Y-p.y)/this.viewDirection.y);
+      minX=Math.min(minX,p.x);maxX=Math.max(maxX,p.x);minZ=Math.min(minZ,p.z);maxZ=Math.max(maxZ,p.z);
+    }
+    this.surface.position.set((minX+maxX)/2,SEA_Y,(minZ+maxZ)/2);
+    this.surface.scale.set(Math.max(1,(maxX-minX+16)/160),Math.max(1,(maxZ-minZ+16)/160),1);
+  }
   private nextWake=0;
   private readonly sandGeometry=new T.PlaneGeometry(1,1,SAND_STEPS,SAND_STEPS).rotateX(-Math.PI/2);
   private readonly sandStart=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2),1);

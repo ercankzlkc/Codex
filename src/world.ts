@@ -483,7 +483,7 @@ export class World {
   }
   private frame=(now:number)=>{
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
-    this.cameraControl.update(dt);this.environment.update(this.time);
+    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera);this.environment.update(this.time);
     if(this.ghost?.visible){
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-32*dt));
       if(this.ghostModel){

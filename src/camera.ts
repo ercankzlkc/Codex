@@ -132,7 +132,15 @@ export class CameraController {
 
   private applyTransform(): void {
     this.pitch=Math.min(this.pitch,this.maxPitch());
-    this.spherical.set(this.distance, this.pitch, this.yaw);
+    // Orthographic zoom expands the ray origins too. Keep the entire near edge
+    // above the water when looking low, rather than just the camera centre.
+    const sin=Math.sin(this.pitch),cos=Math.cos(this.pitch);
+    const bottom=this.shiftFraction*this.halfHeight-this.halfHeight/this.camera.zoom;
+    const top=this.shiftFraction*this.halfHeight+this.halfHeight/this.camera.zoom;
+    const orbit=Math.max(this.distance,(-.18+.6-this.target.y-bottom*sin)/cos);
+    this.spherical.set(orbit, this.pitch, this.yaw);
+    const far=orbit+(Math.abs(top)+Math.abs(bottom))/cos+this.islandRadius*3+40;
+    if(Math.abs(this.camera.far-far)>.01){this.camera.far=far;this.camera.updateProjectionMatrix()}
     this.offset.setFromSpherical(this.spherical);
     this.camera.position.copy(this.target).add(this.offset);
     this.camera.lookAt(this.target);
@@ -187,7 +195,7 @@ export class CameraController {
     event.preventDefault();
     if (this.placement) return;
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.viewportHeight : 1);
-    this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.70, 2.6);
+    this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.70, 3.5);
   };
 
   private onContextMenu = (event: MouseEvent): void => event.preventDefault();
