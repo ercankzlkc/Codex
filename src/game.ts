@@ -1,3 +1,4 @@
+import {tradeOrder,type Cargo} from './trade';
 import { CENTER, adjacent, canGrow,axial } from './hex.ts';
 export type Kind =
   | 'stone' | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
@@ -18,14 +19,14 @@ export const cards: Card[] = [
   { id:'fisher',name:'Balıkçı Kulübesi',cost:7,workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
   { id: 'forest', name: 'Orman', cost: 0, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
   { id: 'berry', name: 'Çilek Bahçesi', cost: 2, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
-  { id: 'house', name: 'Ev', cost: 5, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'house', name: 'Ev', cost: 5, workers: 0, desc: '+2 işçi · −4 yiyecek / dk', bonus: 'Taşınma için 4 yiyecek hazırlanır' },
   { id: 'lumber', name: 'Oduncu Kulübesi', cost: 5, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
   { id: 'farm', name: 'Çiftlik', cost: 7, workers: 2, desc: '+4 yiyecek / teslimat', bonus: 'Komşu depo: +2 yiyecek' },
-  { id: 'store', name: 'Depo', cost: 6, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
+  { id: 'store', name: 'Depo', cost: 6, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Üretime yakın kur · taşıma yolu kısalır' },
   { id: 'garden', name: 'Bahçe', cost: 3, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
-  { id: 'manor', name: 'Büyük Ev', cost: 10, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'manor', name: 'Büyük Ev', cost: 10, workers: 0, desc: '+4 işçi · −8 yiyecek / dk', bonus: 'Taşınma için 8 yiyecek hazırlanır' },
   { id: 'festival', name: 'Şenlik', cost: 4, workers: 0, desc: '+16 refah · −3 yiyecek', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
-  { id: 'harvest', name: 'Acil Hasat', cost: 0, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
+  { id: 'harvest', name: 'Acil Hasat', cost: 0, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'En fazla 12 · 90 saniyede yenilenir', event: true },
 ];
 
 export interface Production {
@@ -58,6 +59,66 @@ export class Game {
   wood=18;stone=0;happy=70;
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
   priorities:Record<WorkCategory,number>={wood:30,stone:15,berry:30,farm:15,fish:10};
+  elapsed=0;
+  hunger=0;
+  tradeCompleted=0;
+  tradeRewardPending=false;
+  reliefReadyAt=0;
+  private foodDeliveries:{time:number;amount:number}[]=[];
+  readonly haulStats=new Map<number,{seconds:number;walk:number;trips:number}>();
+  get order(){return tradeOrder(this.tradeCompleted-(this.tradeRewardPending?1:0))}
+  get workPace(){return 1-this.hunger*.25}
+  get reserveSeconds(){return Math.floor(this.food/Math.max(1,this.foodPerMinute)*60)}
+  get foodIncome(){return this.foodDeliveries.reduce((n,d)=>n+d.amount,0)*60/Math.max(30,Math.min(60,this.elapsed))}
+  get foodNet(){return this.foodIncome-this.foodPerMinute}
+  get foodState(){return this.food===0?'empty':this.reserveSeconds<60?'low':this.elapsed>=60&&this.foodNet<0?'watch':'steady'}
+  housingFoodCost(card:Card){return card.id==='house'?4:card.id==='manor'?8:0}
+  cardReason(card:Card){
+    if(card.cost>this.wood)return `${card.cost} odun gerekiyor`;
+    const provision=this.housingFoodCost(card);
+    const villageReserve=this.people+provision/2;
+    if(provision&&this.food<provision+villageReserve)return `${provision} taşınma yiyeceği + ${villageReserve} köy payı gerekiyor`;
+    if(card.id==='festival'&&this.food<3+this.people)return 'Şenlikten sonra köye 30 saniyelik yiyecek kalmalı';
+    if(card.id==='harvest'&&this.elapsed<this.reliefReadyAt)return `Acil hasat ${Math.ceil(this.reliefReadyAt-this.elapsed)} sn sonra hazır`;
+    if(card.id==='harvest'&&![...this.storageStocks.keys()].some(id=>this.storageFree(id)>0))return 'Erzak için depoda yer aç';
+    return '';
+  }
+  emergencyHarvest(){
+    const card=cards.find(c=>c.id==='harvest')!;if(this.cardReason(card))return 0;
+    const before=this.food;this.addFood('berry',12);this.reliefReadyAt=this.elapsed+90;this.happy=Math.max(0,this.happy-5);return this.food-before;
+  }
+  cargoAmount(cargo:Cargo){return cargo==='wood'?this.wood:cargo==='stone'?this.stone:this.foods[cargo]}
+  get tradeReason(){
+    if(this.tradeRewardPending)return 'Önce ödül kartını seç';
+    const needs=this.order.needs;
+    if((Object.entries(needs) as [Cargo,number][]).some(([c,n])=>this.cargoAmount(c)<n))return 'Ürünlerin depoya ulaşmasını bekle';
+    const foodCost=(needs.berry??0)+(needs.wheat??0)+(needs.fish??0);
+    if(this.food-foodCost<this.people)return `Gönderimden sonra köye ${this.people} yiyecek kalmalı`;
+    return '';
+  }
+  shipTrade(){
+    if(this.tradeReason)return false;
+    for(const [cargo,amount] of Object.entries(this.order.needs) as [Cargo,number][]){
+      if(cargo==='wood')this.wood-=amount;else if(cargo==='stone')this.stone-=amount;else this.foods[cargo]-=amount;
+      let left=amount;for(const stock of this.storageStocks.values()){const take=Math.min(left,stock[cargo]);stock[cargo]-=take;left-=take;if(!left)break}
+    }
+    this.tradeCompleted++;this.tradeRewardPending=true;this.happy=Math.min(100,this.happy+4);return true;
+  }
+  claimTradeCard(kind:Kind){
+    if(!this.tradeRewardPending||!this.order.choices.includes(kind))return false;
+    const chosen=cards.find(c=>c.id===kind)!;
+    this.hand=[chosen,...this.hand.filter(c=>c.id!==kind).slice(0,2)];
+    while(this.hand.length<3)this.hand.push(cards.find(c=>c.id==='forest')!);
+    this.tradeRewardPending=false;return true;
+  }
+  haulInfo(source:number){
+    const store=this.storageFor(source)[0];const distance=store===undefined?Infinity:hexDistance(source,store);
+    return {store,distance,label:distance<=1?'Depo yakın':distance<=2?'Orta taşıma yolu':'Uzun taşıma yolu',stats:this.haulStats.get(source)};
+  }
+  noteTrip(source:number,seconds:number,walk:number){
+    const old=this.haulStats.get(source),weight=old?Math.min(5,old.trips):0;
+    this.haulStats.set(source,{seconds:((old?.seconds??0)*weight+seconds)/(weight+1),walk:((old?.walk??0)*weight+walk)/(weight+1),trips:(old?.trips??0)+1});
+  }
   private meal=0;
   private mealPerson=0;
   private meals:{id:number;ate:boolean}[]=[];
@@ -92,12 +153,14 @@ export class Game {
     return eaten;
   }
   tick(dt:number){
+    this.elapsed+=dt;this.foodDeliveries=this.foodDeliveries.filter(d=>d.time>this.elapsed-60);
+    if(this.food>0)this.hunger=Math.max(0,this.hunger-dt*.012);
     this.meal+=dt*this.people/30;
     const due=Math.floor(this.meal);if(!due)return;
     this.meal-=due;
     for(let i=0;i<due;i++){
       const ate=this.consumeFood(1)>0,id=this.residents[this.mealPerson++%this.people].id;this.meals.push({id,ate});
-      if(!ate)this.happy=Math.max(0,this.happy-.35);
+      if(!ate){this.happy=Math.max(0,this.happy-.6);this.hunger=Math.min(1,this.hunger+.2)}
     }
   }
   categoryFor(id:number):WorkCategory|null{
@@ -111,6 +174,12 @@ export class Game {
     for(const x of shares)result[x.c]=Math.floor(x.raw);
     let left=this.people-Object.values(result).reduce((a,b)=>a+b,0);
     for(const x of shares.sort((a,b)=>(b.raw%1)-(a.raw%1)))if(left-->0)result[x.c]++;
+    // A small safety net: one worker feeds the village when the pantry is low.
+    const foodCategories=active.filter(c=>['berry','farm','fish'].includes(c)&&this.priorities[c]>0);
+    if(this.reserveSeconds<60&&foodCategories.length&&!foodCategories.some(c=>result[c]>0)){
+      const donor=active.filter(c=>result[c]>0).sort((a,b)=>result[b]-result[a])[0];
+      if(donor){result[donor]--;const food=foodCategories.sort((a,b)=>this.priorities[b]-this.priorities[a])[0];result[food]++}
+    }
     return result;
   }
   setPriority(category:WorkCategory,value:number){
@@ -126,11 +195,19 @@ export class Game {
   constructor(rng=Math.random){this.rng=rng;this.hand=['forest','berry','house'].map(id=>cards.find(c=>c.id===id)!)}
   neighbors(i:number){return adjacent(i)}
   draw(){
-    const pool=cards.filter(c=>!['farm','manor'].includes(c.id)||this.people>=3);
+    const pool=cards.filter(c=>(!['farm','fisher','stone','manor'].includes(c.id)||this.tradeCompleted>=(c.id==='manor'?3:c.id==='stone'?2:1))&&(c.id!=='harvest'||this.elapsed>=this.reliefReadyAt));
     this.hand=[];
     while(this.hand.length<3)this.hand.push(pool.splice(Math.floor(this.rng()*pool.length),1)[0]);
     if(!this.hand.some(c=>c.cost<=this.wood))this.hand[0]=cards.find(c=>c.id==='forest')!;
-    if(this.people>=3&&![...this.board.values()].includes('fisher')&&!this.hand.some(c=>c.id==='fisher'))this.hand[2]=cards.find(c=>c.id==='fisher')!;
+    const essential:Kind[]=[];
+    if(![...this.board.values()].includes('forest'))essential.push('forest');
+    if(![...this.board.values()].some(k=>['berry','farm','fisher'].includes(k)))essential.push('berry');
+    for(const cargo of Object.keys(this.order.needs) as Cargo[]){const producer:Kind=cargo==='wheat'?'farm':cargo==='fish'?'fisher':cargo==='stone'?'stone':cargo==='wood'?'forest':'berry';if(![...this.board.values()].includes(producer)&&!essential.includes(producer))essential.push(producer)}
+    if(this.people===1)essential.push('house');
+    for(const [slot,kind] of essential.slice(0,3).entries()){
+      const at=this.hand.findIndex(c=>c.id===kind);
+      if(at>=0)[this.hand[slot],this.hand[at]]=[this.hand[at],this.hand[slot]];else this.hand[slot]=cards.find(c=>c.id===kind)!;
+    }
   }
   production():Production{return this.calculateProduction(this.board,this.people)}
   /** Pure evaluation shared by the actual turn and placement previews. */
@@ -193,7 +270,7 @@ export class Game {
   }
 
   valid(card:Card,i:number){
-    return this.hand.includes(card)&&card.cost<=this.wood&&(card.id!=='festival'||this.food>=3)
+    return this.hand.includes(card)&&!this.cardReason(card)
       &&(card.event?this.board.has(i):canGrow(this.board,i)&&!this.wouldSealFishery(i))&&(card.id!=='fisher'||adjacent(i).some(n=>!this.board.has(n)));
   }
   preview(card:Card,i:number){
@@ -207,20 +284,20 @@ export class Game {
   }
   play(card:Card,i=CENTER){
     if(!this.valid(card,i))return null;
-    this.spendWood(card.cost);
+    this.spendWood(card.cost);this.consumeFood(this.housingFoodCost(card));
     if(!card.event)this.board.set(i,card.id);
     if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,stone:0,berry:0,wheat:0,fish:0})}
     const count=card.id==='house'?2:card.id==='manor'?4:0;
     for(let j=0;j<count;j++)this.residents.push({id:this.residents.length,home:i});
     if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);this.consumeFood(3)}
-    if(card.id==='harvest'){this.addFood('berry',12);this.happy=Math.max(0,this.happy-5)}
+    if(card.id==='harvest')this.emergencyHarvest();
     this.draw();return this.production();
   }
   remove(i:number){
     if(i===CENTER||!this.board.has(i))return false;
     const stock=this.storageStocks.get(i);
     if(stock){this.wood-=stock.wood;this.stone-=stock.stone;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
-    this.board.delete(i);for(const r of this.residents)if(r.home===i)r.home=CENTER;
+    this.haulStats.delete(i);this.board.delete(i);for(const r of this.residents)if(r.home===i)r.home=CENTER;
     return true;
   }
   productAt(id:number):{resource:Resource;amount:number;capacity:number}|null{
@@ -243,7 +320,7 @@ export class Game {
     const accepted=Math.max(0,Math.min(recipe.amount,Math.floor(amount),resource==='happy'?Infinity:this.storageFree(store)));
     if(resource==='happy'){const before=this.happy;this.happy=Math.min(100,this.happy+accepted);return Number((this.happy-before).toFixed(2))}
     const stock=this.storageStocks.get(store);if(!stock)return 0;
-    if(resource==='food'){const kind=this.board.get(source),food:FoodKind=kind==='fisher'?'fish':kind==='farm'?'wheat':'berry';this.foods[food]+=accepted;stock[food]+=accepted}else if(resource==='stone'){this.stone+=accepted;stock.stone+=accepted}else{this.wood+=accepted;stock.wood+=accepted}
+    if(resource==='food'){const kind=this.board.get(source),food:FoodKind=kind==='fisher'?'fish':kind==='farm'?'wheat':'berry';this.foods[food]+=accepted;stock[food]+=accepted;if(accepted>0)this.foodDeliveries.push({time:this.elapsed,amount:accepted})}else if(resource==='stone'){this.stone+=accepted;stock.stone+=accepted}else{this.wood+=accepted;stock.wood+=accepted}
     return accepted;
   }
 }
