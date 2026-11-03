@@ -2,3 +2,10 @@ Low-Poly Seagull (with Animation & Rigged) — simonaskLDE
 https://sketchfab.com/3d-models/low-poly-seagull-with-animation-rigged-985024328902444c8270c0f09acc897e
 CC BY 4.0 — https://creativecommons.org/licenses/by/4.0/
 Kullanıcı tarafından sağlanan özgün GLB ve ArmatureAction animasyonu.
+
+Free Medieval 3D People Low Poly Pack — CraftPix / Free Game Assets
+Kullanıcının sağladığı people_unity FBX modelleri ve people_texture_map.png dokusu.
+14 karakter Blender ile GLB'ye dönüştürüldü; doku gömüldü, taşıma için gzip sıkıştırması kullanıldı.
+Hazır animasyon klibi içermeyen riglere oyunun görev hareketleri çalışma anında uygulanır.
+Lisans: https://craftpix.net/file-licenses/ (Freebie Products)
+Dosyalar yalnızca oyun içi karakterler için kullanılır; ayrı bir varlık indirme arayüzü sunulmaz.
