@@ -1,3 +1,5 @@
+import * as T from 'three';
+
 type Bus='master'|'sfx'|'ambience';
 const cues={
   hover:[['card-slide-1','card-slide-3'],.16], lift:[['card-fan-1','card-fan-2'],.39],
@@ -6,6 +8,8 @@ const cues={
   bonus:[['chips-stack-3'],.30], turn:[['card-shove-2'],.20], invalid:[['impactSoft_medium_002'],.27],
 } as const;
 type Cue=keyof typeof cues;
+const birdClips=['seagull-1','seagull-2','seagull-3'] as const;
+type BirdVoice={source:AudioBufferSourceNode;panner:PannerNode;gain:GainNode;filter:BiquadFilterNode;bird:T.Object3D};
 const clamp=(n:number)=>Math.max(0,Math.min(1,n));
 export class TableSound {
   muted=false;
@@ -17,6 +21,16 @@ export class TableSound {
   private live=new Set<AudioBufferSourceNode>();
   private pending=new Set<number>();
   private lastHover=0;
+  private birdVoice:BirdVoice|null=null;
+  private birdClipIndex=0;
+  private birdSegment=0;
+  private nextBirdAt=12;
+  private lastSpatial=-1;
+  private readonly ear=new T.Vector3();
+  private readonly forward=new T.Vector3();
+  private readonly up=new T.Vector3();
+  private readonly birdPosition=new T.Vector3();
+  private readonly projected=new T.Vector3();
   constructor(){
     try{const prefs=JSON.parse(localStorage.getItem('lk-audio-v2')||'{}');
       this.muted=typeof prefs.muted==='boolean'?prefs.muted:localStorage.getItem('lk-mute')==='1';
@@ -24,7 +38,7 @@ export class TableSound {
     }catch{/* Storage is optional. */}
     const activate=()=>this.unlock();
     window.addEventListener('pointerdown',activate,{passive:true});window.addEventListener('keydown',activate);
-    document.addEventListener('visibilitychange',()=>{if(document.hidden){this.wave?.pause();this.cancel()}else this.apply()});
+    document.addEventListener('visibilitychange',()=>{if(document.hidden)this.cancel();this.apply()});
   }
   private unlock(){
     if(!window.AudioContext)return;
@@ -34,12 +48,24 @@ export class TableSound {
       this.buses.master=master;
       for(const bus of ['sfx','ambience'] as const){const node=this.ctx.createGain();node.connect(master);this.buses[bus]=node}
       const wave=new Audio(new URL('audio/shore.mp3',document.baseURI).href);wave.preload='none';wave.loop=true;this.wave=wave;
-      this.ctx.createMediaElementSource(wave).connect(this.buses.ambience!);
+      // Preserve the recording's stereo image and gently widen the side signal.
+      // L'=1.1L-.1R, R'=1.1R-.1L. No duplicated mono or rapid autopanning.
+      const split=this.ctx.createChannelSplitter(2),merge=this.ctx.createChannelMerger(2),sea=this.ctx.createGain();sea.gain.value=.8;
+      this.ctx.createMediaElementSource(wave).connect(split);
+      for(const [input,output,level] of [[0,0,1.1],[1,1,1.1],[0,1,-.1],[1,0,-.1]]){
+        const route=this.ctx.createGain();route.gain.value=level;split.connect(route,input);route.connect(merge,0,output);
+      }
+      merge.connect(sea).connect(this.buses.ambience!);
       const names=new Set(Object.values(cues).flatMap(([files])=>[...files]));
       for(const name of names){
         void fetch(new URL('audio/'+name+'.ogg',document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
           .then(b=>this.ctx!.decodeAudioData(b)).then(b=>this.clips.set(name,b)).catch(()=>{});
       }
+      for(const name of birdClips){
+        void fetch(new URL(`audio/${name}.mp3`,document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
+          .then(data=>this.ctx!.decodeAudioData(data)).then(buffer=>this.clips.set(name,this.pointSourceBuffer(buffer))).catch(()=>{});
+      }
+      this.nextBirdAt=this.ctx.currentTime+10;
       this.apply();
     }
     if(this.ctx.state==='suspended')void this.ctx.resume().catch(()=>{});
@@ -51,11 +77,79 @@ export class TableSound {
   private apply(){
     if(!this.ctx)return;
     for(const k of ['master','sfx','ambience'] as const){
-      const v=k==='master'&&this.muted?0:this.levels[k];
+      const v=k==='master'&&(this.muted||document.hidden)?0:this.levels[k];
       this.buses[k]?.gain.setTargetAtTime(v*v,this.ctx.currentTime,.035);
     }
-    if(this.muted||document.hidden||!this.levels.ambience||!this.levels.master)this.wave?.pause();
+    if(this.muted||document.hidden||!this.levels.ambience||!this.levels.master){this.wave?.pause();this.stopBird();if(this.ctx)this.nextBirdAt=this.ctx.currentTime+10;}
     else if(this.wave?.paused)void this.wave.play().catch(()=>{});
+  }
+  /** Fold a recording to a gently levelled point source; HRTF supplies stereo direction. */
+  private pointSourceBuffer(buffer:AudioBuffer){
+    const mono=this.ctx!.createBuffer(1,buffer.length,buffer.sampleRate),out=mono.getChannelData(0);
+    for(let channel=0;channel<buffer.numberOfChannels;channel++){
+      const data=buffer.getChannelData(channel);for(let i=0;i<out.length;i++)out[i]+=data[i]/buffer.numberOfChannels;
+    }
+    let energy=0,peak=0;for(const sample of out){energy+=sample*sample;peak=Math.max(peak,Math.abs(sample))}
+    const rms=Math.sqrt(energy/Math.max(1,out.length)),level=Math.min(1.8,.11/Math.max(.001,rms),.8/Math.max(.001,peak));
+    for(let i=0;i<out.length;i++)out[i]*=level;
+    return mono;
+  }
+  updateSpatial(camera:T.OrthographicCamera,focus:T.Vector3,birds:readonly T.Object3D[]){
+    const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.ambience||!this.levels.master)return;
+    const now=ctx.currentTime;if(now-this.lastSpatial<1/30)return;this.lastSpatial=now;
+    camera.getWorldDirection(this.forward);this.up.set(0,1,0).applyQuaternion(camera.quaternion);
+    // Orthographic zoom changes apparent proximity without moving the real camera.
+    // Use a virtual listener so a near-plane safety adjustment cannot mute the birds.
+    this.ear.copy(focus).addScaledVector(this.forward,-8/Math.max(.5,camera.zoom));
+    const listener=ctx.listener;
+    if(listener.positionX){
+      for(const [parameter,value] of [[listener.positionX,this.ear.x],[listener.positionY,this.ear.y],[listener.positionZ,this.ear.z],
+        [listener.forwardX,this.forward.x],[listener.forwardY,this.forward.y],[listener.forwardZ,this.forward.z],
+        [listener.upX,this.up.x],[listener.upY,this.up.y],[listener.upZ,this.up.z]] as [AudioParam,number][])parameter.setTargetAtTime(value,now,.06);
+    }else{listener.setPosition(this.ear.x,this.ear.y,this.ear.z);listener.setOrientation(this.forward.x,this.forward.y,this.forward.z,this.up.x,this.up.y,this.up.z)}
+    if(!this.birdVoice&&now>=this.nextBirdAt&&birds.length){
+      let bird:T.Object3D|undefined,best=Infinity;
+      for(const candidate of birds){
+        candidate.getWorldPosition(this.birdPosition);this.projected.copy(this.birdPosition).project(camera);
+        const score=this.birdPosition.distanceTo(this.ear)+(Math.abs(this.projected.x)>1.15||Math.abs(this.projected.y)>1.15?5:0);
+        if(score<best){best=score;bird=candidate}
+      }
+      if(bird)this.startBird(bird,now);
+    }
+    const voice=this.birdVoice;if(!voice)return;
+    voice.bird.getWorldPosition(this.birdPosition);
+    if(voice.panner.positionX){
+      voice.panner.positionX.setTargetAtTime(this.birdPosition.x,now,.06);voice.panner.positionY.setTargetAtTime(this.birdPosition.y,now,.06);voice.panner.positionZ.setTargetAtTime(this.birdPosition.z,now,.06);
+    }else voice.panner.setPosition(this.birdPosition.x,this.birdPosition.y,this.birdPosition.z);
+    const distance=this.birdPosition.distanceTo(this.ear);
+    voice.filter.frequency.setTargetAtTime(T.MathUtils.lerp(6500,1500,T.MathUtils.smoothstep(distance,3,20)),now,.12);
+  }
+  private startBird(bird:T.Object3D,now:number){
+    const ctx=this.ctx!;
+    // Fixed recording order, only one call at a time. Failed loads cannot block the queue.
+    let buffer:AudioBuffer|undefined;
+    for(let attempt=0;attempt<birdClips.length;attempt++){
+      const name=birdClips[this.birdClipIndex++%birdClips.length];buffer=this.clips.get(name);if(buffer)break;
+    }
+    if(!buffer){this.nextBirdAt=now+5;return}
+    const source=ctx.createBufferSource(),panner=ctx.createPanner(),gain=ctx.createGain(),filter=ctx.createBiquadFilter();
+    source.buffer=buffer;panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=1.8;panner.rolloffFactor=1.3;panner.maxDistance=40;
+    bird.getWorldPosition(this.birdPosition);panner.setPosition(this.birdPosition.x,this.birdPosition.y,this.birdPosition.z);
+    filter.type='lowpass';filter.frequency.value=4000;filter.Q.value=.3;
+    const duration=Math.min(5.5,buffer.duration),available=Math.max(0,buffer.duration-duration);
+    const offset=available?((this.birdSegment++*.381966)%1)*available:0;
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.4,now+.25);gain.gain.setValueAtTime(.4,now+Math.max(.25,duration-.65));gain.gain.linearRampToValueAtTime(0,now+duration);
+    source.connect(filter).connect(panner).connect(gain).connect(this.buses.ambience!);
+    const voice:BirdVoice={source,panner,gain,filter,bird};this.birdVoice=voice;
+    source.onended=()=>{source.disconnect();filter.disconnect();panner.disconnect();gain.disconnect();if(this.birdVoice===voice){this.birdVoice=null;this.nextBirdAt=ctx.currentTime+22+Math.random()*16}};
+    source.start(now,offset,duration);
+  }
+  private stopBird(){
+    const voice=this.birdVoice;if(!voice)return;this.birdVoice=null;
+    const now=this.ctx!.currentTime;voice.gain.gain.cancelScheduledValues(now);voice.gain.gain.setValueAtTime(voice.gain.gain.value,now);voice.gain.gain.linearRampToValueAtTime(0,now+.08);voice.source.stop(now+.1);
+  }
+  resetAmbience(){
+    this.stopBird();this.birdClipIndex=0;this.birdSegment=0;this.lastSpatial=-1;this.nextBirdAt=(this.ctx?.currentTime??0)+12;
   }
   play(cue:Cue){
     if(this.muted||document.hidden||!this.ctx||this.ctx.state!=='running'||this.live.size>=3)return;

@@ -27,6 +27,7 @@ const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=ge
 const world=new World(get('#world'));
 const thumbs=world.thumbnails();
 const sound=new TableSound();
+world.onSoundFrame=(camera,focus,birds)=>sound.updateSpatial(camera,focus,birds);
 let game=new Game();
 let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
@@ -211,7 +212,7 @@ function renderVillage(){
   if(game.stage.at!==lastStageAt){lastStageAt=game.stage.at;get('#village-panel').animate([{boxShadow:'0 0 0 0 #ead9a5aa'},{boxShadow:'0 0 0 12px #ead9a500'}],{duration:1200});world.markVillageStage(game.stage.at)}
   const next=game.nextStage;get('#village-stage').textContent=next?`${next.name} · ${game.tradeCompleted} / ${next.at} sefer · ${next.perk}`:'Koy gelişiyor · yeni seferler ve planlar';
   get('#land-budget').textContent=`${game.emptyLand} boş arsa · ${game.board.size} toplam toprak`;
-  const expand=get<HTMLButtonElement>('#expand-land');expand.innerHTML=`${icon('land')} Yeni arsa aç · ${game.landPermits} hak`;expand.disabled=game.landPermits<1||locked;expand.title=game.landPermits?'Kıyıdaki bir altıgeni seç':'Ticaret ödülünde yeni arsa seç';
+  const expand=get<HTMLButtonElement>('#expand-land');expand.innerHTML=`${icon('land')} ${game.tradeCompleted===0&&game.landPermits?'Başlangıç arsası aç':'Yeni arsa aç'} · ${game.landPermits} hak`;expand.disabled=game.landPermits<1||locked;expand.title=game.landPermits?'Kıyıdaki bir altıgeni seç':'Ticaret ödülünde yeni arsa seç';
   get('#arrival-capacity').textContent=`${game.people} sakin / ${game.housingCapacity} yatak`;
   get('#arrival-time').textContent=game.arrivalReason?'Göç bekliyor':`${Math.ceil(55-game.arrivalProgress)} sn`;
   get<HTMLProgressElement>('#arrival-progress').value=game.arrivalProgress;
@@ -291,12 +292,12 @@ function modal(html:string) {
 function reset(){
   clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
   document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());get('#food-details').hidden=true;get('#work-panel').hidden=true;get('#population-toggle').setAttribute('aria-expanded','false');
-  drag.cancel();sound.cancel();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();tradeRenderKey='';lastStageAt=0;get<HTMLDetailsElement>('#trade-panel').open=true;selected=null;locked=false;
+  drag.cancel();sound.cancel();sound.resetAmbience();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();tradeRenderKey='';lastStageAt=0;get<HTMLDetailsElement>('#trade-panel').open=true;selected=null;locked=false;
   world.reset();world.sync(game.board);world.bindGame(game);select(null);render();
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Küçük yerden yaşayan köye</h1>
- <p><b>Kur → üret → ticaret yap → genişlet veya yükselt.</b> Merkez, iki sakin ve altı boş arsayla başlarsın. Yapı kartları sadece mevcut boş arsaya yerleşir; toprak bedava büyümez. İlk işin orman, çilek ve taş üretimini kurmak.</p>
+ <p><b>Kur → üret → ticaret yap → genişlet veya yükselt.</b> Tek merkez altıgeni ve bir sakinle başlarsın. İlk üç arsayı başlangıç genişleme haklarınla kıyıdan sen açarsın. Yapı kartları sadece mevcut boş arsaya yerleşir; toprak bedava büyümez. İlk işin orman, çilek ve taş üretimini kurmak.</p>
  <p>Odun temel malzemedir; evler, depolar ve gelişmiş yapılar taş da ister. Ev hazırlığı yiyecek harcar. Ücretsiz fidanlar 35 saniyede büyür. Elin uygun değilse Yeni planlar düğmesi 20 saniyede bir yeni seçenekler getirir.</p>
  <p>Evler yatak açar; anında çalışan vermez. En az 65 refah, 90 saniyelik erzak ve boş yatak varsa yaklaşık 55 saniyede bir yeni sakin gelir. Yetersiz koşullarda geliş durur. Sofra, yiyecek çeşitliliği ve bahçeler refahı destekler; açlık ve barınma eksikliği düşürür.</p>
  <p>Siparişlerin süre sınırı yoktur. Gönderilen ürünler stoktan düşer, köyün son 30 saniyelik yiyeceği gönderilemez. Her seferde yeni arsa veya ustalık hakkı seçersin. Yeni arsa hakkını kıyıda kullan; ustalık hakkıyla bir yapıya tıklayıp kaynak ödeyerek yükselt. Yapılar en fazla seviye 3 olur; son seviye 6 seferde Ticaret Limanı aşamasında açılır. 10 seferde merkez deposuna +80 kapasite gelir. Tarlalar aynı arsada daha fazla ürün, evler yeni yatak, depolar daha fazla kapasite sağlar.</p>

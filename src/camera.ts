@@ -130,6 +130,8 @@ export class CameraController {
     this.cleanup.abort();
   }
 
+  get audioFocus(){return this.target}
+
   private applyTransform(): void {
     this.pitch=Math.min(this.pitch,this.maxPitch());
     // Orthographic zoom expands the ray origins too. Keep the entire near edge

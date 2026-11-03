@@ -8,7 +8,7 @@ Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build -- --bas
 
 ## Kısıtlı topraktan yaşayan köye
 
-**Kur → üret → ticaret yap → yeni arsa aç veya elindekini yükselt.** Başlangıçta merkez, iki sakin ve altı boş arsa bulunur. Yapı kartı sadece mevcut boş arsaya yerleşir, yeni toprak vermez. Orman, çilek ve taş üretimi başlangıç ekonomisini oluşturur. Bir yapı kaldırılınca arsa kalır; kaynak iadesi olmaz. Uygun kart gelmezse Yeni planlar düğmesi 20 saniyede bir eli yeniler. Eksik temel üretim kartları çekilişte korunur.
+**Kur → üret → ticaret yap → yeni arsa aç veya elindekini yükselt.** Başlangıçta yalnızca bir merkez altıgeni ve bir sakin bulunur. İlk üretimlerin kurulabilmesi için üç ücretsiz genişleme hakkı verilir; arsalar adaya otomatik eklenmez, sağdaki Başlangıç arsası aç düğmesiyle kıyıdan seçilir. Yapı kartı sadece mevcut boş arsaya yerleşir, yeni toprak vermez. Orman, çilek ve taş üretimi başlangıç ekonomisini oluşturur. Bir yapı kaldırılınca arsa kalır; kaynak iadesi olmaz. Uygun kart gelmezse Yeni planlar düğmesi 20 saniyede bir eli yeniler. Eksik temel üretim kartları çekilişte korunur.
 
 Odun, taş ve yiyecek farklı amaçlara sahiptir. Orman ücretsizdir ama fidanlar 35 saniye büyümeden çalışılamaz. Ev 8 odun, 2 taş ve 4 hazırlık yiyeceği; depo 8 odun ve 4 taş ister. Çiftlik, balıkçı, oduncu kulübesi, bahçe ve büyük ev de taş gerektirir. Bedeller kartın üzerinde ayrı ikonlarla gösterilir.
 
@@ -42,6 +42,10 @@ Merkez deposu 80, yeni depo 60 ürünle başlar. Dolu depoya giden sakin başka 
 - Görevler panelinden odun, taş, çilek, buğday ve balık önceliklerini ayarla.
 
 Derleme yayın için alınır; oyun, tarayıcı, otomatik testler ve oynanış dengesi denemeleri proje tercihine göre kullanıcı tarafından yapılır.
+
+## Kıyı sesleri
+
+Mevcut iki kanallı dalga kaydı korunur, hafif stereo genişletme uygulanır. Kullanıcının sağladığı üç martı kaydı sırayla, aynı anda tek ses olacak şekilde çalınır. Çağrılar en fazla 5,5 saniye sürer; bitince 22–38 saniye ara verilir. Ses gerçek martı modelinin konumunu izler; kamera yönüyle stereo konumu, yakınlaştırmayla duyulan mesafesi değişir. Uzakta ses kısılır ve yumuşar. Martılar ve dalgalar Kıyı ambiyansı ayarından kontrol edilir; sekme gizlenince ses durur.
 
 ## Kaynaklar
 

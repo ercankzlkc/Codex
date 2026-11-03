@@ -60,6 +60,7 @@ export class Environment {
     tile.root.traverse(o=>{if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
     this.land.delete(id);
   }
+  get soundBirds(){return this.wildlife.soundBirds}
   fitWaterView(camera:T.OrthographicCamera){this.water.fitView(camera)}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){

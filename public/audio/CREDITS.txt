@@ -19,3 +19,10 @@ Yayıncının eser sayfasındaki lisans: CC0.
 CC0 1.0, ticari amaçla kullanımı, düzenlemeyi ve dağıtımı kapsar.
 https://creativecommons.org/publicdomain/zero/1.0/
 Sesler oyuna yerel dosyalar olarak dahildir. Kısa efektlerde oynatma hızı ve seviye hafifçe değişir.
+
+
+Kullanıcı tarafından sağlanan martı kayıtları
+- seagull-1.mp3: freesound_community-lost-seagull-27266.mp3
+- seagull-2.mp3: u_up4clmd95a-seagull-sound-effect-272695.mp3
+- seagull-3.mp3: soundreality-seagull-city-372653.mp3
+Kaynak dosyalar aynen saklanır. Oyun, ses seviyesini dengeler ve kısa bölümleri uçan martının konumunda HRTF ile çalar. Bu kayıtlar için yüklemede ayrıca bir lisans belgesi sağlanmamıştır; yukarıdaki Kenney/RandomMind CC0 beyanları bu üç kayda ait değildir.

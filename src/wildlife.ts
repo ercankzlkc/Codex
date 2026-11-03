@@ -5,6 +5,7 @@ import {fromWorld,position} from './hex';
 import {SEA_Y} from './scenery';
 /** Small shared meshes keep the coast alive without adding simulation workers. */
 export class Wildlife {
+  readonly soundBirds:T.Object3D[]=[];
   private root=new T.Group();
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
@@ -20,7 +21,7 @@ export class Wildlife {
         const bounds=new T.Box3().setFromObject(bird),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3());
         const scale=.55/Math.max(size.x,size.y,size.z);bird.scale.multiplyScalar(scale);bird.position.addScaledVector(center,-scale);
         const mixer=new T.AnimationMixer(bird);mixer.clipAction(clip).play();mixer.update(i*.27);
-        this.root.add(root);this.birds.push({root,mixer,phase:i*1.93});
+        this.root.add(root);this.soundBirds.push(root);this.birds.push({root,mixer,phase:i*1.93});
       }
     },undefined,error=>console.error('Martı modeli yüklenemedi',error));
     const silver=new T.MeshStandardMaterial({color:0x88b5b5,metalness:.18,roughness:.5}),tailGeo=new T.ConeGeometry(.055,.12,3);

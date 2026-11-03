@@ -57,13 +57,13 @@ export function hexDistance(a:number,b:number){
   return Math.max(Math.abs(p.q-q.q),Math.abs(p.r-q.r),Math.abs(p.q+p.r-q.q-q.r));
 }
 export class Game {
-  board=new Map<number,Kind>([[CENTER,'house'],...adjacent(CENTER).map(id=>[id,'empty'] as [number,Kind])]);
+  board=new Map<number,Kind>([[CENTER,'house']]);
   wood=18;stone=0;happy=70;
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
   priorities:Record<WorkCategory,number>={wood:30,stone:15,berry:30,farm:15,fish:10};
   elapsed=0;
   hunger=0;
-  landPermits=0;
+  landPermits=3;
   upgradePermits=0;
   planReadyAt=0;
   arrivalProgress=0;
@@ -246,7 +246,7 @@ export class Game {
     let rest=100-value;
     others.forEach((c,i)=>{const n=i===others.length-1?rest:Math.min(rest,Math.round((100-value)*(sum?this.priorities[c]/sum:1/others.length)));this.priorities[c]=n;rest-=n});
   }
-  residents:{id:number;home:number}[]=[{id:0,home:CENTER},{id:1,home:CENTER}];
+  residents:{id:number;home:number}[]=[{id:0,home:CENTER}];
   get people(){return this.residents.length}
   hand:Card[]=[];
   rng:()=>number;

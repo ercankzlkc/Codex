@@ -104,6 +104,7 @@ export class World {
   onHover=(_i:number)=>{};
   onPick=(_i:number)=>{};
   onTileSelect=(_i:number)=>{};
+  onSoundFrame=(_camera:T.OrthographicCamera,_focus:T.Vector3,_birds:readonly T.Object3D[])=>{};
   onDelivery=(_source:number,_store:number,_resource:Resource,_amount:number)=>0;
   onInspect=(_id:number,_x:number,_y:number,_bounds:{left:number;right:number;top:number;bottom:number}|null)=>{};
 
@@ -516,7 +517,7 @@ export class World {
   }
   private frame=(now:number)=>{
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
-    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera);this.environment.update(this.time);
+    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds);
     if(this.ghost?.visible){
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-32*dt));
       if(this.ghostModel){
