@@ -35,6 +35,10 @@ function wheatPlot(){
     for(let j=0;j<3;j++){box(plant,0xb5a45b,(j-1)*.035,.19,0,.015,.32,.018);part(plant,new T.ConeGeometry(.036,.15,4),0xe7cf83,(j-1)*.035,.39,0)}plot.add(plant);
   }}fence(plot,-.49);return plot;
 }
+function flowerGarden(){
+  const g=new T.Group();part(g,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(g,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(g,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(g,0xced2b5,0,.42,0,.09);
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2,flower=new T.Group();flower.position.set(Math.cos(a)*.4,0,Math.sin(a)*.4);flower.userData.flowerOrder=i;ball(flower,0x678952,0,.12,0,.13);ball(flower,i%2?0xdfae86:0xe8d7aa,0,.24,0,.055);g.add(flower)}return g;
+}
 function fishingHut(){
   const g=new T.Group();box(g,0x86674d,0,.04,-.22,.62,.08,.59);box(g,0xd5c498,0,.29,-.24,.48,.5,.42);
   const roof=part(g,new T.ConeGeometry(.46,.34,4),0x668d91,0,.68,-.24);roof.rotation.y=Math.PI/4;
@@ -45,6 +49,7 @@ function fishingHut(){
   box(g,0xc9b78f,-.27,.14,.03,.13,.25,.15);return g;
 }
 export function model(kind: Kind): T.Group {
+  if(kind==='garden'){if(!templates.has(kind))templates.set(kind,flowerGarden());return templates.get(kind)!.clone()}
   if(kind==='fisher'||kind==='farm'){
     if(!templates.has(kind))templates.set(kind,kind==='fisher'?fishingHut():wheatPlot());
     return templates.get(kind)!.clone();

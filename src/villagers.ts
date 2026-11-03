@@ -5,7 +5,7 @@ import {Game,hexDistance,WORK_CATEGORIES,type Resource,type WorkCategory} from '
 import {LAND_Y,SEA_Y} from './scenery';
 import {Walkways,type WalkPoint} from './navigation';
 type Job={source:number;store:number;resource:Resource;amount:number;tree:number;category:WorkCategory|null};
-type Citizen={id:number;root:T.Group;body:T.Group;arms:T.Group[];legs:T.Group[];bundle:T.Mesh;axe:T.Group;rod:T.Group;line:T.Line;bobber:T.Mesh;fish:T.Group;stage:'idle'|'to-work'|'working'|'to-store';path:WalkPoint[];target:T.Vector3|null;job:Job|null;clock:number;retry:number;phase:number;birth:number;speed:number;wait:number};
+type Citizen={id:number;root:T.Group;body:T.Group;arms:T.Group[];legs:T.Group[];bundle:T.Mesh;axe:T.Group;rod:T.Group;line:T.Line;bobber:T.Mesh;fish:T.Group;stage:'idle'|'to-work'|'working'|'to-store';path:WalkPoint[];target:T.Vector3|null;job:Job|null;clock:number;retry:number;phase:number;birth:number;speed:number;wait:number;status:HTMLElement;lastStatus:string;eatUntil:number;hungry:boolean;waitReason:string;searchUntil:number;stuck:number;bestDistance:number;nodeMarker:string;avoid:{x:number;z:number;until:number}[]};
 export interface VillageHooks {
   ready(id:number):boolean;yaw(id:number):number;resourceReady(id:number):boolean;
   pickTree(id:number,preferred:number):number;workPoint(id:number,tree:number):T.Vector3;
@@ -13,14 +13,14 @@ export interface VillageHooks {
   harvestProgress(id:number,actor:number,progress:number):void;
   fishingSpot(id:number):{stand:T.Vector3;water:T.Vector3}|null;
   impact(id:number,index:number):void;splash(x:number,z:number):void;trail(points:WalkPoint[]):void;
-  deliver(source:number,store:number,resource:Resource,amount:number):void;
+  deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
   readonly root=new T.Group();
   private game:Game|null=null;private nav:Walkways|null=null;
   private citizens:Citizen[]=[];private time=0;private spawned=new Set<number>();private spawnClock=0;
   private buckets=new Map<string,Citizen[]>();
-  constructor(scene:T.Scene,private hooks:VillageHooks){scene.add(this.root)}
+  constructor(scene:T.Scene,private hooks:VillageHooks,private overlay:HTMLElement){scene.add(this.root)}
   assignedTo(id:number){return this.citizens.filter(c=>c.job?.source===id).length}
   assignedCounts(){return Object.fromEntries(WORK_CATEGORIES.map(k=>[k,this.citizens.filter(c=>c.job?.category===k).length])) as Record<WorkCategory,number>}
   get working(){return this.citizens.filter(c=>c.job!==null).length}
@@ -29,17 +29,17 @@ export class Villagers {
     if(!this.game)return;const targets=this.game.workTargets(),counts=this.assignedCounts();
     for(const c of [...this.citizens].reverse())if(c.job?.category&&c.stage!=='to-store'&&counts[c.job.category]>targets[c.job.category]){counts[c.job.category]--;this.releaseJob(c)}
   }
-  private releaseJob(c:Citizen){if(c.job)this.hooks.harvestProgress(c.job.source,c.id,0);c.job=null;c.stage='idle';c.path=[];c.retry=.1;c.bundle.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false}
+  private releaseJob(c:Citizen){if(c.job)this.hooks.harvestProgress(c.job.source,c.id,0);c.job=null;c.stage='idle';c.path=[];c.retry=.1;c.bundle.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.axe.visible=false;c.rod.visible=false;c.waitReason='';c.target=null}
   reset(game:Game){
-    for(const c of this.citizens){c.bundle.geometry.dispose();(c.bundle.material as T.Material).dispose();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
+    for(const c of this.citizens){c.status.remove();c.bundle.geometry.dispose();(c.bundle.material as T.Material).dispose();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
     this.root.clear();this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id));
   }
   private neighbors(x:number,z:number){const result:Citizen[]=[];const bx=Math.floor(x/.32),bz=Math.floor(z/.32);for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)result.push(...(this.buckets.get(`${bx+a}:${bz+b}`)??[]));return result}
   private clear(c:Citizen,x:number,z:number){return this.neighbors(x,z).every(other=>other===c||Math.hypot(other.root.position.x-x,other.root.position.z-z)>.21)}
-  private route(c:Citizen,to:number,end?:T.Vector3){
+  private route(c:Citizen,to:number,end?:T.Vector3,strict=false){
     const p=position(to),yaw=this.hooks.yaw(to),target=end??new T.Vector3(p.x+Math.sin(yaw)*.65,LAND_Y,p.z+Math.cos(yaw)*.65);
-    const path=this.nav!.path(c.root.position,target,(x,z)=>this.neighbors(x,z).reduce((n,a)=>n+(a!==c&&Math.hypot(a.root.position.x-x,a.root.position.z-z)<.26?3:0),0));
-    if(!path?.length)return false;c.path=path;c.target=new T.Vector3(path[path.length-1].x,LAND_Y,path[path.length-1].z);this.hooks.trail(path);return true;
+    const path=this.nav!.path(c.root.position,target,(x,z)=>this.neighbors(x,z).reduce((n,a)=>n+(a!==c&&Math.hypot(a.root.position.x-x,a.root.position.z-z)<.32?4:0),0)+c.avoid.reduce((n,p)=>n+(Math.hypot(p.x-x,p.z-z)<.26?8:0),0),strict?.18:.65);
+    if(!path?.length)return false;c.nodeMarker='';c.stuck=0;c.bestDistance=Infinity;c.path=path;c.target=new T.Vector3(path[path.length-1].x,LAND_Y,path[path.length-1].z);this.hooks.trail(path);return true;
   }
   private spawn(id:number,home:number){
     const p=position(home),yaw=this.hooks.yaw(home),free=this.nav!.nearest(p.x+Math.sin(yaw)*.65,p.z+Math.cos(yaw)*.65,(x,z)=>this.citizens.every(c=>Math.hypot(c.root.position.x-x,c.root.position.z-z)>.23),1.1);if(!free)return;
@@ -57,7 +57,8 @@ export class Villagers {
     const bobber=new T.Mesh(new T.SphereGeometry(.024,6,4),new T.MeshBasicMaterial({color:0xe7ad74}));bobber.visible=false;
     const fish=new T.Group(),belly=ball(fish,0x94babb,0,0,0,.055);belly.scale.set(.55,.7,1.6);const tail=partFishTail();fish.add(tail);fish.visible=false;
     root.position.set(free.x,LAND_Y,free.z);root.rotation.y=yaw+Math.PI;
-    this.root.add(root,line,bobber,fish);this.spawned.add(id);this.citizens.push({id,root,body,arms,legs,bundle,axe,rod,line,bobber,fish,stage:'idle',path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:id===0?1:0,speed:0,wait:0});
+    const status=document.createElement('div');status.className='citizen-status';status.setAttribute('role','img');this.overlay.append(status);
+    this.root.add(root,line,bobber,fish);this.spawned.add(id);this.citizens.push({id,root,body,arms,legs,bundle,axe,rod,line,bobber,fish,stage:'idle',path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:id===0?1:0,speed:0,wait:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]});
   }
   private findJob(c:Citizen){
     const g=this.game!,here=fromWorld(c.root.position.x,c.root.position.z),targets=g.workTargets(),counts=this.assignedCounts();
@@ -65,8 +66,9 @@ export class Villagers {
       .filter(({source,recipe,category})=>recipe&&this.hooks.resourceReady(source)&&this.hooks.ready(source)&&(category?counts[category]<targets[category]:g.happy<70)&&this.assignedTo(source)<recipe.capacity)
       .sort((a,b)=>hexDistance(here,a.source)-hexDistance(here,b.source));
     for(const {source,recipe,category} of options){
-      const store=g.storageFor(source).find(id=>this.hooks.ready(id));if(store===undefined)continue;
+      const store=g.storageFor(source).find(id=>this.hooks.ready(id)&&g.canStore(id,recipe!.resource));if(store===undefined)continue;
       let tree=recipe!.resource==='wood'?-1:c.id%2;
+      if(category==='farm'||category==='berry'){tree=[0,1].find(slot=>!this.citizens.some(a=>a.job?.source===source&&a.job.tree===slot&&a.stage!=='to-store'))??-1;if(tree<0)continue}
       if(recipe!.resource==='wood')for(let j=0;j<3;j++){const index=this.hooks.pickTree(source,(c.id+j)%3);if(index>=0&&!this.citizens.some(a=>a.job?.source===source&&a.job.tree===index&&a.stage!=='to-store')){tree=index;break}}
       if(recipe!.resource==='wood'&&tree<0)continue;
       const fishing=g.board.get(source)==='fisher'?this.hooks.fishingSpot(source):null;if(g.board.get(source)==='fisher'&&!fishing)continue;
@@ -84,16 +86,57 @@ export class Villagers {
     if(!c.path.length){c.speed*=Math.exp(-10*dt);return false}
     const p=c.path[0];if(!this.game!.board.has(p.tile)||!this.hooks.ready(p.tile)){c.path=[];return false}
     const dx=p.x-c.root.position.x,dz=p.z-c.root.position.z,d=Math.hypot(dx,dz);
-    if(d<.035){c.path.shift();return false}
+    if(d<.035){c.path.shift();c.nodeMarker='';return false}
+    const marker=`${p.x}:${p.z}`;
+    if(c.nodeMarker!==marker){c.nodeMarker=marker;c.bestDistance=d;c.stuck=0}
+    else if(d<c.bestDistance-.035){c.bestDistance=d;c.stuck=0}else c.stuck+=dt;
+    if(c.stuck>1.1){this.recover(c);return false}
     const target=Math.atan2(dx,dz),difference=T.MathUtils.euclideanModulo(target-c.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
     c.speed+=((.82+(c.id%4)*.025)*Math.max(.35,1-Math.abs(difference)/Math.PI*.65)-c.speed)*(1-Math.exp(-7*dt));
     const step=Math.min(d,c.speed*dt),ux=dx/d,uz=dz/d,origin={x:c.root.position.x,z:c.root.position.z};
     const dodge=Math.min(.06,dt*.8);
     const candidates=[{x:origin.x+ux*step,z:origin.z+uz*step},{x:origin.x+ux*step-uz*dodge,z:origin.z+uz*step+ux*dodge},{x:origin.x+ux*step+uz*dodge,z:origin.z+uz*step-ux*dodge},{x:origin.x-uz*dodge,z:origin.z+ux*dodge},{x:origin.x+uz*dodge,z:origin.z-ux*dodge}];
     const next=candidates.find(n=>this.clear(c,n.x,n.z)&&this.nav!.segment(origin,n));
-    if(!next){c.wait+=dt;c.speed*=.8;if(c.wait>.85&&c.target){this.route(c,p.tile,c.target);c.wait=0}return false}
+    if(!next){c.wait+=dt;c.speed*=.8;if(c.wait>.6)this.recover(c);return false}
     c.wait=0;c.root.position.x=next.x;c.root.position.z=next.z;c.root.rotation.y+=difference*(1-Math.exp(-15*dt));
     if(Math.hypot(p.x-next.x,p.z-next.z)<.035)c.path.shift();return true;
+  }
+  private recover(c:Citizen){
+    this.nav!.invalidate();c.searchUntil=this.time+1.5;c.wait=0;c.stuck=0;
+    if(c.path[0])c.avoid.push({x:c.path[0].x,z:c.path[0].z,until:this.time+4});
+    c.path=[];
+    if(c.stage==='to-store'){c.target=null;if(c.job)c.job.store=-1;c.retry=0;return}
+    if(c.job){const goal=c.job.category==='fish'?this.hooks.fishingSpot(c.job.source)?.stand:this.hooks.workPoint(c.job.source,c.job.tree);if(goal&&this.route(c,c.job.source,goal))return;c.retry=.5}
+    else c.retry=.2;
+  }
+  private sendToStorage(c:Citizen){
+    const job=c.job;if(!job)return;const g=this.game!;if(job.resource==='happy'&&g.happy>=100){this.releaseJob(c);return}
+    const covered=g.storageFor(job.source).filter(id=>this.hooks.ready(id));
+    const stores=covered.filter(id=>g.canStore(id,job.resource));
+    if(!stores.length){c.waitReason=covered.length?'full':'path';c.retry=.7;return}
+    if(job.store>=0&&stores.includes(job.store)&&c.target&&Math.hypot(c.root.position.x-c.target.x,c.root.position.z-c.target.z)<.10&&Math.hypot(c.root.position.x-position(job.store).x,c.root.position.z-position(job.store).z)<1.05){
+      const delivered=this.hooks.deliver(job.source,job.store,job.resource,job.amount);job.amount-=delivered;
+      if(job.amount<=0){this.releaseJob(c);c.retry=.35;return}
+      c.target=null;job.store=-1;c.retry=.1;return;
+    }
+    const ordered=stores.sort((a,b)=>Math.hypot(c.root.position.x-position(a).x,c.root.position.z-position(a).z)-Math.hypot(c.root.position.x-position(b).x,c.root.position.z-position(b).z));
+    for(const store of ordered){
+      const p=position(store),yaw=this.hooks.yaw(store),angles=[0,Math.PI/3,-Math.PI/3,Math.PI/2,-Math.PI/2,Math.PI,2*Math.PI/3,-2*Math.PI/3];
+      const doors=angles.map(a=>new T.Vector3(p.x+Math.sin(yaw+a)*.67,LAND_Y,p.z+Math.cos(yaw+a)*.67))
+        .filter(d=>this.nav!.free(d.x,d.z)&&this.clear(c,d.x,d.z))
+        .sort((a,b)=>c.root.position.distanceTo(a)-c.root.position.distanceTo(b));
+      for(const door of doors)if(this.route(c,store,door,true)){job.store=store;c.waitReason='';return}
+    }
+    c.waitReason='path';c.searchUntil=this.time+1.2;c.retry=.6;
+  }
+  updateStatuses(camera:T.Camera,width:number,height:number){
+    const v=new T.Vector3();
+    for(const c of this.citizens){
+      const eating=c.eatUntil>this.time,carrying=c.bundle.visible;
+      const state=eating?(c.hungry?'hungry':'eat'):c.searchUntil>this.time?'search':carrying?(c.waitReason==='full'?'full':'carry'):c.stage==='working'?(c.job?.category??'garden'):c.path.length?'walk':'rest';
+      if(state!==c.lastStatus){c.lastStatus=state;const paths=statusPaths[state==='carry'?(c.job?.category??'garden'):state]??statusPaths.rest;c.status.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;c.status.dataset.state=state;c.status.setAttribute('aria-label',statusNames[state]??'Dinleniyor');c.status.title=statusNames[state]??'Dinleniyor'}
+      v.copy(c.root.position);v.y+=.58;v.project(camera);c.status.hidden=v.z< -1||v.z>1;c.status.style.left=`${(v.x+1)*width/2}px`;c.status.style.top=`${(1-v.y)*height/2}px`;c.status.style.opacity=String(c.birth);
+    }
   }
   private fishing(c:Citizen,dt:number){
     const spot=this.hooks.fishingSpot(c.job!.source);if(!spot)return;
@@ -115,9 +158,11 @@ export class Villagers {
   }
   update(dt:number){
     const g=this.game;if(!g||!this.nav)return;this.time+=dt;g.tick(dt);this.spawnClock-=dt;
+    for(const event of g.takeMeals()){const c=this.citizens.find(c=>c.id===event.id);if(c){c.eatUntil=this.time+1.5;c.hungry=!event.ate}}
     if(this.spawnClock<=0){for(const r of g.residents)if(!this.spawned.has(r.id)&&this.hooks.ready(r.home))this.spawn(r.id,r.home);this.spawnClock=.35}
     this.buckets.clear();for(const c of this.citizens){const k=`${Math.floor(c.root.position.x/.32)}:${Math.floor(c.root.position.z/.32)}`;if(!this.buckets.has(k))this.buckets.set(k,[]);this.buckets.get(k)!.push(c)}
     for(const c of this.citizens){
+      c.avoid=c.avoid.filter(p=>p.until>this.time);
       c.birth=Math.min(1,c.birth+dt*2);c.root.scale.setScalar(Math.max(.01,c.birth*c.birth*(3-2*c.birth)));
       const current=fromWorld(c.root.position.x,c.root.position.z);
       if(!g.board.has(current)||!this.nav.free(c.root.position.x,c.root.position.z)){
@@ -129,11 +174,12 @@ export class Villagers {
       }
       if(c.job&&!g.board.has(c.job.source))this.releaseJob(c);
       c.retry-=dt;
+      if(c.eatUntil>this.time){c.axe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.body.rotation.x=.06;c.arms[0].rotation.x=-1.9+Math.sin(this.time*7)*.12;c.arms[1].rotation.x=c.bundle.visible?-.8:-.2;c.legs.forEach(leg=>leg.rotation.x=0);continue}
       if(c.stage==='idle'&&c.retry<=0){c.retry=1.5+(c.id%3)*.2;if(!this.findJob(c)&&!c.path.length)this.wander(c)}
       const walking=this.move(c,dt);
-      if(c.stage==='to-work'&&!c.path.length&&c.job){
+      if(c.stage==='to-work'&&!c.path.length&&c.job&&c.retry<=0){
         if(c.target&&Math.hypot(c.target.x-c.root.position.x,c.target.z-c.root.position.z)<.17){c.stage='working';c.clock=0}
-        else if(!this.route(c,c.job.source,this.hooks.workPoint(c.job.source,c.job.tree)))this.releaseJob(c);
+        else{const goal=c.job.category==='fish'?this.hooks.fishingSpot(c.job.source)?.stand:this.hooks.workPoint(c.job.source,c.job.tree);if(!goal||!this.route(c,c.job.source,goal)){c.retry=.6;c.searchUntil=this.time+1}}
       }
       c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;
       const working=c.stage==='working',wood=working&&c.job?.resource==='wood',fishing=working&&c.job?.category==='fish',phase=this.time*9+c.phase;
@@ -144,6 +190,7 @@ export class Villagers {
       c.arms[1].rotation.x=wood?-.25:working?-.9:walking?-Math.sin(phase)*.45:-Math.sin(this.time*1.7+c.phase)*.08;
       c.legs[0].rotation.x=walking?Math.sin(phase)*.55:0;c.legs[1].rotation.x=walking?-Math.sin(phase)*.55:0;c.axe.visible=!!wood;
       if(working&&c.job){
+        if(fishing){const spot=this.hooks.fishingSpot(c.job.source);if(!spot||Math.hypot(c.root.position.x-spot.stand.x,c.root.position.z-spot.stand.z)>.22){c.clock=0;c.stage='to-work';c.path=[];c.target=null;c.retry=0;continue}}
         c.clock+=dt;
         if(wood&&c.clock>.3&&Math.floor(c.clock*1.7-.72)!==Math.floor((c.clock-dt)*1.7-.72))this.hooks.impact(c.job.source,c.job.tree);
         const duration=fishing?7.5:wood?2.2:2.4;
@@ -156,17 +203,25 @@ export class Villagers {
           c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.rod.visible=false;
         }
       }
-      if(c.stage==='to-store'&&c.job&&!c.path.length&&c.retry<=0){
-        const stores=g.storageFor(c.job.source).filter(id=>this.hooks.ready(id));let routed=false;
-        for(const store of stores){
-          const p=position(store),yaw=this.hooks.yaw(store),door={x:p.x+Math.sin(yaw)*.65,z:p.z+Math.cos(yaw)*.65};
-          if(Math.hypot(c.root.position.x-door.x,c.root.position.z-door.z)<.19){this.hooks.deliver(c.job.source,store,c.job.resource,c.job.amount);this.releaseJob(c);c.retry=.35;routed=true;break}
-          if(this.route(c,store)){c.job.store=store;routed=true;break}
-        }
-        if(!routed)c.retry=1;
-      }
+      if(c.stage==='to-store'&&c.job&&!c.path.length&&c.retry<=0)this.sendToStorage(c);
       if(c.bundle.visible)c.arms.forEach(arm=>arm.rotation.x=-.8);
     }
   }
 }
 function partFishTail(){const mesh=new T.Mesh(new T.ConeGeometry(.05,.065,3),new T.MeshStandardMaterial({color:0x739b9c,roughness:.7}));mesh.position.z=-.09;mesh.rotation.x=Math.PI/2;return mesh}
+
+const statusPaths:Record<string,string>={
+ wood:'<path d="m8 20 5-13m-3-2 8 3 2-5-8-2-2 4Z"/>',
+ berry:'<path d="M6 8c-5 4-1 11 6 14 7-3 11-10 6-14L12 6 6 8Zm2-2 4 3 4-3M8 12h.1m7 0h.1m-4 4h.1"/>',
+ farm:'<path d="M12 22V3m0 7C6 11 5 7 6 4c4 1 6 3 6 6Zm0 6c6 0 7-4 6-7-4 1-6 4-6 7Z"/>',
+ fish:'<path d="M3 12c5-6 10-6 15 0-5 6-10 6-15 0Zm15 0 4-4v8ZM7 11h.1"/>',
+ garden:'<path d="M12 21V11m0 4c-6 0-7-3-7-6 5 0 7 2 7 6Zm0 3c5 0 7-3 7-6-4 0-7 2-7 6Z"/><circle cx="12" cy="6" r="3"/>',
+ carry:'<path d="m4 7 8-4 8 4v11l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v11"/>',
+ full:'<path d="m3 7 7-3 7 3v5M3 7v11l7 3v-10m-7-4 7 4 7-4"/><circle cx="18" cy="17" r="5"/><path d="M18 14v3l2 1"/>',
+ rest:'<path d="M4 9h12v8a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4V9Zm12 0h2a3 3 0 0 1 0 6h-2M7 3v3m5-3v3"/>',
+ walk:'<path d="m7 3-2 6 3 3 3 9m6-18 2 6-3 3-3 9M5 14l-2 6m16-6 2 6"/>',
+ eat:'<circle cx="12" cy="12" r="5"/><path d="M2 3v7m3-7v7m-3-3h3m-1 3v11M21 3v18m0-18c-3 3-3 7 0 8"/>',
+ hungry:'<circle cx="12" cy="12" r="7"/><path d="m5 5 14 14M2 3v6m20-6v18"/>',
+ search:'<path d="M4 8a8 8 0 0 1 13-3l3 3m0-5v5h-5M20 16a8 8 0 0 1-13 3l-3-3m0 5v-5h5"/>',
+};
+const statusNames:Record<string,string>={wood:'Odun kesiyor',berry:'Çilek topluyor',farm:'Buğday biçiyor',fish:'Balık tutuyor',garden:'Çiçek topluyor',carry:'Depoya taşıyor',full:'Depo dolu',rest:'Dinleniyor',walk:'Yürüyor',eat:'Yemek yiyor',hungry:'Yiyecek yok',search:'Alternatif yol arıyor'};

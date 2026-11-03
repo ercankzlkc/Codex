@@ -38,8 +38,8 @@ export class Walkways {
     }
     return best;
   }
-  path(start:{x:number;z:number},end:{x:number;z:number},crowd:(x:number,z:number)=>number=()=>0):WalkPoint[]|null{
-    const a=this.nearest(start.x,start.z,(x,z)=>this.segment(start,{x,z})),b=this.nearest(end.x,end.z);if(!a||!b)return null;
+  path(start:{x:number;z:number},end:{x:number;z:number},crowd:(x:number,z:number)=>number=()=>0,endRadius=.8):WalkPoint[]|null{
+    const a=this.nearest(start.x,start.z,(x,z)=>this.segment(start,{x,z})),b=this.nearest(end.x,end.z,()=>true,endRadius);if(!a||!b)return null;
     const key=(x:number,z:number)=>`${x},${z}`,sx=Math.round(a.x/this.step),sz=Math.round(a.z/this.step),tx=Math.round(b.x/this.step),tz=Math.round(b.z/this.step),target=key(tx,tz);
     type Node={x:number;z:number;key:string;cost:number;score:number};
     const heap:Node[]=[],push=(n:Node)=>{heap.push(n);for(let i=heap.length-1;i>0;){const p=(i-1)>>1;if(heap[p].score<=n.score)break;heap[i]=heap[p];heap[p]=n;i=p}},pop=()=>{const first=heap[0],last=heap.pop()!;if(heap.length){heap[0]=last;let i=0;for(;;){let j=i*2+1;if(j>=heap.length)break;if(j+1<heap.length&&heap[j+1].score<heap[j].score)j++;if(heap[i].score<=heap[j].score)break;[heap[i],heap[j]]=[heap[j],heap[i]];i=j}}return first};

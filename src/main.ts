@@ -25,7 +25,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
- <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
+ <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <button id="population-toggle" aria-expanded="false" aria-controls="work-panel">${icon('people')}<span>Görevler</span><b id="population-badge">1</b></button>
  <section id="work-panel" hidden aria-label="Nüfus görev dağılımı"><header><strong>İş öncelikleri</strong><button data-work-balance>Dengele</button><button data-work-close aria-label="Kapat">×</button></header><p id="work-summary"></p><div id="work-rows"></div></section>
  <aside id="food-details" hidden role="tooltip"></aside>
@@ -57,7 +57,7 @@ function label(text:string) {
 world.valid=i=>!!selected&&i>=0&&game.valid(selected,i);
 world.onHover=i=>{
   if(!selected||i<0){label('');return}
-  if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
+  if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Balıkçının son kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}
   const p=game.preview(selected,i)!;
@@ -91,12 +91,20 @@ function settle(){
 }
 world.onTileSelect=i=>{
   editedTile=i;const editor=get('#tile-editor');editor.hidden=i<0;
-  if(i<0)return;
+  if(i<0){get('#storage-upgrade').hidden=true;return}
   get('#tile-editor strong').textContent=i===CENTER?'Krallık merkezi':cards.find(c=>c.id===game.board.get(i))?.name??'Yerleşim';
   get('#tile-editor small').textContent=i===CENTER?'Merkez korunur · R / tekerlek ile döndür':'R / tekerlek · Silmede kaynak iadesi yok';
   const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER;
-  remove.title=i===CENTER?'Krallık merkezi silinemez':'Yapı ve toprak denize çöker';
+  remove.title=i===CENTER?'Krallık merkezi silinemez':'Yapı ve toprak denize çöker';renderStorage();
 };
+function renderStorage(){
+  const panel=get('#storage-upgrade'),id=editedTile;panel.hidden=!game.storageStocks.has(id);if(panel.hidden)return;
+  const used=game.storageUsed(id),max=game.storageCapacity(id),cost=game.upgradeCost(id);
+  get('#storage-meter').textContent=`Depo ${game.storageLevels.get(id)} · ${used} / ${max}`;
+  const progress=get<HTMLProgressElement>('#storage-progress');progress.max=max;progress.value=used;
+  const button=get<HTMLButtonElement>('#upgrade-store');button.innerHTML=`Yükselt ${icon('wood')} ${cost}`;button.disabled=game.wood<cost;button.title=`Kapasite +${id===CENTER?80:60}`;
+}
+get('#upgrade-store').onclick=()=>{if(game.upgradeStore(editedTile)){world.burst(editedTile);renderHud();renderStorage();sound.play('build')}};
 get('[data-tile-left]').onclick=()=>world.rotateSelection(-1);
 get('[data-tile-right]').onclick=()=>world.rotateSelection(1);
 get('[data-tile-close]').onclick=()=>world.editTile(-1);
@@ -161,7 +169,7 @@ function renderHud(){
     get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':id==='food'?`−${game.foodPerMinute}/dk`:'Depoda';
   }
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
-  renderWork();if(!get('#food-details').hidden)renderFood();
+  renderWork();renderStorage();if(!get('#food-details').hidden)renderFood();
 }
 function render(){
   renderHud();
@@ -171,7 +179,7 @@ function render(){
   </button>`).join('');
 }
 world.onDelivery=(source,store,resource,amount)=>{
-  const accepted=game.deliver(source,store,resource,amount);if(!accepted)return;
+  const accepted=game.deliver(source,store,resource,amount);if(!accepted)return 0;
   renderHud();sound.play('reward');
   const target=get(`[data-resource="${resource}"]`),rect=target.getBoundingClientRect(),from=world.screenPoint(store,.6);
   const spark=document.createElement('div');spark.className=`delivery-spark ${resource}`;spark.innerHTML=`${icon(resource==='food'?(game.board.get(source)==='fisher'?'fish':game.board.get(source)==='farm'?'wheat':'berry'):resource)}<b>+${accepted}</b>`;document.body.append(spark);
@@ -179,14 +187,15 @@ world.onDelivery=(source,store,resource,amount)=>{
   const motion=spark.animate([{transform:`translate(${from.x}px,${from.y}px) scale(.7)`,opacity:0},{transform:`translate(${from.x}px,${from.y-25}px) scale(1)`,opacity:1,offset:.2},{transform:`translate(${endX}px,${endY}px) scale(.5)`,opacity:0}],{duration:950,easing:'cubic-bezier(.3,.65,.3,1)'});
   void motion.finished.catch(()=>{}).then(()=>spark.remove());
   target.animate([{transform:'scale(1)',backgroundColor:'transparent'},{transform:'scale(1.10)',backgroundColor:'#d8e6b4'},{transform:'scale(1)',backgroundColor:'transparent'}],{duration:650});
+  return accepted;
 };
 world.onInspect=(id,x,y,bounds)=>{
   const tooltip=get('#tile-tooltip');
   if(id<0||!bounds||selected||dialog.open){tooltip.hidden=true;return}
   const kind=game.board.get(id),card=cards.find(c=>c.id===kind),product=game.productAt(id);
   const lines:string[]=[];
-  if(id===CENTER)lines.push('Merkez deposu · 2 altıgen toplama alanı','Başlangıçta 1 sakin');
-  else if(kind==='store')lines.push(`${STORAGE_RADIUS} altıgen yarıçap`,'Tıkla · kapsamdaki alanları gör');
+  if(id===CENTER)lines.push('Merkez deposu · 2 altıgen',`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`);
+  else if(kind==='store')lines.push(`${STORAGE_RADIUS} altıgen yarıçap`,`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapsam ve yükseltme');
   else if(product){lines.push(`+${product.amount} ${product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,game.storageFor(id).length?'Depo kapsamında':'Depo kapsamı dışında');}
   else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');

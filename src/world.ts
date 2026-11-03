@@ -102,7 +102,7 @@ export class World {
   onHover=(_i:number)=>{};
   onPick=(_i:number)=>{};
   onTileSelect=(_i:number)=>{};
-  onDelivery=(_source:number,_store:number,_resource:Resource,_amount:number)=>{};
+  onDelivery=(_source:number,_store:number,_resource:Resource,_amount:number)=>0;
   onInspect=(_id:number,_x:number,_y:number,_bounds:{left:number;right:number;top:number;bottom:number}|null)=>{};
 
   constructor(readonly el:HTMLElement) {
@@ -125,7 +125,7 @@ export class World {
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
       harvestProgress:(id,actor,progress)=>{const key=`${id}:${actor}`;if(progress)this.harvestParts.set(key,{id,progress});else this.harvestParts.delete(key)},
       fishingSpot:id=>this.fishingSpot(id),impact:(id,index)=>this.woodImpact(id,index),splash:(x,z)=>this.environment.stir(x,z,1,0,.45,.1),trail:points=>this.addTrail(points),deliver:(source,store,resource,amount)=>this.onDelivery(source,store,resource,amount),
-    });
+    },this.el);
     const radius=RADIUS*Math.sqrt(3)*STORAGE_RADIUS+.55;
     const fill=new T.Mesh(new T.CircleGeometry(radius,6).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:0xf4db99,transparent:true,opacity:.065,depthWrite:false,side:T.DoubleSide}));
     const outline=new T.LineLoop(new T.BufferGeometry().setFromPoints(Array.from({length:6},(_,i)=>new T.Vector3(Math.cos(i*Math.PI/3)*radius,0,Math.sin(i*Math.PI/3)*radius))),new T.LineBasicMaterial({color:0xffe7ac,transparent:true,opacity:.75,depthWrite:false}));
@@ -182,10 +182,10 @@ export class World {
       const key=`${id}:${index}`,tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
       if(!tree||this.treeCycles.has(key))return false;
       this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});
-      tree.updateWorldMatrix(true,false);this.makeLoader(key,id,tree.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.5,0)),14);
-    }else if(this.board.get(id)==='berry'||this.board.get(id)==='farm'){
+      tree.updateWorldMatrix(true,false);this.makeLoader(key,id,tree.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.5,0)),30);
+    }else if(this.board.get(id)==='berry'||this.board.get(id)==='farm'||this.board.get(id)==='garden'){
       const field=this.fieldState(id);if(field.stock<=0)return false;field.stock--;
-      if(field.stock===0){field.age=0;const p=position(id);this.makeLoader(`field:${id}`,id,new T.Vector3(p.x,LAND_Y+.6,p.z),this.board.get(id)==='berry'?12:18)}
+      if(field.stock===0){field.age=0;const p=position(id);this.makeLoader(`field:${id}`,id,new T.Vector3(p.x,LAND_Y+.6,p.z),30)}
     }else if(this.board.get(id)==='fisher'&&!this.fishingSpot(id))return false;
     return true;
   }
@@ -206,12 +206,33 @@ export class World {
   private fieldState(id:number){if(!this.fields.has(id)){const max=this.board.get(id)==='farm'?4:3;this.fields.set(id,{stock:max,max,age:0})}return this.fields.get(id)!}
   private resourceReady(id:number){
     const kind=this.board.get(id);
-    return kind==='forest'?this.pickTree(id,0)>=0:kind==='berry'||kind==='farm'?this.fieldState(id).stock>0:kind==='fisher'?!!this.fishingSpot(id):true;
+    return kind==='forest'?this.pickTree(id,0)>=0:kind==='berry'||kind==='farm'||kind==='garden'?this.fieldState(id).stock>0:kind==='fisher'?!!this.fishingSpot(id):true;
   }
-  private fishingYaw(id:number){const p=position(id),sea=adjacent(id).find(n=>!this.board.has(n));if(sea===undefined)return 0;const q=position(sea);return Math.atan2(q.x-p.x,q.z-p.z)}
+  private coastalYaw(id:number,current=0,steps=0){
+    const p=position(id),open=adjacent(id).filter(n=>!this.board.has(n)).map(n=>{const q=position(n);return Math.atan2(q.x-p.x,q.z-p.z)});
+    if(!open.length)return current;
+    const delta=(a:number,b:number)=>T.MathUtils.euclideanModulo(a-b+Math.PI,Math.PI*2)-Math.PI;
+    let value=current;
+    if(steps&&open.length>1){
+      const sign=Math.sign(steps);
+      for(let i=0;i<Math.abs(steps);i++){
+        const next=open.map(a=>({a,d:T.MathUtils.euclideanModulo((a-value)*sign,Math.PI*2)})).filter(x=>x.d>.04).sort((a,b)=>a.d-b.d)[0];
+        if(next)value+=next.d*sign;
+      }
+      return value;
+    }
+    const angle=open.sort((a,b)=>Math.abs(delta(a,current))-Math.abs(delta(b,current)))[0];return current+delta(angle,current);
+  }
+  private alignFisheries(){
+    for(const [id,kind] of this.board)if(kind==='fisher'){
+      const g=this.buildings.get(id);if(!g)continue;
+      const current=this.rotationTargets.get(id)??g.rotation.y,target=this.coastalYaw(id,current);
+      if(Math.abs(target-current)>.01)this.rotationTargets.set(id,target);
+    }
+  }
   private fishingSpot(id:number){
     const g=this.buildings.get(id);if(!g||this.board.get(id)!=='fisher'||!this.ready(id))return null;
-    const p=position(id),dx=Math.sin(g.rotation.y),dz=Math.cos(g.rotation.y),water=new T.Vector3(p.x+dx*1.75,SEA_Y+.03,p.z+dz*1.75);
+    const p=position(id),yaw=this.rotationTargets.get(id)??g.rotation.y,dx=Math.sin(yaw),dz=Math.cos(yaw),water=new T.Vector3(p.x+dx*1.75,SEA_Y+.03,p.z+dz*1.75);
     if(this.board.has(fromWorld(water.x,water.z)))return null;
     return {stand:new T.Vector3(p.x+dx*.70,LAND_Y,p.z+dz*.70),water};
   }
@@ -249,9 +270,9 @@ export class World {
   get placementRotation(){return this.desiredGhostYaw}
   rotateSelection(steps:number){
     this.lastRotationWake=this.time-.06;this.villagers.refreshNavigation();
-    if(this.selected&&!this.selected.event){this.desiredGhostYaw+=steps*Math.PI/3;if(this.selected.id==='fisher')this.fisherOffset+=steps*Math.PI/3}
+    if(this.selected&&!this.selected.event){this.desiredGhostYaw=this.selected.id==='fisher'&&this.hover>=0?this.coastalYaw(this.hover,this.desiredGhostYaw,steps):this.desiredGhostYaw+steps*Math.PI/3}
     else if(this.editing>=0&&!this.placing){
-      const g=this.buildings.get(this.editing);if(g)this.rotationTargets.set(this.editing,(this.rotationTargets.get(this.editing)??g.rotation.y)+steps*Math.PI/3);
+      const g=this.buildings.get(this.editing);if(g){const current=this.rotationTargets.get(this.editing)??g.rotation.y;this.rotationTargets.set(this.editing,this.board.get(this.editing)==='fisher'?this.coastalYaw(this.editing,current,steps):current+steps*Math.PI/3)}
     }
   }
   get placing(){return this.builds.length>0||this.demolitions.length>0}
@@ -296,7 +317,7 @@ export class World {
       const wasVisible=this.ghost.visible;
       this.ghost.visible=i>=0;
       if(i>=0){
-        if(this.selected?.id==='fisher'){const target=this.fishingYaw(i)+this.fisherOffset;this.desiredGhostYaw+=T.MathUtils.euclideanModulo(target-this.desiredGhostYaw+Math.PI,Math.PI*2)-Math.PI}
+        if(this.selected?.id==='fisher')this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
         this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.035:LAND_Y+.025));
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
         this.ghostPalette.forEach(({mat,base})=>{
@@ -363,6 +384,7 @@ export class World {
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
       if(i===placed){g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
+    this.alignFisheries();
     if(placed>=0&&board.get(placed)==='store')this.showStorageRange(placed);
   }
   private pulse(i:number,color:number) {
@@ -451,22 +473,23 @@ export class World {
       return b.time<BUILD_END;
     });
     this.villagers.update(document.hidden?0:dt);
+    this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}
     for(const [key,cycle] of this.treeCycles){
       if(!this.board.has(cycle.id)){this.updateLoader(key,99);this.treeCycles.delete(key);continue}
       cycle.age+=dt;this.updateLoader(key,cycle.age);
       if(cycle.age<.6){cycle.tree.rotation.z=easeBetween(cycle.age,0,.6)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.6)}
-      else if(cycle.age<11){cycle.tree.visible=false}
-      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,11,14)))}
-      if(cycle.age>=14){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key)}
+      else if(cycle.age<26){cycle.tree.visible=false}
+      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,26,30)))}
+      if(cycle.age>=30){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key)}
     }
     for(const [id,field] of this.fields){
       if(!this.board.has(id)){this.updateLoader(`field:${id}`,99);this.fields.delete(id);continue}
-      const kind=this.board.get(id),duration=kind==='berry'?12:18;
+      const kind=this.board.get(id),duration=30;
       if(field.stock===0){field.age+=dt;this.updateLoader(`field:${id}`,field.age);if(field.age>=duration){field.stock=field.max;field.age=0}}
       const partial=[...this.harvestParts.values()].filter(p=>p.id===id).reduce((n,p)=>n+p.progress,0);
       const available=field.stock===0?easeBetween(field.age,duration-4,duration):Math.max(0,(field.stock-partial)/field.max);
-      const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined||p.userData.cropOrder!==undefined)??[];
+      const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined||p.userData.cropOrder!==undefined||p.userData.flowerOrder!==undefined)??[];
       plants.forEach((plant,index)=>{const fraction=T.MathUtils.clamp(available*plants.length-index,0,1);
         if(kind==='farm')plant.scale.y=.08+.92*fraction;
         else plant.children.slice(1).forEach(fruit=>fruit.scale.setScalar(Math.max(.01,fraction)));

@@ -59,21 +59,46 @@ export class Game {
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
   priorities:Record<WorkCategory,number>={wood:35,berry:35,farm:20,fish:10};
   private meal=0;
+  private mealPerson=0;
+  private meals:{id:number;ate:boolean}[]=[];
+  storageLevels=new Map<number,number>([[CENTER,1]]);
+  storageStocks=new Map<number,{wood:number;berry:number;wheat:number;fish:number}>([[CENTER,{wood:18,berry:8,wheat:4,fish:0}]]);
+  storageCapacity(id:number){return this.storageStocks.has(id)?(id===CENTER?80:60)*(this.storageLevels.get(id)??1):0}
+  storageUsed(id:number){const stock=this.storageStocks.get(id);return stock?Object.values(stock).reduce((a,b)=>a+b,0):0}
+  storageFree(id:number){return Math.max(0,this.storageCapacity(id)-this.storageUsed(id))}
+  canStore(id:number,resource:Resource){return this.storageStocks.has(id)&&(resource==='happy'||this.storageFree(id)>0)}
+  upgradeCost(id:number){return 12*(this.storageLevels.get(id)??1)}
+  upgradeStore(id:number){
+    if(!this.storageStocks.has(id)||this.wood<this.upgradeCost(id))return false;
+    this.spendWood(this.upgradeCost(id));this.storageLevels.set(id,(this.storageLevels.get(id)??1)+1);return true;
+  }
+  private spendWood(amount:number){
+    this.wood-=amount;let left=amount;
+    for(const stock of this.storageStocks.values()){const take=Math.min(left,stock.wood);stock.wood-=take;left-=take;if(!left)break}
+  }
+  private addFood(kind:FoodKind,amount:number){
+    for(const [id,stock] of this.storageStocks){const take=Math.min(amount,this.storageFree(id));stock[kind]+=take;this.foods[kind]+=take;amount-=take;if(!amount)break}
+  }
+  takeMeals(){const events=this.meals;this.meals=[];return events}
+  wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>kind==='fisher'&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
   get food(){return this.foods.berry+this.foods.wheat+this.foods.fish}
   get foodPerMinute(){return this.people*2}
   consumeFood(amount:number){
     let eaten=0;
     while(eaten<amount&&this.food>0){
       const type=(Object.keys(this.foods) as FoodKind[]).sort((a,b)=>this.foods[b]-this.foods[a])[0];
-      this.foods[type]--;eaten++;
+      this.foods[type]--;for(const stock of this.storageStocks.values())if(stock[type]>0){stock[type]--;break}eaten++;
     }
     return eaten;
   }
   tick(dt:number){
     this.meal+=dt*this.people/30;
     const due=Math.floor(this.meal);if(!due)return;
-    this.meal-=due;const eaten=this.consumeFood(due);
-    if(eaten<due)this.happy=Math.max(0,this.happy-(due-eaten)*.35);
+    this.meal-=due;
+    for(let i=0;i<due;i++){
+      const ate=this.consumeFood(1)>0,id=this.residents[this.mealPerson++%this.people].id;this.meals.push({id,ate});
+      if(!ate)this.happy=Math.max(0,this.happy-.35);
+    }
   }
   categoryFor(id:number):WorkCategory|null{
     const kind=this.board.get(id);return kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':null;
@@ -169,7 +194,7 @@ export class Game {
 
   valid(card:Card,i:number){
     return this.hand.includes(card)&&card.cost<=this.wood&&(card.id!=='festival'||this.food>=3)
-      &&(card.event?this.board.has(i):canGrow(this.board,i))&&(card.id!=='fisher'||adjacent(i).some(n=>!this.board.has(n)));
+      &&(card.event?this.board.has(i):canGrow(this.board,i)&&!this.wouldSealFishery(i))&&(card.id!=='fisher'||adjacent(i).some(n=>!this.board.has(n)));
   }
   preview(card:Card,i:number){
     if(!this.valid(card,i))return null;
@@ -181,16 +206,19 @@ export class Game {
   }
   play(card:Card,i=CENTER){
     if(!this.valid(card,i))return null;
-    this.wood-=card.cost;
+    this.spendWood(card.cost);
     if(!card.event)this.board.set(i,card.id);
+    if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,berry:0,wheat:0,fish:0})}
     const count=card.id==='house'?2:card.id==='manor'?4:0;
     for(let j=0;j<count;j++)this.residents.push({id:this.residents.length,home:i});
     if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);this.consumeFood(3)}
-    if(card.id==='harvest'){this.foods.berry+=12;this.happy=Math.max(0,this.happy-5)}
+    if(card.id==='harvest'){this.addFood('berry',12);this.happy=Math.max(0,this.happy-5)}
     this.draw();return this.production();
   }
   remove(i:number){
     if(i===CENTER||!this.board.has(i))return false;
+    const stock=this.storageStocks.get(i);
+    if(stock){this.wood-=stock.wood;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
     this.board.delete(i);for(const r of this.residents)if(r.home===i)r.home=CENTER;
     return true;
   }
@@ -210,9 +238,10 @@ export class Game {
   deliver(source:number,store:number,resource:Resource,amount:number){
     const recipe=this.productAt(source);
     if(!recipe||recipe.resource!==resource||!this.storageFor(source).includes(store))return 0;
-    const accepted=Math.max(0,Math.min(recipe.amount,Math.floor(amount)));
+    const accepted=Math.max(0,Math.min(recipe.amount,Math.floor(amount),resource==='happy'?Infinity:this.storageFree(store)));
     if(resource==='happy'){const before=this.happy;this.happy=Math.min(100,this.happy+accepted);return Number((this.happy-before).toFixed(2))}
-    if(resource==='food'){const kind=this.board.get(source);this.foods[kind==='fisher'?'fish':kind==='farm'?'wheat':'berry']+=accepted}else this.wood+=accepted;
+    const stock=this.storageStocks.get(store);if(!stock)return 0;
+    if(resource==='food'){const kind=this.board.get(source),food:FoodKind=kind==='fisher'?'fish':kind==='farm'?'wheat':'berry';this.foods[food]+=accepted;stock[food]+=accepted}else{this.wood+=accepted;stock.wood+=accepted}
     return accepted;
   }
 }

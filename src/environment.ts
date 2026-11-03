@@ -2,7 +2,7 @@ import * as T from 'three';
 import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,meadow,LAND_Y,SEA_Y} from './scenery';
-import {box,ball,tree} from './models';
+import {tree} from './models';
 import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
 
@@ -14,21 +14,14 @@ export class Environment {
   private readonly water=new TropicalWater();
   private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
 
-  private readonly harbour=new T.Group();
-  private readonly boat=new T.Group();
   private last=0;
   private sinking=new Map<number,number>();
   private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
-    this.root.add(this.water.root,this.harbour);
-    // A small jetty turns toward an exposed harbour edge as the kingdom grows.
-    for(let j=0;j<6;j++)box(this.harbour,j%2?0xb6996e:0xc8a97c,.08+j*.10,-.06,0,.092,.045,.35);
-    for(const x of [.1,.59])for(const z of [-.13,.13])box(this.harbour,0x876f52,x,-.215,z,.04,.39,.04);
-    const hull=ball(this.boat,0x8c6348,0,.005,0,.26);hull.scale.set(1.35,.48,.64);
-    box(this.boat,0xd8b98b,0,.07,0,.06,.032,.24);box(this.boat,0xc9a575,.16,.06,0,.05,.025,.18);
-    this.boat.position.set(.37,SEA_Y+.06,.46);this.harbour.add(this.boat);
+    this.root.add(this.water.root);
   }
+
   sync(board:ReadonlyMap<number,unknown>,placed:number){
     for(const id of this.land.keys())if(!board.has(id))this.removeLand(id)
     this.pendingBoard=placed>=0?new Map(board):null;
@@ -46,10 +39,8 @@ export class Environment {
       root.visible=id!==placed;
       this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?0:LAND_END});
     }
-    const dockEdge=edges.find(e=>e.id===CENTER&&e.side===1)??edges.find(e=>e.id===CENTER)??edges[0];
-    this.harbour.position.set((dockEdge.ax+dockEdge.bx)/2,0,(dockEdge.az+dockEdge.bz)/2);
-    this.harbour.rotation.y=-dockEdge.side*Math.PI/3;
   }
+
   demolish(board:ReadonlyMap<number,unknown>,id:number){
     this.pendingBoard=new Map(board);this.sinking.set(id,0);
     this.water.sync(board,coast(board),-1,id);
@@ -63,7 +54,6 @@ export class Environment {
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
     const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);
-    this.boat.position.y=SEA_Y+.07+Math.sin(time*1.3)*.014;this.boat.rotation.x=Math.sin(time*.84)*.045;
     for(const tile of this.land.values())if(tile.age<LAND_END){
       tile.age=Math.min(LAND_END,tile.age+dt);
       const progress=easeBetween(tile.age,LAND_START,LAND_END);
