@@ -1,12 +1,13 @@
 import * as T from 'three';
 import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
-import {CENTER, position, fromWorld} from './hex';
+import {CENTER, position, fromWorld,corner,RADIUS} from './hex';
 import {terrainGeometry} from './scenery';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, part, box } from './models';
-import { cards, type Card, type Kind, type Production } from './game';
+import {Game,STORAGE_RADIUS,cards,type Resource,type Card,type Kind,type Production} from './game';
+import {Villagers} from './villagers';
 
 type Build = { id:number; group:T.Group; time:number; kind:Kind };
 type Mote = { mesh:T.Mesh; velocity:T.Vector3; life:number };
@@ -44,6 +45,11 @@ export class World {
   readonly cameraControl:CameraController;
   readonly grid:PlacementGrid;
   readonly environment:Environment;
+  readonly villagers:Villagers;
+  private game:Game|null=null;
+  private readonly storageRange=new T.Group();
+  private treeCycles=new Map<string,{id:number;tree:T.Object3D;age:number;scale:T.Vector3}>();
+  private berryCycles=new Map<number,number>();
   private root=new T.Group();
   private buildings=new Map<number,T.Group>();
   private editing=-1;
@@ -83,6 +89,8 @@ export class World {
   onHover=(_i:number)=>{};
   onPick=(_i:number)=>{};
   onTileSelect=(_i:number)=>{};
+  onDelivery=(_source:number,_store:number,_resource:Resource,_amount:number)=>{};
+  onInspect=(_id:number,_x:number,_y:number,_bounds:{left:number;right:number;top:number;bottom:number}|null)=>{};
 
   constructor(readonly el:HTMLElement) {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -99,14 +107,22 @@ export class World {
     sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00012;sun.shadow.normalBias=.015;
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);
+    this.villagers=new Villagers(this.scene,{
+      ready:id=>this.ready(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),
+      harvest:(id,resource,index)=>this.harvest(id,resource,index),deliver:(source,store,resource,amount)=>this.onDelivery(source,store,resource,amount),
+    });
+    const radius=RADIUS*Math.sqrt(3)*STORAGE_RADIUS+.55;
+    const fill=new T.Mesh(new T.CircleGeometry(radius,6).rotateX(-Math.PI/2),new T.MeshBasicMaterial({color:0xf4db99,transparent:true,opacity:.065,depthWrite:false,side:T.DoubleSide}));
+    const outline=new T.LineLoop(new T.BufferGeometry().setFromPoints(Array.from({length:6},(_,i)=>new T.Vector3(Math.cos(i*Math.PI/3)*radius,0,Math.sin(i*Math.PI/3)*radius))),new T.LineBasicMaterial({color:0xffe7ac,transparent:true,opacity:.75,depthWrite:false}));
+    this.storageRange.add(fill,outline);this.storageRange.visible=false;this.scene.add(this.storageRange);
 
     this.grid=new PlacementGrid(this.scene);
     const resize=()=>{const {clientWidth:w,clientHeight:h}=el;this.renderer.setSize(w,h);this.cameraControl.resize(w,h)};
     new ResizeObserver(resize).observe(el);resize();
     const canvas=this.renderer.domElement;
     canvas.addEventListener('pointermove',e=>{if(this.selected&&!e.buttons)this.point(e.clientX,e.clientY)});
-    canvas.addEventListener('pointerleave',()=>{this.setHover(-1);this.lastSea=null});
-    canvas.addEventListener('pointermove',e=>this.stirSea(e));
+    canvas.addEventListener('pointerleave',()=>{this.setHover(-1);this.lastSea=null;this.onInspect(-1,0,0,null)});
+    canvas.addEventListener('pointermove',e=>{this.stirSea(e);this.inspectPointer(e)});
     canvas.addEventListener('click',e=>{
       if(e.button!==0)return;
       if(this.selected){const i=this.point(e.clientX,e.clientY);if(i>=0)this.onPick(i)}
@@ -131,6 +147,42 @@ export class World {
     this.renderer.setAnimationLoop(this.frame);
   }
 
+  bindGame(game:Game){this.game=game;this.villagers.reset(game)}
+  private ready(id:number){return this.board.has(id)&&this.buildings.has(id)&&!this.builds.some(b=>b.id===id)&&!this.demolitions.some(d=>d.id===id)}
+  private pickTree(id:number,preferred:number){
+    for(let j=0;j<3;j++){const index=(preferred+j)%3;if(!this.treeCycles.has(`${id}:${index}`)&&this.buildings.get(id)?.children.some(t=>t.userData.treeIndex===index))return index}
+    return -1;
+  }
+  private workPoint(id:number,index:number){
+    const p=position(id),tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
+    if(tree){tree.updateWorldMatrix(true,false);const v=tree.getWorldPosition(new T.Vector3());return new T.Vector3(v.x+.16,LAND_Y,v.z+.16)}
+    return new T.Vector3(p.x,LAND_Y,p.z+.42);
+  }
+  private harvest(id:number,resource:Resource,index:number){
+    if(!this.ready(id))return false;
+    if(resource==='wood'){
+      const key=`${id}:${index}`,tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
+      if(!tree||this.treeCycles.has(key))return false;
+      this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});
+    }else if(this.board.get(id)==='berry'){
+      if(this.berryCycles.has(id))return false;this.berryCycles.set(id,0);
+    }
+    return true;
+  }
+  showStorageRange(id:number,preview=false){
+    const show=id>=0&&(preview||id===CENTER||this.board.get(id)==='store');this.storageRange.visible=show;
+    if(show){const p=position(id);this.storageRange.position.set(p.x,LAND_Y+.025,p.z);this.storageRange.scale.setScalar(id===CENTER&&!preview?2/STORAGE_RADIUS:1)}
+  }
+  screenPoint(id:number,y=.7){const p=position(id),v=new T.Vector3(p.x,y,p.z).project(this.cameraControl.camera);return {x:(v.x+1)*this.el.clientWidth/2,y:(1-v.y)*this.el.clientHeight/2}}
+  private inspectPointer(event:PointerEvent){
+    if(this.selected||event.buttons||document.querySelector('dialog[open]')){this.onInspect(-1,0,0,null);return}
+    const id=this.grid.pick(event.clientX,event.clientY,this.cameraControl.camera,this.el);
+    if(!this.board.has(id)){this.onInspect(-1,0,0,null);this.renderer.domElement.style.cursor='';return}
+    this.renderer.domElement.style.cursor='pointer';
+    const p=position(id),points=Array.from({length:6},(_,i)=>{const c=corner(i),v=new T.Vector3(p.x+c.x,LAND_Y,p.z+c.z).project(this.cameraControl.camera);return {x:(v.x+1)*this.el.clientWidth/2,y:(1-v.y)*this.el.clientHeight/2}});
+    this.onInspect(id,event.clientX,event.clientY,{left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),top:Math.min(...points.map(p=>p.y))-35,bottom:Math.max(...points.map(p=>p.y))});
+  }
+
   holdSelection(){this.placementQueued=true;this.cameraControl.setPlacement(false)}
   get placementRotation(){return this.desiredGhostYaw}
   rotateSelection(steps:number){
@@ -143,7 +195,7 @@ export class World {
   get placing(){return this.builds.length>0||this.demolitions.length>0}
   editTile(id:number){
     this.editing=id;this.wheelRotation=0;
-    this.grid.setHover(id,true,id>=0);this.onTileSelect(id);
+    this.grid.setHover(id,true,id>=0);this.showStorageRange(id);this.onTileSelect(id);
   }
   demolish(board:ReadonlyMap<number,Kind>,id:number){
     const group=this.buildings.get(id);if(!group)return;
@@ -197,10 +249,11 @@ export class World {
       this.previewLand.position.y=-LAND_Y-.025/.70;
       this.previewLand.receiveShadow=true;this.ghost.add(this.previewLand);
     }
+    if(this.selected?.id==='store')this.showStorageRange(valid?i:-1,true);
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {
-    this.editTile(-1);
+    this.editTile(-1);this.onInspect(-1,0,0,null);
     const same=!!card&&card===this.selected;
     const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
     this.cameraControl.setPlacement(carrying);
@@ -242,6 +295,7 @@ export class World {
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
       if(i===placed){g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
+    if(placed>=0&&board.get(placed)==='store')this.showStorageRange(placed);
   }
   private pulse(i:number,color:number) {
     const material=new T.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false});
@@ -267,7 +321,7 @@ export class World {
     });
   }
   reset(){
-    this.setSelection(null);this.cameraControl.reset();
+    this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.berryCycles.clear();
     this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
     for(const {el} of this.labels)el.remove();this.labels=[];
     for(const {mesh} of this.motes)this.scene.remove(mesh);this.motes=[];
@@ -324,6 +378,20 @@ export class World {
       });
       return b.time<BUILD_END;
     });
+    this.villagers.update(document.hidden?0:dt);
+    for(const [key,cycle] of this.treeCycles){
+      if(!this.board.has(cycle.id)){this.treeCycles.delete(key);continue}
+      cycle.age+=dt;
+      if(cycle.age<.6){cycle.tree.rotation.z=easeBetween(cycle.age,0,.6)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.6)}
+      else if(cycle.age<2.5){cycle.tree.visible=false}
+      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,2.5,4.5)))}
+      if(cycle.age>=4.5){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key)}
+    }
+    for(const [id,age] of this.berryCycles){
+      const next=age+dt;this.berryCycles.set(id,next);
+      this.buildings.get(id)?.children.forEach(plant=>{if(plant.userData.plantOrder!==undefined)plant.children.slice(1).forEach(fruit=>fruit.scale.setScalar(Math.max(.01,easeBetween(next,.3+plant.userData.plantOrder*.025,3.5))))});
+      if(next>=3.5||!this.board.has(id))this.berryCycles.delete(id);
+    }
     this.motes=this.motes.filter(m=>{
       m.life-=dt*1.65;m.velocity.y-=dt*2.7;m.mesh.position.addScaledVector(m.velocity,dt);
       m.mesh.scale.setScalar(Math.max(0,m.life));if(m.life<=0)this.scene.remove(m.mesh);return m.life>0;

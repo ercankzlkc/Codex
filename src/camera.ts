@@ -12,7 +12,7 @@ export class CameraController {
   private readonly right = new THREE.Vector3();
   private readonly forward = new THREE.Vector3();
   private readonly up = new THREE.Vector3(0, 1, 0);
-  private readonly distance = 20;
+  private distance = 20;
   private yaw = Math.PI / 4;
   private desiredYaw = Math.PI / 4;
   private pitch = 0.86;
@@ -30,6 +30,7 @@ export class CameraController {
     const xs=points.map(p=>p.x),zs=points.map(p=>p.z);
     this.islandCenter.set((Math.min(...xs)+Math.max(...xs))/2,.3,(Math.min(...zs)+Math.max(...zs))/2);
     this.islandRadius=Math.max(...points.map(p=>Math.hypot(p.x-this.islandCenter.x,p.z-this.islandCenter.z)))+2.65;
+    this.distance=Math.max(20,this.islandRadius*3);this.camera.far=this.distance+this.islandRadius*3+40;
     this.desiredTarget.copy(this.islandCenter);
     this.resize(this.viewportWidth,this.viewportHeight);
     if(immediate){this.target.copy(this.desiredTarget);this.halfHeight=this.desiredHalfHeight;this.applyProjection();this.applyTransform()}
@@ -70,7 +71,7 @@ export class CameraController {
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
     const aspect = safeWidth / safeHeight;
-    const topReserved = safeWidth < 700 ? 210 : 155;
+    const topReserved = safeWidth < 700 ? 100 : 85;
     const bottomReserved = safeWidth < 700 ? 205 : safeHeight < 760 ? 190 : 225;
     const availableHeight = Math.max(safeHeight * 0.43, safeHeight - topReserved - bottomReserved);
     this.viewportWidth=safeWidth;this.viewportHeight=safeHeight;

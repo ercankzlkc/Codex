@@ -1,8 +1,7 @@
 import './style.css';
 import {CENTER} from './hex';
-import {Game,cards,type Card} from './game';
+import {Game,cards,STORAGE_RADIUS,type Resource,type Card} from './game';
 import {World} from './world';
-import {rewardLabel} from './objectives';
 import {CardDrag} from './drag';
 import {TableSound} from './sound';
 
@@ -19,25 +18,21 @@ const icon=(id:string)=>`<svg aria-hidden="true" viewBox="0 0 24 24" fill="none"
 const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
- <div class="kingdom-hud" aria-label="Krallığın durumu"><div id="stats" aria-label="Krallığın kaynakları"></div>
- <div class="run"><div id="turn"></div><small>Hedef · 10 nüfus / 50 refah</small></div></div>
- <section id="objective" aria-label="Küçük hedef"><div class="objective-header"><span>KÜÇÜK HEDEF</span><div id="objective-steps" role="img" aria-label="Tamamlanan hedefler"></div></div><div class="objective-body"><div><strong id="objective-title"></strong><p id="objective-description"></p></div><span id="objective-reward"></span></div><div class="objective-footer"><progress id="objective-progress" value="0" max="1" aria-label="Hedef ilerlemesi"></progress><small id="objective-count"></small></div></section>
- <div id="goal-celebration" role="status" aria-live="polite" hidden></div>
+ <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
- <dialog></dialog>`;
+ <aside id="tile-tooltip" hidden><strong></strong><div></div></aside><dialog></dialog>`;
 const get=<E extends HTMLElement=HTMLElement>(selector:string)=>app.querySelector<E>(selector)!;
 const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=get<HTMLDialogElement>('dialog');
 const world=new World(get('#world'));
 const thumbs=world.thumbnails();
 const sound=new TableSound();
 let game=new Game();
-let selected:Card|null=null,turnTimer:number|undefined,toastTimer:number|undefined,locked=false;
+let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
 let editedTile=-1;
-let goalTimer:number|undefined;
 
 function affordable(c:Card) { return c.cost<=game.wood&&(c.id!=='festival'||game.food>=3); }
 function select(c:Card|null,carrying=false) {
@@ -60,7 +55,7 @@ world.onHover=i=>{
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}
   const p=game.preview(selected,i)!;
-  const effects=[p.wood&&`+${p.wood} odun`,p.food&&`+${p.food} yiyecek`,p.happy&&`+${p.happy} refah`,p.people&&`+${p.people} nüfus`].filter(Boolean);
+  const effects=[p.wood&&`+${p.wood} odun / teslimat`,p.food&&`+${p.food} yiyecek / teslimat`,p.happy&&`+${p.happy} refah / teslimat`,p.people&&`+${p.people} nüfus`].filter(Boolean);
   const adjacentBonus=p.localBonus||p.neighbors.length>0;
   label((adjacentBonus?'Komşuluk · ':'')+(effects.join('  ·  ')||'Yerleşime uygun'));
 };
@@ -78,22 +73,14 @@ function commit(i:number) {
   locked=true;
   sound.sequence(!!card.event,['house','manor','store','lumber'].includes(card.id),preview.localBonus||preview.neighbors.length>0);select(null);world.sync(game.board,card.event?-1:i,rotation);
   if(card.event)world.burst(i);
-  world.feedback(production,i,preview.neighbors);render();
-  toast(game.log);
-  if(game.completedThisTurn){
-    const celebration=get('#goal-celebration');celebration.textContent=`✓ ${game.completedThisTurn.title} · ${rewardLabel(game.completedThisTurn.reward)}`;
-    celebration.hidden=false;sound.play('bonus');
-    celebration.getAnimations().forEach(a=>a.cancel());
-    celebration.animate([{opacity:0,transform:'translate(-50%, 10px) scale(.96)'},{opacity:1,transform:'translate(-50%, 0) scale(1)'}],{duration:350,easing:'ease-out'});
-    clearTimeout(goalTimer);goalTimer=window.setTimeout(()=>{celebration.hidden=true},2600);
-  }
+  render();
+  toast(card.event?`${card.name} uygulandı`:`${card.name} · yerleşim hazırlanıyor`);
   hand.animate([{opacity:.35,transform:'translateY(17px)'},{opacity:1,transform:'translateY(0)'}],{duration:330,easing:'ease-out'});
-  clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,2000);return true;
+  clearTimeout(settleTimer);settleTimer=window.setTimeout(settle,2000);return true;
 }
 function settle(){
-  if(world.placing){turnTimer=window.setTimeout(settle,100);return}
+  if(world.placing){settleTimer=window.setTimeout(settle,100);return}
   locked=false;
-  if(game.over){finish();return}
   if(pendingPlacement!==null){const i=pendingPlacement;pendingPlacement=null;commit(i)}
 }
 world.onTileSelect=i=>{
@@ -101,8 +88,8 @@ world.onTileSelect=i=>{
   if(i<0)return;
   get('#tile-editor strong').textContent=i===CENTER?'Krallık merkezi':cards.find(c=>c.id===game.board.get(i))?.name??'Yerleşim';
   get('#tile-editor small').textContent=i===CENTER?'Merkez korunur · R / tekerlek ile döndür':'R / tekerlek · Silmede kaynak iadesi yok';
-  const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER||game.over;
-  remove.title=i===CENTER?'Krallık merkezi silinemez':game.over?'Koşu sona erdi':'Yapı ve toprak denize çöker';
+  const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER;
+  remove.title=i===CENTER?'Krallık merkezi silinemez':'Yapı ve toprak denize çöker';
 };
 get('[data-tile-left]').onclick=()=>world.rotateSelection(-1);
 get('[data-tile-right]').onclick=()=>world.rotateSelection(1);
@@ -110,7 +97,7 @@ get('[data-tile-close]').onclick=()=>world.editTile(-1);
 get('[data-tile-delete]').onclick=()=>{
   const id=editedTile;if(world.placing||!game.remove(id))return;
   locked=true;drag.cancel();select(null);world.demolish(game.board,id);render();toast('Yerleşim kaldırıldı · kaynak iadesi yok');
-  clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,1500);
+  clearTimeout(settleTimer);settleTimer=window.setTimeout(settle,1500);
 };
 
 world.onPick=commit;
@@ -124,34 +111,62 @@ hand.addEventListener('pointerover',event=>{
   if(b&&!b.disabled&&!b.contains(event.relatedTarget as Node|null)&&!locked&&!selected)sound.play('hover');
 });
 const drag=new CardDrag(hand,{
-  canStart:i=>pendingPlacement===null&&!game.over&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
+  canStart:i=>pendingPlacement===null&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
   start:i=>{sound.play('lift');select(game.hand[i],true)},
   move:(x,y)=>world.valid(dragPosition(x,y)),
   drop:(x,y)=>commit(dragPosition(x,y)),
   cancel:()=>{sound.play('invalid');select(null)},
   tap:i=>{const c=game.hand[i];select(selected===c?null:c)},
 });
-function render() {
-  const goal=game.activeObjective,progress=game.objectiveProgress;
-  get('#objective-steps').innerHTML=game.objectiveOrder.map((_,i)=>`<i class="${i<game.completedObjectives?'done':i===game.completedObjectives?'current':''}" aria-hidden="true">${i<game.completedObjectives?'✓':i+1}</i>`).join('');
-  get('#objective-steps').setAttribute('aria-label',`${game.completedObjectives} / 3 hedef tamamlandı`);
-  get('#objective-title').textContent=goal?.title??'Köyün küçük mutlulukları';
-  get('#objective-description').textContent=goal?.description??'Üç hedef de tamam! Şimdi adanın keyfini çıkar.';
-  get('#objective-reward').textContent=goal?rewardLabel(goal.reward):'✓ 3 / 3';
-  const bar=get<HTMLProgressElement>('#objective-progress');bar.max=goal?.target??3;bar.value=goal?progress:3;
-  get('#objective-count').textContent=goal?(progress>=goal.target?'Hazır · sonraki hamlede ödül':`${progress} / ${goal.target}`):'Tamamlandı';
-  get('#objective').classList.toggle('all-done',!goal);
-  const p=game.production(),net=p.food-game.people;
-  get('#stats').innerHTML=[
-    ['wood','Odun',game.wood,`+${p.wood}/tur`],['food','Yiyecek',game.food,`${net>=0?'+':''}${net}/tur`],
-    ['people','Nüfus',game.people,`${p.used}/${game.people} işçi`],['happy','Refah',game.happy,`+${p.happy}/tur`],
-  ].map(([id,name,v,rate])=>`<div class="resource" data-resource="${id}" title="${name} · ${rate}">${icon(String(id))}<div><small>${name}</small><b>${v}</b></div><em>${rate}</em></div>`).join('');
-  get('#turn').innerHTML=`<small>TUR</small> <b>${String(game.turn).padStart(2,'0')}</b><span> / 15</span>`;
-  hand.innerHTML=game.hand.map((c,i)=>`<button class="card tone-${c.id}" data-card="${i}" aria-pressed="false" ${game.over||!affordable(c)?'disabled':''}>
-    <span class="cost" title="${c.cost} odun">${icon('wood')}${c.cost}</span><span class="type">${c.event?'ANLIK':c.workers?`${c.workers} İŞÇİ`:'YERLEŞİM'}</span>
+function renderHud(){
+  const stats=get('#stats');
+  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['food','Yiyecek'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
+  for(const id of ['wood','food','people','happy'] as const){
+    get(`[data-resource="${id}"] b`).textContent=String(game[id]);
+    get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':'Depoda';
+  }
+  hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
+}
+function render(){
+  renderHud();
+  hand.innerHTML=game.hand.map((c,i)=>`<button class="card tone-${c.id}" data-card="${i}" aria-pressed="false" ${!affordable(c)?'disabled':''}>
+    <span class="cost" title="${c.cost} odun">${icon('wood')}${c.cost}</span><span class="type">${c.event?'ANLIK':c.workers?`${c.workers} ÇALIŞAN`:'YERLEŞİM'}</span>
     <img src="${thumbs[c.id]}" alt="" draggable="false"><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>
   </button>`).join('');
 }
+world.onDelivery=(source,store,resource,amount)=>{
+  const accepted=game.deliver(source,store,resource,amount);if(!accepted)return;
+  renderHud();sound.play('reward');
+  const target=get(`[data-resource="${resource}"]`),rect=target.getBoundingClientRect(),from=world.screenPoint(store,.6);
+  const spark=document.createElement('div');spark.className=`delivery-spark ${resource}`;spark.innerHTML=`${icon(resource)}<b>+${accepted}</b>`;document.body.append(spark);
+  const endX=rect.left+rect.width/2,endY=rect.top+rect.height/2;
+  const motion=spark.animate([{transform:`translate(${from.x}px,${from.y}px) scale(.7)`,opacity:0},{transform:`translate(${from.x}px,${from.y-25}px) scale(1)`,opacity:1,offset:.2},{transform:`translate(${endX}px,${endY}px) scale(.5)`,opacity:0}],{duration:950,easing:'cubic-bezier(.3,.65,.3,1)'});
+  void motion.finished.catch(()=>{}).then(()=>spark.remove());
+  target.animate([{transform:'scale(1)',backgroundColor:'transparent'},{transform:'scale(1.10)',backgroundColor:'#d8e6b4'},{transform:'scale(1)',backgroundColor:'transparent'}],{duration:650});
+};
+world.onInspect=(id,x,y,bounds)=>{
+  const tooltip=get('#tile-tooltip');
+  if(id<0||!bounds||selected||dialog.open){tooltip.hidden=true;return}
+  const kind=game.board.get(id),card=cards.find(c=>c.id===kind),product=game.productAt(id);
+  const lines:string[]=[];
+  if(id===CENTER)lines.push('Merkez deposu · 2 altıgen toplama alanı','Başlangıçta 1 sakin');
+  else if(kind==='store')lines.push(`${STORAGE_RADIUS} altıgen toplama alanı`,'Kaynaklar teslim edilince HUD’a eklenir');
+  else if(product){lines.push(`+${product.amount} ${product.resource==='wood'?'odun':product.resource==='food'?'yiyecek':'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,game.storageFor(id).length?'Depo kapsamında':'Depo kapsamı dışında');}
+  else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
+  else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Ormanlarda ek çalışan yeri açar');
+  else if(card)lines.push(card.desc,card.bonus);
+  tooltip.querySelector('strong')!.textContent=id===CENTER?'Krallık merkezi':card?.name??'Yerleşim';
+  tooltip.querySelector('div')!.innerHTML=lines.map(line=>`<span>${line}</span>`).join('');tooltip.hidden=false;
+  const width=tooltip.offsetWidth,height=tooltip.offsetHeight,pad=14;
+  let left=x+26,top=y+22;
+  const overlap=()=>left<bounds.right+8&&left+width>bounds.left-8&&top<bounds.bottom+8&&top+height>bounds.top-8;
+  if(overlap()){left=bounds.right+pad;top=y-height/2}
+  if(left+width>innerWidth-pad){left=bounds.left-width-pad;top=y-height/2}
+  if(left<pad){left=Math.max(pad,Math.min(innerWidth-width-pad,x-width/2));top=bounds.top-height-pad;if(top<pad)top=bounds.bottom+pad}
+  tooltip.style.left=`${Math.max(pad,Math.min(innerWidth-width-pad,left))}px`;
+  tooltip.style.top=`${Math.max(pad,Math.min(innerHeight-height-pad,top))}px`;
+};
+window.setInterval(renderHud,700);
 function modal(html:string) {
   drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
@@ -162,23 +177,18 @@ function modal(html:string) {
   dialog.querySelector('[data-close]')?.addEventListener('click',()=>dialog.close());
   dialog.querySelector('[data-new]')?.addEventListener('click',()=>{dialog.close();reset()});
 }
-function finish(){
-  modal(`<small>YELKEN KOYU · TUR ${game.turn}</small><h1>${game.won?'Koyda hayat var.':'Bir mevsim sona erdi.'}</h1>
-    <p>${game.won?'Köyün yeni mevsime hazır.':game.turn<15?'Halkın köyü terk etti.':'Hedef 10 nüfus ve 50 refahtı.'}</p><p>${game.people} nüfus · ${game.happy} refah · ${game.food} yiyecek</p><p>${game.completedObjectives} / 3 küçük hedef tamamlandı</p><button data-new>Yeni krallık kur</button>`);
-}
 function reset(){
-  clearTimeout(goalTimer);get('#goal-celebration').hidden=true;
-  clearTimeout(turnTimer);clearTimeout(toastTimer);log.classList.remove('visible');
+  clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
+  document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());
   drag.cancel();sound.cancel();game=new Game();selected=null;locked=false;
-  world.reset();world.sync(game.board);select(null);render();
+  world.reset();world.sync(game.board);world.bindGame(game);select(null);render();
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
-get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Adada yaşam</h1>
- <p>Kartı kıyıdaki boş bir altıgene bırak. Yeni kara denizden yükselir. Merkez her tur 2 odun ve bir işçiyle 4 yiyecek üretir. Anlık kartlar adanın herhangi bir hücresinde kullanılır. İstersen kartı seçip hücreye tıklayabilirsin. Esc seçimi iptal eder.</p>
- <p>Her tur önce üretim yapılır, ardından her kişi 1 yiyecek tüketir. İşçiler önce yiyecek yapılarına atanır. Kıtlık 1 nüfus ve 14 refah götürür.</p>
- <p>Her koşuda sırayla üç küçük hedef gelir. Bir hamle sonunda hedefi tamamlarsan küçük bir ödül alırsın. Ödüller bir kez verilir; yıkım ve döndürme ödül kazandırmaz.</p>
- <p>Komşu yapılar birbirini güçlendirir. Ormanlar oduncu kartlarını sıklaştırır. 6 nüfusta çiftlik ve büyük ev açılır. 15 tur sonunda 10 nüfus ve 50 refaha ulaş.</p>
- <p class="controls">Sağ tuş · döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · kamerayı ortala<br>Kart seçiliyken tekerlek / R · döndür &nbsp; Shift + R · ters yön</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
+get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
+ <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
+ <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Merkez 2, depolar 3 altıgen içindeki kaynakları toplar. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir.</p>
+ <p>Depoyu seçerek veya yerleştirirken toplama alanını görebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
+ <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · ortala<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){drag.cancel();select(null)}});
 reset();
 

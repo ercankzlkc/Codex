@@ -32,7 +32,7 @@ export function frontier(board:ReadonlyMap<number,unknown>):number[] {
   return [...open];
 }
 export function canGrow(board:ReadonlyMap<number,unknown>,id:number) {
-  return board.size<16&&!board.has(id)&&adjacent(id).some(n=>board.has(n));
+  return id>=0&&!board.has(id)&&adjacent(id).some(n=>board.has(n));
 }
 export interface ShoreEdge {id:number;side:number;ax:number;az:number;bx:number;bz:number}
 export function corner(i:number,r=RADIUS) {const a=(i-.5)*Math.PI/3;return {x:Math.cos(a)*r,z:Math.sin(a)*r}}

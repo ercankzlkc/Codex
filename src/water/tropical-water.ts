@@ -33,12 +33,14 @@ export class TropicalWater {
   private readonly sandStartTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
   private readonly sandTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
   private readonly stones:T.InstancedMesh;
+  private readonly surface:T.Mesh;
   private readonly silhouettes=new T.IcosahedronGeometry(1,0);
   constructor(){
     const surface=new T.Mesh(new T.PlaneGeometry(160,160,180,180),new T.ShaderMaterial({
       uniforms:this.uniforms,vertexShader:waterVertex,fragmentShader:waterFragment,
       transparent:true,depthWrite:false,toneMapped:false,
     }));
+    this.surface=surface;
     surface.rotation.x=-Math.PI/2;surface.position.y=SEA_Y;surface.renderOrder=2;
     this.sandGeometry.setAttribute('color',this.sandTint);
     this.sandGeometry.setAttribute('aBedStart',this.sandStart);
@@ -77,6 +79,8 @@ export class TropicalWater {
 
   sync(board:ReadonlyMap<number,unknown>,edges:ShoreEdge[],placed:number,removed=-1){
     this.field.rebuild(board,edges);
+    this.surface.position.x=this.field.region.x+this.field.region.z/2;this.surface.position.z=this.field.region.y+this.field.region.w/2;
+    this.surface.scale.setScalar(Math.max(1,this.field.region.z/70,this.field.region.w/70));
     const changed=placed>=0?placed:removed;
     const animate=changed>=0&&this.previousBoard.size>0;
     this.transitionStart=removed>=0?SINK_START:LAND_START;this.transitionEnd=removed>=0?SINK_END:LAND_END;

@@ -29,6 +29,13 @@ function berryPlot(){
   fence(plot,-.49);return plot;
 }
 export function model(kind: Kind): T.Group {
+  if(kind==='forest'){
+    if(!templates.has(kind)){
+      const plot=new T.Group();tree(plot,-.23,-.2,0,.88);tree(plot,.23,-.03,1,.79);tree(plot,-.08,.27,2,.7);
+      plot.children.forEach((t,i)=>t.userData.treeIndex=i);templates.set(kind,plot);
+    }
+    return templates.get(kind)!.clone();
+  }
   if(kind==='berry'){
     if(!templates.has(kind))templates.set(kind,berryPlot());
     return templates.get(kind)!.clone();
