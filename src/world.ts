@@ -6,7 +6,7 @@ import { PlacementGrid, cellPosition } from './grid';
 import { model, part, box } from './models';
 import { cards, type Card, type Kind, type Production } from './game';
 
-type Build = { group:T.Group; time:number; kind:Kind };
+type Build = { id:number; group:T.Group; time:number; kind:Kind };
 type Mote = { mesh:T.Mesh; velocity:T.Vector3; life:number };
 type Label = { el:HTMLElement; position:T.Vector3; life:number; delay:number };
 
@@ -108,9 +108,12 @@ export class World {
       const wasVisible=this.ghost.visible;
       this.ghost.visible=i>=0;
       if(i>=0){
-        this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.065:SEA_Y+.089));
+        this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.065:LAND_Y+.035));
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
-        this.ghostPalette.forEach(({mat,base})=>mat.color.copy(base).lerp(new T.Color(valid?0xc5e7ae:0xe98875),valid?.18:.65));
+        this.ghostPalette.forEach(({mat,base})=>{
+          mat.color.copy(base).lerp(new T.Color(valid?0xc5e7ae:0xe98875),valid?.04:.65);
+          mat.opacity=valid?1:.45;mat.transparent=!valid;mat.depthWrite=valid;
+        });
       }
     }
     this.onHover(i);
@@ -125,7 +128,7 @@ export class World {
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
         const mat=(o.material as T.MeshStandardMaterial).clone();
         this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.72;mat.depthWrite=false;
-        o.material=mat;o.castShadow=false;o.receiveShadow=false;o.renderOrder=7;
+        o.material=mat;o.castShadow=false;o.receiveShadow=false;o.renderOrder=0;
       }});
       this.scene.add(this.ghost);this.ghost.visible=false;
     }
@@ -152,7 +155,7 @@ export class World {
       const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){g.scale.setScalar(.05);g.position.y-=.64;this.builds.push({group:g,time:0,kind});this.burst(i)}
+      if(i===placed){g.scale.setScalar(.01);g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
   }
   private pulse(i:number,color:number) {
@@ -190,11 +193,13 @@ export class World {
     this.cameraControl.update(dt);this.environment.update(this.time);
     if(this.ghost?.visible)this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-28*dt));
     this.builds=this.builds.filter(b=>{
-      b.time=Math.min(1,b.time+dt/.68);
-      const growth=T.MathUtils.smoothstep(b.time,.24,.95);
-      const bump=Math.sin(Math.PI*growth)*.095;
+      const previous=b.time;
+      b.time=Math.min(1,b.time+dt/.94);
+      if(previous<.56&&b.time>=.56)this.burst(b.id);
+      const growth=T.MathUtils.smoothstep(b.time,.35,.98);
+      const bump=Math.sin(Math.PI*growth)*.14;
       b.group.scale.set(Math.max(.01,growth+bump),Math.max(.01,growth+bump*1.6),Math.max(.01,growth+bump));
-      b.group.position.y=LAND_Y-.64*(1-T.MathUtils.smoothstep(b.time,0,.73));
+      b.group.position.y=LAND_Y-.74*(1-T.MathUtils.smoothstep(b.time,0,.65));
       if(b.kind==='berry') b.group.children.forEach(child=>{
         if(child.userData.plantOrder!==undefined){
           const t=T.MathUtils.smoothstep(b.time,.28+child.userData.plantOrder*.018,1);

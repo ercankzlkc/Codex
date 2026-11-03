@@ -161,7 +161,7 @@ export class CameraController {
         this.desiredTarget.z=this.islandCenter.z+(this.desiredTarget.z-this.islandCenter.z)*.85/radius;
       }
     } else {
-      this.desiredYaw = THREE.MathUtils.clamp(this.desiredYaw - dx * 0.0035, Math.PI / 4 - 0.68, Math.PI / 4 + 0.68);
+      this.desiredYaw -= dx * 0.0035;
       this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0025, 0.7, 1.02);
     }
   };

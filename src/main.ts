@@ -18,8 +18,8 @@ const icon=(id:string)=>`<svg aria-hidden="true" viewBox="0 0 24 24" fill="none"
 const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
- <div id="stats" aria-label="Krallığın kaynakları"></div>
- <div class="run"><div id="turn"></div><small>10 nüfus · 50 refah</small></div>
+ <div class="kingdom-hud" aria-label="Krallığın durumu"><div id="stats" aria-label="Krallığın kaynakları"></div>
+ <div class="run"><div id="turn"></div><small>Hedef · 10 nüfus / 50 refah</small></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
@@ -71,7 +71,7 @@ function commit(i:number) {
   world.feedback(production,i,preview.neighbors);render();
   toast(game.log);
   hand.animate([{opacity:.35,transform:'translateY(17px)'},{opacity:1,transform:'translateY(0)'}],{duration:330,easing:'ease-out'});
-  clearTimeout(turnTimer);turnTimer=window.setTimeout(()=>{locked=false;if(game.over)finish()},690);return true;
+  clearTimeout(turnTimer);turnTimer=window.setTimeout(()=>{locked=false;if(game.over)finish()},1000);return true;
 }
 world.onPick=commit;
 get('#event-target').onclick=()=>{if(selected?.event)commit(CENTER)};

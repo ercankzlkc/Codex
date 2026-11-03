@@ -48,7 +48,7 @@ export class Environment {
     const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);
     this.boat.position.y=SEA_Y+.07+Math.sin(time*1.3)*.014;this.boat.rotation.x=Math.sin(time*.84)*.045;
     for(const tile of this.land.values())if(tile.age<1){
-      tile.age=Math.min(1,tile.age+dt/.53);
+      tile.age=Math.min(1,tile.age+dt/.72);
       const t=tile.age;tile.root.position.y=-.74*(1-t*t*(3-2*t));
     }
   }

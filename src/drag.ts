@@ -183,6 +183,7 @@ export class CardDrag {
   private settle(gesture: Gesture, accepted: boolean): void {
     const ghost = gesture.ghost;
     if (!ghost) return;
+    if(accepted){ghost.remove();return}
     this.settling.add(ghost);
     const currentCard = this.hand.querySelector<HTMLElement>(`[data-card="${gesture.index}"]`);
     const target = currentCard?.getBoundingClientRect() ?? gesture.origin;
