@@ -13,6 +13,10 @@ export class CameraController {
   private readonly forward = new THREE.Vector3();
   private readonly up = new THREE.Vector3(0, 1, 0);
   private distance = 20;
+  private clearanceHeight=2.5;
+  /** Keep the orbit above sea level and the highest model, including when panning. */
+  setClearance(highest:number):void{this.clearanceHeight=Math.max(2.2,highest+.7)}
+  private maxPitch():number{return Math.min(1.36,Math.acos(THREE.MathUtils.clamp((this.clearanceHeight-this.target.y)/this.distance,0,.95)))}
   private yaw = Math.PI / 4;
   private desiredYaw = Math.PI / 4;
   private pitch = 0.86;
@@ -127,6 +131,7 @@ export class CameraController {
   }
 
   private applyTransform(): void {
+    this.pitch=Math.min(this.pitch,this.maxPitch());
     this.spherical.set(this.distance, this.pitch, this.yaw);
     this.offset.setFromSpherical(this.spherical);
     this.camera.position.copy(this.target).add(this.offset);
@@ -163,7 +168,7 @@ export class CameraController {
       }
     } else {
       this.desiredYaw -= dx * 0.0035;
-      this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0025, 0.7, 1.02);
+      this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0025, 0.48, this.maxPitch());
     }
   };
 

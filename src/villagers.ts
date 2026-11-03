@@ -57,8 +57,8 @@ export class Villagers {
     const axe=new T.Group();box(axe,0x8b6947,0,-.13,.04,.022,.19,.022);box(axe,0x9faeaa,.025,-.19,.04,.09,.045,.025);arms[0].add(axe);axe.visible=false;
     const pickaxe=new T.Group();pickaxe.position.set(0,.125,.015);body.add(pickaxe);
     box(pickaxe,0x8b6947,0,-.095,0,.023,.29,.023);
-    const head=box(pickaxe,0xaeb7b2,0,-.25,0,.16,.028,.035);
-    for(const sign of [-1,1]){const tip=new T.Mesh(new T.ConeGeometry(.023,.095,4),head.material);tip.position.set(sign*.112,-.25,0);tip.rotation.z=-sign*Math.PI/2;pickaxe.add(tip)}
+    const head=box(pickaxe,0xaeb7b2,0,-.25,0,.028,.035,.16);
+    for(const sign of [-1,1]){const tip=new T.Mesh(new T.ConeGeometry(.023,.095,4),head.material);tip.position.set(0,-.25,sign*.112);tip.rotation.x=sign*Math.PI/2;pickaxe.add(tip)}
     pickaxe.visible=false;
     const rod=new T.Group();rod.position.set(0,-.12,0);box(rod,0x84684b,0,.28,0,.013,.58,.013);rod.rotation.x=1.0;arms[0].add(rod);rod.visible=false;
     const line=new T.Line(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(36),3)),new T.LineBasicMaterial({color:0xe2e5d1,transparent:true,opacity:.8}));line.frustumCulled=false;line.visible=false;

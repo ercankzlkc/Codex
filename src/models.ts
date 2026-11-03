@@ -15,6 +15,29 @@ export function tree(p:T.Group,x:number,z:number,v=0,s=1){
   else if(variant<8){for(let j=0;j<4;j++){const a=j*2.4;const leaf=ball(g,colors[(variant+j)%10],Math.cos(a)*.15,h+.12+j*.065,Math.sin(a)*.13,.26+(variant%2)*.035);leaf.scale.y=variant===7?1.5:1}}
   else{for(let j=0;j<3;j++){const leaf=ball(g,colors[variant],(j-1)*.13,h+j*.17,0,.25);leaf.scale.set(.85,1.3,.85)}}
 }
+let wheatTemplate:T.Group|undefined;
+function wheatTuft(){
+  if(wheatTemplate)return wheatTemplate.clone();
+  const source=new T.Group();
+  for(let stalk=0;stalk<3;stalk++){
+    const stem=new T.Group(),height=.31+stalk*.025,lean=(stalk-1)*.13;stem.position.set((stalk-1)*.033,0,(stalk%2)*.022);stem.rotation.z=lean;source.add(stem);
+    part(stem,new T.CylinderGeometry(.0035,.005,height,5),0xc4a555,0,height/2,0);
+    for(let leaf=0;leaf<2;leaf++){
+      const sign=leaf?1:-1,base=height*(.36+leaf*.2),blade=new T.BufferGeometry();
+      blade.setAttribute('position',new T.Float32BufferAttribute([0,base,0,sign*.052,base+.035,.013,sign*.075,base+.022,0,0,base,0,sign*.075,base+.022,0,sign*.052,base+.035,-.013],3));blade.computeVertexNormals();const m=part(stem,blade,leaf?0xcbb669:0xa79c50);(m.material as T.MeshStandardMaterial).side=T.DoubleSide;
+    }
+    for(let row=0;row<5;row++)for(const sign of [-1,1]){
+      const y=height-.01+row*.022,z=(row%2-.5)*.009,width=.011*(1-row*.09);
+      const grain=ball(stem,sign<0?0xe2bb5d:0xf0d17c,sign*.011,y,z,.018);grain.scale.set(width/.018,1.25,.65);grain.rotation.z=-sign*.48;
+      const awn=part(stem,new T.CylinderGeometry(.0008,.0014,.047,3),0xe6ce8c,sign*.021,y+.03,z);awn.rotation.z=-sign*.33;
+    }
+    const tip=part(stem,new T.ConeGeometry(.008,.04,5),0xe9c969,0,height+.112,0);tip.rotation.z=-.06;
+  }
+  source.updateMatrixWorld(true);const batches=new Map<T.Material,T.BufferGeometry[]>();
+  source.traverse(o=>{if(o instanceof T.Mesh){const mat=o.material as T.Material;if(!batches.has(mat))batches.set(mat,[]);batches.get(mat)!.push(o.geometry.clone().applyMatrix4(o.matrixWorld))}});
+  wheatTemplate=new T.Group();for(const [mat,parts] of batches){const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());if(geometry){const mesh=new T.Mesh(geometry,mat);mesh.castShadow=true;mesh.receiveShadow=true;wheatTemplate.add(mesh)}}
+  return wheatTemplate.clone();
+}
 const resourceTemplates=new Map<string,T.Group>();
 export function resourceModel(kind:string){
   const cached=resourceTemplates.get(kind);if(cached)return cached.clone();
@@ -25,7 +48,10 @@ export function resourceModel(kind:string){
     for(const z of [-.112,.112]){const end=part(log,new T.CircleGeometry(.028,8),0xd6b17c,0,0,z);end.rotation.y=z<0?Math.PI:0}
   }
   else if(kind==='fish')for(let i=0;i<2;i++){const fish=new T.Group();fish.position.set((i-.5)*.065,.035,0);const body=ball(fish,0x8fb9bf,0,0,0,.065);body.scale.set(.45,.5,1.4);const tail=part(fish,new T.ConeGeometry(.034,.052,3),0x588e9b,0,0,-.10);tail.rotation.x=Math.PI/2;ball(fish,0x243c3b,.022,.014,.055,.008);g.add(fish)}
-  else if(kind==='wheat')for(let i=0;i<7;i++){const x=(i%4-1.5)*.023,z=(Math.floor(i/4)-.5)*.045;box(g,0xb9a45a,x,.04,z,.012,.17,.012);const grain=part(g,new T.ConeGeometry(.024,.075,5),0xe9cb72,x,.14,z);grain.rotation.z=(i%3-1)*.15}
+  else if(kind==='wheat'){
+    const bundle=wheatTuft();bundle.scale.setScalar(.55);bundle.position.y=-.025;bundle.rotation.z=.22;g.add(bundle);
+    const tie=part(g,new T.TorusGeometry(.026,.005,4,8),0x9c7950,0,.07,0);tie.rotation.x=Math.PI/2;
+  }
   else if(kind==='berry') {for(let i=0;i<6;i++){const x=(i%3-1)*.048,z=(Math.floor(i/3)-.5)*.055;const fruit=ball(g,0xd65d53,x,.032,z,.034);fruit.scale.y=1.15;part(g,new T.ConeGeometry(.026,.018,5),0x5e8d4a,x,.072,z)}}
   else if(kind==='stone')for(let i=0;i<3;i++)ball(g,0x97a6a0,(i%2-.5)*.065,.035+Math.floor(i/2)*.045,0,.052);
   else for(let i=0;i<3;i++){box(g,0x6e9050,(i-1)*.04,.05,0,.01,.13,.01);ball(g,0xe7c08c,(i-1)*.04,.12,0,.03)}
@@ -55,10 +81,15 @@ function berryPlot(){
 }
 function wheatPlot(){
   const plot=new T.Group();let order=0;
-  for(const z of [-.3,0,.3]){box(plot,0x816044,0,.025,z,.9,.05,.18);for(let x=-.34;x<.4;x+=.17){
-    const plant=new T.Group();plant.position.set(x,0,z);plant.userData.cropOrder=order++;
-    for(let j=0;j<3;j++){box(plant,0xb5a45b,(j-1)*.035,.19,0,.015,.32,.018);part(plant,new T.ConeGeometry(.036,.15,4),0xe7cf83,(j-1)*.035,.39,0)}plot.add(plant);
-  }}fence(plot,-.49);return plot;
+  for(const z of [-.3,0,.3]){
+    box(plot,0x816044,0,.022,z,.9,.044,.17);
+    for(let x=-.34;x<.4;x+=.14){
+      const plant=wheatTuft();plant.position.set(x+Math.sin(order*7)*.012,.025,z+Math.cos(order*5)*.014);plant.userData.cropOrder=order++;
+      plant.userData.cropHeight=.9+(order%5)*.045;plant.scale.y=plant.userData.cropHeight;plant.rotation.y=order*2.399;
+      plot.add(plant);
+    }
+  }
+  fence(plot,-.49);return plot;
 }
 function flowerGarden(){
   const g=new T.Group();part(g,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(g,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(g,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(g,0xced2b5,0,.42,0,.09);

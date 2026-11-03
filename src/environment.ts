@@ -8,7 +8,7 @@ import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from '
 export {LAND_Y,SEA_Y};
 
 
-type Patch={root:T.Group; surface:T.Mesh;signature:string;age:number};
+type Patch={root:T.Group; surface:T.Mesh;signature:string;age:number;grass?:T.Group};
 export class Environment {
   readonly root=new T.Group();
   private readonly land=new Map<number,Patch>();
@@ -37,13 +37,19 @@ export class Environment {
       const center=position(id),root=new T.Group();root.position.set(center.x,id===placed?-1.1:0,center.z);
       if(id===placed)root.scale.set(.35,1,.35);
       const surface=new T.Mesh(terrainGeometry(id,board),this.landMat);surface.castShadow=true;surface.receiveShadow=true;
-      const grass=meadow(id);grass.position.set(0,LAND_Y,0);root.add(surface,grass);
+      root.add(surface);
       if(id===CENTER){const sprig=new T.Group();sprig.position.set(.44,LAND_Y,-.37);tree(sprig,0,0,1,.47);root.add(sprig)}
       root.visible=id!==placed;
       this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?0:LAND_END});
     }
   }
 
+  setMeadow(id:number,footprints:T.Box3[]){
+    const tile=this.land.get(id);if(!tile)return;
+    if(tile.grass){tile.root.remove(tile.grass);tile.grass.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();(o.material as T.Material).dispose()}})}
+    const grass=meadow(id,(x,z)=>footprints.some(b=>x>b.min.x-.065&&x<b.max.x+.065&&z>b.min.z-.065&&z<b.max.z+.065)||(id===CENTER&&Math.hypot(x-.44,z+.37)<.24));
+    grass.position.set(0,LAND_Y,0);tile.root.add(grass);tile.grass=grass;
+  }
   demolish(board:ReadonlyMap<number,unknown>,id:number){
     this.pendingBoard=new Map(board);this.sinking.set(id,0);
     this.water.sync(board,coast(board),-1,id);

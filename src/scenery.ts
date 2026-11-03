@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {adjacent,corner,position,RADIUS} from './hex';
+import {adjacent,position,RADIUS} from './hex';
 
 export const LAND_Y=.13, SEA_Y=-.18;
 const clover=new T.Color('#80ac71'), sunnyGrass=new T.Color('#b8c982');
@@ -61,17 +61,23 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
   geometry.setAttribute('color',new T.Float32BufferAttribute(color,3));geometry.computeVertexNormals();
   return geometry;
 }
-/** One small batched set of flowers, stepping stones and meadow tufts per cell. */
+/** Scattered rooted blades, kept clear of model footprints and the shore. */
 export const grassTime={value:0};
-export function meadow(id:number){
+export function meadow(id:number,blocked:(x:number,z:number)=>boolean=()=>false){
   const group=new T.Group();const p=position(id);group.position.set(p.x,LAND_Y,p.z);
   const pos:number[]=[],color:number[]=[];
   function triangle(points:number[],tint:number){
     pos.push(...points);const c=new T.Color(tint);for(let i=0;i<3;i++)color.push(c.r,c.g,c.b);
   }
-  for(let j=0;j<42;j++){
-    const a=(j*2.399+id*.44),r=.56+Math.random()*.15;
-    const x=Math.cos(a)*r,z=Math.sin(a)*r;
+  const spots:{x:number;z:number}[]=[];
+  for(let attempt=0;attempt<500&&spots.length<55;attempt++){
+    const x=(Math.random()-.5)*1.8,z=(Math.random()-.5)*1.8;
+    if(Array.from({length:6},(_,k)=>x*Math.cos(k*Math.PI/3)+z*Math.sin(k*Math.PI/3)).some(d=>d>APOTHEM-.19))continue;
+    if(blocked(x,z)||spots.some(p=>Math.hypot(p.x-x,p.z-z)<.075))continue;
+    spots.push({x,z});
+  }
+  for(let j=0;j<spots.length;j++){
+    const {x,z}=spots[j];
     const seed=(n:number)=>{const v=Math.sin(id*17.31+j*71.13+n*29.7)*43758.5453;return v-Math.floor(v)};
     const count=3+Math.floor(seed(0)*4),angle=seed(1)*Math.PI*2;
     const palette=[0x73965e,0x86a86b,0x9bb97b,0xb1c88a,0x7fa56c];
@@ -85,12 +91,7 @@ export function meadow(id:number){
       triangle([bx-uz*width,.004,bz+ux*width,mx+uz*width*.55,height*.55,mz-ux*width*.55,mx-uz*width*.55,height*.55,mz+ux*width*.55],tint);
       triangle([mx-uz*width*.55,height*.55,mz+ux*width*.55,mx+uz*width*.55,height*.55,mz-ux*width*.55,tx,height,tz],tint);
     }
-    if(j%4===0){
-      triangle([x-.025,.054,z+.012,x+.027,.053,z,x,.083,z-.014],j%2?0xf4d590:0xf1ebc5);
-    }
-    if(j%5===0){const v=corner(j%6,.05);
-      triangle([x-.045,.005,z,x+v.x,.029,z+v.z,x+.065,.006,z+.034],0xc8c1a1);
-    }
+
   }
   const geom=new T.BufferGeometry();geom.setAttribute('position',new T.Float32BufferAttribute(pos,3));geom.setAttribute('color',new T.Float32BufferAttribute(color,3));geom.computeVertexNormals();
   const mat=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
