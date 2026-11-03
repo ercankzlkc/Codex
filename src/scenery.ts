@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {windForce} from './atmosphere';
 import {adjacent,position,RADIUS} from './hex';
 
 export const LAND_Y=.13, SEA_Y=-.18;
@@ -95,10 +96,10 @@ export function meadow(id:number,blocked:(x:number,z:number)=>boolean=()=>false)
   }
   const geom=new T.BufferGeometry();geom.setAttribute('position',new T.Float32BufferAttribute(pos,3));geom.setAttribute('color',new T.Float32BufferAttribute(color,3));geom.computeVertexNormals();
   const mat=new T.MeshLambertMaterial({vertexColors:true,side:T.DoubleSide});
-  mat.onBeforeCompile=shader=>{shader.uniforms.grassTime=grassTime;shader.vertexShader='uniform float grassTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
+  mat.onBeforeCompile=shader=>{shader.uniforms.grassTime=grassTime;shader.uniforms.windForce=windForce;shader.vertexShader='uniform float windForce;\nuniform float grassTime;\n'+shader.vertexShader;shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
     float phase=position.x*31.0+position.z*23.0;
     float bend=sin(grassTime*1.8+phase)*0.18+sin(grassTime*2.7+phase*1.7)*0.09;
-    transformed.x+=bend*position.y;transformed.z+=cos(grassTime*1.6+phase)*position.y*0.12;`)};
+    transformed.x+=bend*position.y*(.7+windForce);transformed.z+=cos(grassTime*1.6+phase)*position.y*0.12*(.7+windForce);`)};
   mat.customProgramCacheKey=()=>'meadow-wind';
   group.add(new T.Mesh(geom,mat));return group;
 }

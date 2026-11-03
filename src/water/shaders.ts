@@ -82,6 +82,7 @@ uniform sampler2D uCoast,uPreviousCoast;
 uniform float uCoastMix;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
+uniform vec3 uSunDirection;
 varying vec3 vWorld;
 void main() {
   vec2 p=vWorld.xz;
@@ -131,15 +132,22 @@ void main() {
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
   pigment+=vec3(.16,.30,.27)*focus*(.30+.35*shelf);
-  vec2 slope=seaWave(p).yz+flow*.025+wakeSlope;
+  vec2 microRipples=vec2(cos(dot(p,vec2(18.,7.))-uTime*2.1),sin(dot(p,vec2(-9.,22.))+uTime*1.7))*.016;
+  vec2 slope=seaWave(p).yz+flow*.025+wakeSlope+microRipples;
   vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
   vec3 eye=normalize(cameraPosition-vWorld);
   float fresnel=.025+.975*pow(1.-max(dot(normal,eye),0.),5.);
   vec3 sky=mix(vec3(.22,.48,.65),vec3(.53,.79,.87),max(eye.y,0.));
   pigment=mix(pigment,sky,fresnel*.60);
-  vec3 halfway=normalize(normalize(vec3(-.5,1.,.4))+eye);
-  float glint=pow(max(dot(normal,halfway),0.),150.);
-  pigment+=vec3(.85,.87,.76)*glint*.48;
+  // One sun direction shared with the buildings: a soft golden path breaks
+  // into fine moving sparkles as the small wave normals catch the light.
+  vec3 halfway=normalize(uSunDirection+eye);
+  float sunDot=max(dot(normal,halfway),0.);
+  float softSun=pow(sunDot,32.);
+  float sparkle=pow(sunDot,220.);
+  float flicker=.65+.35*sin(dot(p,vec2(31.,-17.))+uTime*2.3);
+  float reflection=(softSun*.075+sparkle*flicker*.64)*smoothstep(.08,.65,depth)*seaGate;
+  pigment+=vec3(1.,.86,.58)*reflection;
   // The beach crosses sea level at roughly .16 units beyond an exposed hex edge.
   float gate=smoothstep(-.07,.065,shore);
   float drift=.5+.5*sin(uTime*1.25+flow.y*7.+dot(p,vec2(.49,.71)));

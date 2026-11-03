@@ -13,6 +13,7 @@ import type {WalkPoint} from './navigation';
 
 type Build = { id:number; group:T.Group; time:number; kind:Kind };
 type Mote = { mesh:T.Mesh; velocity:T.Vector3; life:number;dust?:boolean };
+type Leaf={mesh:T.Mesh;velocity:T.Vector3;spin:T.Vector3;age:number;life:number;size:number};
 type Label = { el:HTMLElement; position:T.Vector3; life:number; delay:number };
 
 function contactMaterial() {
@@ -49,6 +50,9 @@ export class World {
   readonly environment:Environment;
   readonly villagers:Villagers;
   private game:Game|null=null;
+  private leaves:Leaf[]=[];
+  private readonly leafGeo=(()=>{const g=new T.BufferGeometry();g.setAttribute('position',new T.Float32BufferAttribute([-.018,0,0,0,.006,.045,0,.009,0,0,.006,.045,.018,0,0,0,.009,0,.018,0,0,0,0,-.035,0,.009,0,0,0,-.035,-.018,0,0,0,.009,0],3));g.computeVertexNormals();return g})();
+  private readonly leafMats=[0x719a53,0x9eb46c,0x557e4c,0xb2be77].map(color=>new T.MeshStandardMaterial({color,roughness:.88,side:T.DoubleSide}));
   private fullStores=new Map<number,HTMLElement>();
   private treeCycles=new Map<string,{id:number;tree:T.Object3D;age:number;scale:T.Vector3}>();
   private drops=new Map<string,{group:T.Group;age:number;claimed:boolean;pieces:{mesh:T.Object3D;velocity:T.Vector3;spin:T.Vector3}[]}>();
@@ -83,7 +87,7 @@ export class World {
   private readonly seaPoint=new T.Vector3();
   private lastSea:{x:number;z:number;time:number}|null=null;
   private board:ReadonlyMap<number,Kind>=new Map();
-  private sun=new T.DirectionalLight(0xffe1b7,2.35);
+  private sun=new T.DirectionalLight(0xffe0ac,2.6);
   private ghostPalette:{mat:T.MeshStandardMaterial;base:T.Color}[]=[];
   private readonly ghostTarget=new T.Vector3();
   private readonly contact=contactMaterial();
@@ -116,13 +120,13 @@ export class World {
     this.renderer.toneMappingExposure=1.03;
     el.append(this.renderer.domElement);
     this.cameraControl=new CameraController(this.renderer.domElement);
-    this.scene.add(new T.HemisphereLight(0xfff1d8,0x849880,1.55),this.root);
+    this.scene.add(new T.HemisphereLight(0xe9f1dc,0x82916d,1.4),this.root);
     const sun=this.sun;
-    sun.position.set(-5,10,4);sun.castShadow=true;
+    sun.position.set(-5,9,-6);sun.castShadow=true;
     Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:1,far:31});
     sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00012;sun.shadow.normalBias=.015;
     this.scene.add(sun,sun.target);
-    this.environment=new Environment(this.scene);
+    this.environment=new Environment(this.scene);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
     this.villagers=new Villagers(this.scene,{
       ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
@@ -219,6 +223,7 @@ export class World {
         }
       }
       if(resource==='wood'){
+        this.fallLeaves(tree,12);
         const group=new T.Group();group.position.copy(tree.getWorldPosition(new T.Vector3()));group.position.z-=.12;
         const logs=resourceModel('wood');group.add(logs);logs.scale.setScalar(1.65);
         const pieces=logs.children.map(mesh=>({mesh,velocity:new T.Vector3((Math.random()-.5)*.14,1+Math.random()*.35,(Math.random()-.5)*.14),spin:new T.Vector3(Math.random()*3,Math.random()*2,Math.random()*3)}));
@@ -245,11 +250,20 @@ export class World {
       const p=this.screenPoint(id,1.1);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;el.style.opacity=String(fade);el.style.setProperty('--status-scale',String(.35+.65*fade));el.hidden=fade<.01;
     }
   }
+  private fallLeaves(tree:T.Object3D,count:number){
+    tree.updateWorldMatrix(true,true);const bounds=new T.Box3().setFromObject(tree),center=bounds.getCenter(new T.Vector3()),size=bounds.getSize(new T.Vector3());
+    for(let i=0;i<count&&this.leaves.length<180;i++){
+      const mesh=new T.Mesh(this.leafGeo,this.leafMats[Math.floor(Math.random()*this.leafMats.length)]);
+      mesh.position.set(center.x+(Math.random()-.5)*size.x*.8,bounds.min.y+size.y*(.5+Math.random()*.4),center.z+(Math.random()-.5)*size.z*.8);
+      mesh.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI*2,Math.random()*Math.PI);const scale=.65+Math.random()*.8;mesh.scale.setScalar(scale);this.scene.add(mesh);
+      this.leaves.push({mesh,velocity:new T.Vector3((Math.random()-.3)*.3,.08+Math.random()*.12,(Math.random()-.5)*.2),spin:new T.Vector3(1+Math.random()*3,Math.random()*2,Math.random()*3),age:0,life:3+Math.random()*1.5,size:scale});
+    }
+  }
   private woodImpact(id:number,index:number){
     const tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);if(!tree)return;
     this.woodHits.set(tree,.20);tree.updateWorldMatrix(true,false);const p=tree.getWorldPosition(new T.Vector3());
     const stone=this.board.get(id)==='stone';
-    if(stone)this.dust(p.clone().add(new T.Vector3(0,.14,.17)),4);
+    if(stone)this.dust(p.clone().add(new T.Vector3(0,.14,.17)),4);else this.fallLeaves(tree,4);
     for(let i=0;i<(stone?14:7);i++){const mesh=new T.Mesh(this.moteGeo,stone?(i<2?this.sparkMat:this.stoneChipMat):this.moteMats[0]);mesh.scale.setScalar(.85);mesh.position.copy(p).add(new T.Vector3(.02,.22,.16));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.9,.65+Math.random()*.55,.25+Math.random()*.65),life:stone?1.1:.7})}
   }
   private fieldState(id:number){if(!this.fields.has(id)){const max=this.board.get(id)==='farm'?4:3;this.fields.set(id,{stock:max,max,age:0})}return this.fields.get(id)!}
@@ -435,7 +449,7 @@ export class World {
       const x=(Math.max(...centers.map(p=>p.x))+Math.min(...centers.map(p=>p.x)))/2;
       const z=(Math.max(...centers.map(p=>p.z))+Math.min(...centers.map(p=>p.z)))/2;
       const radius=Math.max(3,...centers.map(p=>Math.hypot(p.x-x,p.z-z)+2));
-      this.sun.target.position.set(x,0,z);this.sun.position.set(x-5,10,z+4);
+      this.sun.target.position.set(x,0,z);this.sun.position.set(x-5,9,z-6);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
       Object.assign(this.sun.shadow.camera,{left:-radius,right:radius,top:radius,bottom:-radius,far:35+radius});
       this.sun.shadow.camera.updateProjectionMatrix();
     }
@@ -481,6 +495,7 @@ export class World {
     this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
     this.loaders.forEach(l=>l.el.remove());this.loaders.clear();this.trailPoints=[];this.trailKeys.clear();this.trails.count=0;
     for(const d of this.drops.values())this.scene.remove(d.group);this.drops.clear();this.storageDecor.clear();this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
+    for(const leaf of this.leaves)this.scene.remove(leaf.mesh);this.leaves=[];
     for(const {el} of this.labels)el.remove();this.labels=[];
     for(const {mesh,dust} of this.motes){this.scene.remove(mesh);if(dust)(mesh.material as T.Material).dispose()}this.motes=[];
     for(const {mesh} of this.rings){this.scene.remove(mesh);(mesh.material as T.Material).dispose()}this.rings=[];
@@ -580,6 +595,15 @@ export class World {
         else plant.children.slice(1).forEach(fruit=>fruit.scale.setScalar(Math.max(.01,fraction)));
       });
     }
+    this.leaves=this.leaves.filter(leaf=>{
+      leaf.age+=dt;const flutter=Math.sin(leaf.age*7+leaf.life);
+      leaf.velocity.y=Math.max(-.38,leaf.velocity.y-dt*.45);leaf.mesh.position.addScaledVector(leaf.velocity,dt);leaf.mesh.position.x+=dt*(.10+flutter*.10);leaf.mesh.position.z+=dt*.05*Math.cos(leaf.age*5);
+      const land=this.board.has(fromWorld(leaf.mesh.position.x,leaf.mesh.position.z)),floor=land?LAND_Y+.012:SEA_Y+.015;
+      if(leaf.mesh.position.y<=floor){leaf.mesh.position.y=floor;leaf.mesh.rotation.x*=Math.exp(-dt*6);leaf.mesh.rotation.z*=Math.exp(-dt*6);leaf.velocity.multiplyScalar(Math.exp(-dt*7))}
+      else{leaf.mesh.rotation.x+=dt*leaf.spin.x;leaf.mesh.rotation.y+=dt*leaf.spin.y;leaf.mesh.rotation.z+=dt*leaf.spin.z*flutter}
+      leaf.mesh.scale.setScalar(leaf.size*Math.min(1,Math.max(0,(leaf.life-leaf.age)/.65)));
+      if(leaf.age>=leaf.life){this.scene.remove(leaf.mesh);return false}return true;
+    });
     this.motes=this.motes.filter(m=>{
       m.life-=dt*(m.dust?1:1.15);m.velocity.y-=dt*(m.dust?.12:2.7);m.mesh.position.addScaledVector(m.velocity,dt);
       if(m.mesh.position.y<LAND_Y+.015){m.mesh.position.y=LAND_Y+.015;m.velocity.y=Math.abs(m.velocity.y)*.28;m.velocity.x*=.85;m.velocity.z*=.85}

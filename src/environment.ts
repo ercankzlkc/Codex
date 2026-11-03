@@ -4,6 +4,7 @@ import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
 import {tree} from './models';
 import {Wildlife} from './wildlife';
+import {Atmosphere} from './atmosphere';
 import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
 
@@ -15,17 +16,18 @@ export class Environment {
   private readonly water=new TropicalWater();
   private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
 
+  private atmosphere:Atmosphere;
   private wildlife:Wildlife;
   private last=0;
   private sinking=new Map<number,number>();
   private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
-    this.root.add(this.water.root);this.wildlife=new Wildlife(scene,(x,z)=>this.stir(x,z,1,0,.35,.1));
+    this.atmosphere=new Atmosphere(scene);this.root.add(this.water.root);this.wildlife=new Wildlife(scene,(x,z)=>this.stir(x,z,1,0,.35,.1));
   }
 
   sync(board:ReadonlyMap<number,unknown>,placed:number){
-    this.wildlife.sync(board);
+    this.wildlife.sync(board);this.atmosphere.sync(board);
     for(const id of this.land.keys())if(!board.has(id))this.removeLand(id)
     this.pendingBoard=placed>=0?new Map(board):null;
     const edges=coast(board);
@@ -60,11 +62,12 @@ export class Environment {
     tile.root.traverse(o=>{if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
     this.land.delete(id);
   }
+  setSun(direction:T.Vector3){this.water.setSun(direction)}
   get soundBirds(){return this.wildlife.soundBirds}
   fitWaterView(camera:T.OrthographicCamera){this.water.fitView(camera)}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
-    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);
+    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));
     for(const tile of this.land.values())if(tile.age<LAND_END){
       tile.age=Math.min(LAND_END,tile.age+dt);
       const progress=easeBetween(tile.age,LAND_START,LAND_END);
@@ -91,5 +94,5 @@ export class Environment {
     }
   }
 
-  reset(){this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
+  reset(){this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
 }

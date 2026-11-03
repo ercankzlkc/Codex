@@ -21,6 +21,7 @@ export class TropicalWater {
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
     uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},
     uCoastMix:{value:1},uPreviousCoast:{value:this.previousField.texture},
+    uSunDirection:{value:new T.Vector3(-5,9,-6).normalize()},
     uTime:{value:0},uLight:{value:lightField()},uCoast:{value:this.field.texture},
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
@@ -156,6 +157,7 @@ export class TropicalWater {
     if(this.stones.instanceColor)this.stones.instanceColor.needsUpdate=true;
     this.stones.computeBoundingSphere();
   }
+  setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){
     const i=this.nextWake;this.nextWake=(i+1)%12;
     this.uniforms.uWakes.value[i].set(x,z,this.uniforms.uTime.value,.15+.85*strength);

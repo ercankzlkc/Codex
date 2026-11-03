@@ -1,19 +1,28 @@
 import * as T from 'three';
+import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import type {Kind} from './game';
 const mats=new Map<number,T.MeshStandardMaterial>();const geometries=new Map<string,T.BufferGeometry>();
-function material(c:number){if(!mats.has(c))mats.set(c,new T.MeshStandardMaterial({color:c,roughness:.95,flatShading:true}));return mats.get(c)!}
+function material(c:number){if(!mats.has(c))mats.set(c,new T.MeshStandardMaterial({color:c,roughness:.84,flatShading:true}));return mats.get(c)!}
 export function part(p:T.Group,g:T.BufferGeometry,c:number,x=0,y=0,z=0){const m=new T.Mesh(g,material(c));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;p.add(m);return m}
-export function box(p:T.Group,c:number,x:number,y:number,z:number,w:number,h:number,d:number){const key=`b${w},${h},${d}`;if(!geometries.has(key))geometries.set(key,new T.BoxGeometry(w,h,d));return part(p,geometries.get(key)!,c,x,y,z)}
-export function ball(p:T.Group,c:number,x:number,y:number,z:number,r:number){const key=`s${r}`;if(!geometries.has(key))geometries.set(key,new T.IcosahedronGeometry(r,0));return part(p,geometries.get(key)!,c,x,y,z)}
+export function box(p:T.Group,c:number,x:number,y:number,z:number,w:number,h:number,d:number){const key=`b${w},${h},${d}`;if(!geometries.has(key))geometries.set(key,new RoundedBoxGeometry(w,h,d,1,Math.min(.012,Math.min(w,h,d)*.16)));return part(p,geometries.get(key)!,c,x,y,z)}
+export function ball(p:T.Group,c:number,x:number,y:number,z:number,r:number){const key=`s${r}`;if(!geometries.has(key))geometries.set(key,new T.IcosahedronGeometry(r,1));return part(p,geometries.get(key)!,c,x,y,z)}
+/** Keep decorative detail in shared material batches, with consistent geometry attributes. */
+function batchParts(root:T.Group){
+  root.updateWorldMatrix(true,true);const inverse=root.matrixWorld.clone().invert(),batches=new Map<T.Material,T.BufferGeometry[]>();
+  root.traverse(object=>{if(object instanceof T.Mesh){const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.deleteAttribute('uv');geometry.applyMatrix4(inverse.clone().multiply(object.matrixWorld));const mat=object.material as T.Material;if(!batches.has(mat))batches.set(mat,[]);batches.get(mat)!.push(geometry)}});
+  root.clear();for(const [mat,parts] of batches){const merged=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());if(merged){const mesh=new T.Mesh(merged,mat);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh)}}
+}
 export function tree(p:T.Group,x:number,z:number,v=0,s=1){
   const g=new T.Group();g.position.set(x,0,z);g.scale.setScalar(s);p.add(g);
   const variant=v%10,h=.65+(variant%3)*.1;
-  part(g,new T.CylinderGeometry(.035,.065,h,6),variant%2?0x806044:0x705137,0,h/2,0);
+  part(g,new T.CylinderGeometry(.035,.065,h,8),variant%2?0x806044:0x705137,0,h/2,0);
   const colors=[0x47755a,0x73966a,0x568568,0x8ba66e,0x396650,0x67945d,0x658875,0x94aa70,0x4c7952,0x7d9d59];
-  if(variant<4){for(let j=0;j<3+variant%2;j++)part(g,new T.ConeGeometry(.29-j*.047,.46,6+variant),colors[(variant+j)%10],0,h*.65+j*.2,0)}
+  if(variant<4){for(let j=0;j<3+variant%2;j++)part(g,new T.ConeGeometry(.29-j*.047,.46,9+variant),colors[(variant+j)%10],0,h*.65+j*.2,0)}
   else if(variant<8){for(let j=0;j<4;j++){const a=j*2.4;const leaf=ball(g,colors[(variant+j)%10],Math.cos(a)*.15,h+.12+j*.065,Math.sin(a)*.13,.26+(variant%2)*.035);leaf.scale.y=variant===7?1.5:1}}
   else{for(let j=0;j<3;j++){const leaf=ball(g,colors[variant],(j-1)*.13,h+j*.17,0,.25);leaf.scale.set(.85,1.3,.85)}}
+  for(let i=0;i<3;i++){const a=i*Math.PI*2/3;beam(g,0x806044,new T.Vector3(0,.12,0),new T.Vector3(Math.cos(a)*.1,.015,Math.sin(a)*.1),.026)}
+  batchParts(g);
 }
 let wheatTemplate:T.Group|undefined;
 function wheatTuft(){
@@ -59,7 +68,66 @@ export function resourceModel(kind:string){
 }
 
 function fence(p:T.Group,z:number){for(let x=-.45;x<=.46;x+=.3)box(p,0xbca57a,x,.17,z,.045,.34,.045);for(let y=.13;y<.3;y+=.13)box(p,0xcdb68c,0,y,z,.95,.035,.035)}
-function house(p:T.Group,big=false,lumber=false,store=false){let w=big?.83:.64,h=big?.7:.48,d=.62;box(p,0xa38d6d,0,.06,0,w+.08,.12,d+.08);box(p,store?0xb58e5b:0xf1dfb8,0,h/2+.1,0,w,h,d);for(let x of [-w/2,w/2])box(p,0x866345,x,h/2+.1,.32,.045,h,.025);box(p,0x866345,0,.2,.325,.16,.32,.035);box(p,0xc7a36d,.025,.19,.35,.02,.025,.025);for(let x of [-.22,.22]){box(p,0x876541,x,.42,.322,.16,.17,.035);box(p,0x91b7b2,x,.42,.345,.115,.12,.02);box(p,0xe5d8b0,x,.42,.36,.018,.13,.015)}let roof=new T.BufferGeometry();let rw=w/2+.12,rd=d/2+.1,base=h+.1,peak=base+.38;roof.setAttribute('position',new T.Float32BufferAttribute([-rw,base,-rd,rw,base,-rd,0,peak,-rd,-rw,base,rd,0,peak,rd,rw,base,rd,-rw,base,-rd,0,peak,-rd,0,peak,rd,-rw,base,-rd,0,peak,rd,-rw,base,rd,rw,base,-rd,rw,base,rd,0,peak,rd,rw,base,-rd,0,peak,rd,0,peak,-rd],3));roof.computeVertexNormals();const roofMesh=part(p,roof,lumber?0x5d7978:store?0x967655:0xba7051);(roofMesh.material as T.MeshStandardMaterial).side=T.DoubleSide;box(p,0xe3d3b4,.2,peak-.06,-.12,.13,.4,.13);box(p,0x9c8a72,.2,peak+.15,-.12,.17,.06,.17);for(let j=0;j<3;j++)box(p,0x78553c,-.27+j*.24,.11,.48,.19,.035,.16);if(lumber){for(let j=0;j<4;j++){let log=part(p,new T.CylinderGeometry(.075,.075,.46,7),0x9f7a4c,.43,.1+j%2*.13,-.16+Math.floor(j/2)*.18);log.rotation.x=Math.PI/2}}if(store){for(let x of [-.38,.38]){box(p,0xb4935e,x,.16,.43,.2,.3,.2);box(p,0x735b3f,x,.17,.535,.22,.03,.02)}}ball(p,0x759557,-.43,.13,.32,.16)}
+function beam(p:T.Group,color:number,a:T.Vector3,b:T.Vector3,width=.025){
+  const delta=b.clone().sub(a),m=box(p,color,(a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2,width,delta.length(),width);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());return m;
+}
+function windowFrame(p:T.Group,x:number,y:number,z:number,shutters=true){
+  box(p,0x694f3c,x,y,z,.16,.19,.022);box(p,0x84b4b7,x,y,z+.014,.123,.148,.014);
+  box(p,0xe8d6ae,x,y,z+.026,.014,.153,.015);box(p,0xe8d6ae,x,y,z+.027,.13,.014,.015);
+  box(p,0xb59a70,x,y-.105,z+.027,.19,.028,.055);
+  if(shutters)for(const sign of [-1,1]){box(p,0x6c8d84,x+sign*.108,y,z+.008,.048,.17,.023);for(let k=0;k<3;k++)box(p,0x54786e,x+sign*.108,y-.045+k*.045,z+.022,.039,.009,.01)}
+}
+function tiledRoof(p:T.Group,w:number,d:number,base:number,rise:number,tint:number){
+  const run=w/2+.085,depth=d+.16,angle=Math.atan2(rise,run),slope=Math.hypot(run,rise);
+  // Closed roof shell, then four staggered rows of gently bevelled tiles.
+  const shell=new T.BufferGeometry(),v=[-run,base,-depth/2,run,base,-depth/2,0,base+rise,-depth/2,-run,base,depth/2,0,base+rise,depth/2,run,base,depth/2,-run,base,-depth/2,0,base+rise,-depth/2,0,base+rise,depth/2,-run,base,-depth/2,0,base+rise,depth/2,-run,base,depth/2,run,base,-depth/2,run,base,depth/2,0,base+rise,depth/2,run,base,-depth/2,0,base+rise,depth/2,0,base+rise,-depth/2];
+  shell.setAttribute('position',new T.Float32BufferAttribute(v,3));shell.computeVertexNormals();const cover=part(p,shell,0x775b48);(cover.material as T.Material).side=T.DoubleSide;
+  const baseColor=new T.Color(tint);
+  for(const sign of [-1,1])for(let row=0;row<4;row++)for(let col=0;col<7+(row%2);col++){
+    const t=(row+.5)/4,x=sign*run*t,y=base+rise*(1-t)+.014;
+    const left=Math.max(-depth/2,-depth/2+(col-(row%2)*.5)*depth/7),right=Math.min(depth/2,-depth/2+(col+1-(row%2)*.5)*depth/7),z=(left+right)/2;
+    const c=baseColor.clone().multiplyScalar([.94,1,1.055][(row*3+col*5+(sign+1))%3]).getHex();
+    const tile=box(p,c,x,y,z,slope/4+.018,.026,Math.max(.015,right-left-.005));tile.rotation.z=-sign*angle;
+  }
+  for(let i=0;i<8;i++){const cap=part(p,new T.CylinderGeometry(.028,.028,depth/8+.008,6),tint,0,base+rise+.027,-depth/2+(i+.5)*depth/8);cap.rotation.x=Math.PI/2}
+  for(const z of [-depth/2-.008,depth/2+.008])for(const sign of [-1,1])beam(p,0x795b42,new T.Vector3(sign*run,base-.012,z),new T.Vector3(0,base+rise,z),.035);
+}
+function barrel(p:T.Group,x:number,z:number){
+  part(p,new T.CylinderGeometry(.077,.065,.20,10),0xae8c5d,x,.10,z);
+  for(const y of [.035,.15]){const hoop=part(p,new T.TorusGeometry(.071,.007,4,10),0x667571,x,y,z);hoop.rotation.x=Math.PI/2}
+  part(p,new T.CylinderGeometry(.065,.065,.012,10),0xc5a777,x,.206,z);
+}
+function crate(p:T.Group,x:number,z:number){
+  box(p,0xb49765,x,.105,z,.18,.20,.17);
+  for(const y of [.04,.17])box(p,0x816347,x,y,z+.09,.19,.023,.018);
+  beam(p,0x8d704b,new T.Vector3(x-.073,.035,z+.102),new T.Vector3(x+.073,.175,z+.102),.019);
+}
+function house(p:T.Group,big=false,lumber=false,store=false){
+  const w=big?.83:.64,h=big?.70:.49,d=.60,wall=store?0xc7af81:lumber?0xd9c8a2:0xf0dfb8;
+  box(p,0x9e9b83,0,.045,0,w+.08,.09,d+.07);
+  for(let i=0;i<5;i++)box(p,i%2?0xb9b59b:0xaaa78f,-w/2+(i+.5)*w/5,.09,d/2+.025,w/5-.009,.075,.05);
+  box(p,wall,0,h/2+.12,0,w,h,d);
+  box(p,0x9d805b,0,.15,d/2+.014,w,.04,.026);box(p,0xc0a57c,0,h+.102,d/2+.012,w,.035,.035);
+  for(const x of [-w/2+.012,w/2-.012])for(const z of [-d/2-.008,d/2+.012])box(p,0x816347,x,h/2+.13,z,.035,h+.04,.035);
+  const doorZ=d/2+.035,doorW=store?.23:.145;
+  box(p,0x70503a,0,.26,doorZ,doorW+.036,.32,.034);
+  for(let i=0;i<(store?5:3);i++)box(p,i%2?0x92704c:0xa17c50,-doorW/2+(i+.5)*doorW/(store?5:3),.26,doorZ+.021,doorW/(store?5:3)-.004,.28,.02);
+  part(p,new T.SphereGeometry(.008,6,4),0xe0bf6c,.047,.255,doorZ+.038);
+  box(p,0xb6b49b,0,.075,.42,.29,.045,.16);box(p,0xc9c4a8,0,.035,.49,.35,.035,.14);
+  const windowY=h*.64+.12;for(const x of [-w*.32,w*.32])windowFrame(p,x,windowY,d/2+.022,!store);
+  if(big){box(p,0x9c805c,0,h*.62+.12,d/2+.025,w,.025,.026);windowFrame(p,0,h+.17,d/2+.023,false)}
+  const gable=new T.BufferGeometry();gable.setAttribute('position',new T.Float32BufferAttribute([-w/2,h+.12,d/2,w/2,h+.12,d/2,0,h+.45,d/2,w/2,h+.12,-d/2,-w/2,h+.12,-d/2,0,h+.45,-d/2],3));gable.computeVertexNormals();part(p,gable,wall);
+  tiledRoof(p,w,d,h+.12,.34,lumber?0x628783:store?0x9d805b:big?0x758c80:0xb77255);
+  const cx=w*.27,cz=-.14;
+  box(p,0xc3b397,cx,h+.42,cz,.105,.31,.105);for(let i=0;i<3;i++)box(p,0xa78d70,cx,h+.32+i*.07,cz+.056,.108,.012,.012);
+  box(p,0x887762,cx,h+.58,cz,.14,.035,.14);box(p,0x4d574c,cx,h+.60,cz,.074,.012,.075);
+  // Restrained blue door canopy and lantern give every building the same craft language.
+  const awning=box(p,lumber?0x66877c:0x789c95,0,.47,doorZ+.055,doorW+.09,.027,.15);awning.rotation.x=.12;
+  box(p,0x746047,.13,.37,doorZ+.04,.012,.10,.012);box(p,0xe8c782,.13,.34,doorZ+.057,.035,.048,.032);
+  if(store){crate(p,-.38,.43);barrel(p,.37,.40)}
+  else if(lumber){for(let j=0;j<5;j++){const log=resourceModel('wood');log.position.set(.36,.02+Math.floor(j/2)*.07,-.17+(j%2)*.13);log.scale.setScalar(.7);p.add(log)}}
+  else{const planter=new T.Group();planter.position.set(-.26,0,.42);box(planter,0x92714e,0,.11,0,.19,.12,.095);for(let j=0;j<3;j++){const leaf=ball(planter,0x739458,(j-1)*.05,.195,0,.049);leaf.scale.y=.65;ball(planter,j%2?0xdab677:0xc98268,(j-1)*.05,.225,.006,.018)}p.add(planter)}
+}
 function createModel(kind:Kind){let p=new T.Group();if(kind==='forest'){tree(p,-.23,-.2,0,.88);tree(p,.23,-.03,1,.79);tree(p,-.08,.27,2,.7)}else if(kind==='house'||kind==='manor'||kind==='lumber'||kind==='store')house(p,kind==='manor',kind==='lumber',kind==='store');else if(kind==='berry'||kind==='farm'){for(let z of [-.3,0,.3]){box(p,0x816044,0,.035,z,.9,.065,.18);for(let x=-.34;x<.4;x+=.17){if(kind==='berry'){ball(p,0x5f894c,x,.15,z,.12);for(let k=0;k<2;k++)ball(p,0xc25b50,x+(k-.5)*.07,.24,z,.037)}else{for(let k=0;k<3;k++){let a=x+(k-1)*.035;box(p,0xb49d50,a,.2,z,.014,.35,.014);part(p,new T.ConeGeometry(.035,.14,4),0xe6c776,a,.4,z)}}}}fence(p,-.49);if(kind==='farm'){box(p,0xa28b52,.4,.2,.4,.12,.4,.1);box(p,0xd8c596,.4,.35,.4,.34,.12,.1)}}else if(kind==='garden'){part(p,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(p,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(p,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(p,0xced2b5,0,.42,0,.09);for(let j=0;j<8;j++){let a=j/8*Math.PI*2;ball(p,0x678952,Math.cos(a)*.4,.12,Math.sin(a)*.4,.13);ball(p,j%2?0xdfae86:0xe8d7aa,Math.cos(a)*.4,.24,Math.sin(a)*.4,.055)}}else if(kind==='festival'){for(let x of [-.35,.35])box(p,0x8b6748,x,.4,0,.04,.8,.04);box(p,0xd8ba70,0,.73,0,.75,.035,.035);for(let j=0;j<5;j++)part(p,new T.ConeGeometry(.08,.18,3),j%2?0xa86155:0xe4c77a,-.28+j*.14,.64,0)}else{for(let j=0;j<3;j++){ball(p,0xc6a76d,(j-1)*.2,.18,0,.2);box(p,0x7c8d51,(j-1)*.2,.36,0,.04,.15,.04)}}return p}
 
 
@@ -72,8 +140,8 @@ function berryPlot(){
     box(plot,0x816044,0,.035,z,.9,.065,.18);
     for(let x=-.34;x<.4;x+=.17){
       const plant=new T.Group();plant.position.set(x,.065,z);plant.userData.plantOrder=order++;
-      ball(plant,0x5f894c,0,.085,0,.12);
-      for(let i=0;i<2;i++)ball(plant,0xc25b50,(i-.5)*.07,.175,0,.037);
+      const leaves=new T.Group();plant.add(leaves);for(let j=0;j<5;j++){const a=j*2.4;const leaf=ball(leaves,j%2?0x71974e:0x5c8549,Math.cos(a)*.055,.065+Math.sin(j)*.012,Math.sin(a)*.045,.064);leaf.scale.set(1,.45,1.5);leaf.rotation.y=-a;}batchParts(leaves);
+      for(let i=0;i<3;i++){const fruit=new T.Group();fruit.position.set((i-1)*.044,.12,(i%2)*.035);const berry=ball(fruit,0xcf6250,0,0,0,.029);berry.scale.set(.9,1.2,.85);for(let j=0;j<3;j++)ball(fruit,0xf1d299,Math.sin(j*2.3)*.018,.008-j*.01,.021,.0028);part(fruit,new T.ConeGeometry(.018,.013,5),0x587f43,0,.033,0);batchParts(fruit);plant.add(fruit)}
       plot.add(plant);
     }
   }
@@ -93,22 +161,27 @@ function wheatPlot(){
 }
 function flowerGarden(){
   const g=new T.Group();part(g,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(g,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(g,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(g,0xced2b5,0,.42,0,.09);
-  for(let i=0;i<8;i++){const a=i/8*Math.PI*2,flower=new T.Group();flower.position.set(Math.cos(a)*.4,0,Math.sin(a)*.4);flower.userData.flowerOrder=i;ball(flower,0x678952,0,.12,0,.13);ball(flower,i%2?0xdfae86:0xe8d7aa,0,.24,0,.055);g.add(flower)}return g;
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2,flower=new T.Group();flower.position.set(Math.cos(a)*.4,0,Math.sin(a)*.4);flower.userData.flowerOrder=i;ball(flower,0x678952,0,.12,0,.13);ball(flower,i%2?0xdfae86:0xe8d7aa,0,.24,0,.055);for(let petal=0;petal<5;petal++){const a=petal*Math.PI*2/5;const m=ball(flower,i%2?0xdba889:0xe9cf96,Math.cos(a)*.035,.25,Math.sin(a)*.035,.024);m.scale.y=.45}box(flower,0x6c884d,0,.17,0,.009,.12,.009);g.add(flower)}return g;
 }
 function fishingHut(){
-  const g=new T.Group();box(g,0x86674d,0,.04,-.22,.62,.08,.59);box(g,0xd5c498,0,.29,-.24,.48,.5,.42);
-  const roof=part(g,new T.ConeGeometry(.46,.34,4),0x668d91,0,.68,-.24);roof.rotation.y=Math.PI/4;
-  box(g,0x785e47,0,.22,-.01,.15,.34,.025);box(g,0x8cb9b0,-.15,.39,-.015,.12,.13,.025);
-  for(let i=0;i<12;i++)box(g,i%2?0xb49a70:0xcab184,0,.025,.25+i*.095,.39,.045,.087);
-  for(const x of [-.15,.15])for(const z of [.45,1.15])box(g,0x826c52,x,-.18,z,.045,.43,.045);
-  part(g,new T.CylinderGeometry(.095,.075,.15,8),0x7f9993,.28,.1,.13);
-  box(g,0xc9b78f,-.27,.14,.03,.13,.25,.15);return g;
+  const g=new T.Group(),hut=new T.Group();hut.position.set(0,0,-.23);hut.scale.set(.76,.82,.76);house(hut,false,false,false);g.add(hut);
+  // Pier dimensions and walkable centre stay unchanged.
+  for(let i=0;i<12;i++){
+    const z=.25+i*.095;box(g,i%3?0xbba078:0xcbb78c,0,.025,z,.39,.045,.087);
+    for(const x of [-.125,.125])part(g,new T.CylinderGeometry(.004,.004,.002,5),0x777b68,x,.049,z);
+  }
+  for(const x of [-.15,.15])for(const z of [.45,1.15]){box(g,0x826c52,x,-.18,z,.045,.43,.045);part(g,new T.CylinderGeometry(.033,.033,.028,8),0xc6b28d,x,.055,z)}
+  barrel(g,.28,.06);crate(g,-.27,.03);
+  const coil=part(g,new T.TorusGeometry(.062,.009,5,14),0xccba8a,.28,.215,.06);coil.rotation.x=Math.PI/2;
+  const net=new T.Group();net.position.set(.22,.14,-.28);net.rotation.z=.14;
+  for(let i=0;i<5;i++)for(const sign of [-1,1])beam(net,0x9caf9a,new T.Vector3(-.07+i*.025,0,0),new T.Vector3(-.02+i*.025,.14,sign*.025),.004);g.add(net);
+  return g;
 }
 export function model(kind: Kind): T.Group {
-  if(kind==='stone'){if(!templates.has(kind)){const g=new T.Group();for(let i=0;i<3;i++){const rock=new T.Group();rock.userData.treeIndex=i;rock.position.set([-.27,.24,0][i],0,[-.18,-.1,.29][i]);const m=ball(rock,[0x8c9a99,0xa5afa5,0x7c8e8b][i],0,.13,0,.23);m.scale.set(1,.85,1.05);ball(rock,0xc7c3a4,.08,.23,.05,.055);g.add(rock)}templates.set(kind,g)}return templates.get(kind)!.clone()}
+  if(kind==='stone'){if(!templates.has(kind)){const g=new T.Group();for(let i=0;i<3;i++){const rock=new T.Group();rock.userData.treeIndex=i;rock.position.set([-.27,.24,0][i],0,[-.18,-.1,.29][i]);const m=ball(rock,[0x8c9a99,0xa5afa5,0x7c8e8b][i],0,.13,0,.23);m.scale.set(1,.85,1.05);for(let j=0;j<3;j++){const x=-.09+j*.065;beam(rock,0xc7c7a7,new T.Vector3(x,.18+j*.012,.19),new T.Vector3(x+.055,.197+j*.012,.18),.012)}batchParts(rock);g.add(rock)}templates.set(kind,g)}return templates.get(kind)!.clone()}
   if(kind==='garden'){if(!templates.has(kind))templates.set(kind,flowerGarden());return templates.get(kind)!.clone()}
   if(kind==='fisher'||kind==='farm'){
-    if(!templates.has(kind))templates.set(kind,kind==='fisher'?fishingHut():wheatPlot());
+    if(!templates.has(kind)){const source=kind==='fisher'?fishingHut():wheatPlot();if(kind==='fisher')batchParts(source);templates.set(kind,source);}
     return templates.get(kind)!.clone();
   }
   if(kind==='forest'){
@@ -122,25 +195,7 @@ export function model(kind: Kind): T.Group {
   }
   let template = templates.get(kind);
   if (!template) {
-    const source = createModel(kind);
-    source.updateMatrixWorld(true);
-    const batches = new Map<T.Material, T.BufferGeometry[]>();
-    source.traverse(object => {
-      if (!(object instanceof T.Mesh)) return;
-      const mat = object.material as T.Material;
-      const geometry = object.geometry.clone().applyMatrix4(object.matrixWorld);
-      if (!batches.has(mat)) batches.set(mat, []);
-      batches.get(mat)!.push(geometry);
-    });
-    template = new T.Group();
-    for (const [mat, geometries] of batches) {
-      const merged = mergeGeometries(geometries, false);
-      geometries.forEach(g => g.dispose());
-      if (!merged) continue;
-      const mesh = new T.Mesh(merged, mat);
-      mesh.castShadow = true; mesh.receiveShadow = true;
-      template.add(mesh);
-    }
+    const source=createModel(kind);batchParts(source);template=source;
     templates.set(kind, template);
   }
   return template.clone();

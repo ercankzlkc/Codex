@@ -45,3 +45,9 @@ Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele da
 Tek merkez altıgeni ve bir sakinle başlanır. Ticaret siparişi, köy aşaması veya genişleme/yükseltme hakkı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
 
 Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).
+
+## Ortak görsel stil ve hava
+
+Ev, büyük ev, depo, oduncu ve balıkçı yapıları ortak taş temel, yumuşak ahşap kenarlar, kiremit sıraları, kepenkler ve pencere çerçeveleriyle modellenir. İskelede bağlantı çivileri, depoda sandık ve varil, balıkçıda ağ ve halat detayları bulunur. Ağaçlar, çilekler, çiçekler ve taşlar buğdayın daha ince işlenmiş stiline yaklaşır. Sabit yapı detayları malzemeye göre birleştirilir ve şablon geometrileri paylaşılır.
+
+Sıcak güneş yönü karadaki gölgelerle suyun altın parıltısında ortaktır. Küçük dalga normal değişimleri güneş yansımasını hareketlendirir. Ara sıra beliren üç ince rüzgâr izi birkaç saniyede kaybolur; çimenlerin salınımı aynı esintiyle hafifçe güçlenir. Ağaç vuruşları yaprak savurur; yapraklar dönerek düşer, zeminde veya suda kısa süre kalıp kaybolur. Parçacık sayısı sınırlıdır, yeni oyunda temizlenir.
