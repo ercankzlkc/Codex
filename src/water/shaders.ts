@@ -48,6 +48,8 @@ uniform sampler2D uCoast;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
 uniform vec3 uLanding;
+uniform vec4 uWakes[12];
+uniform vec2 uWakeDirs[12];
 varying vec3 vWorld;
 void main() {
   vec2 p=vWorld.xz;
@@ -74,14 +76,32 @@ void main() {
     float front=radius-(.74+age*.93);
     ring=exp(-115.*front*front)*sin(front*36.)*sin(3.14159*age/1.85)*smoothstep(.025,.22,shore);
   }
+  // A bounded, reusable wake pool: elongated across the pointer's direction.
+  float wake=0.;vec2 wakeSlope=vec2(0.);
+  for(int i=0;i<12;i++){
+    float elapsed=uTime-uWakes[i].z;
+    if(elapsed>=0.&&elapsed<1.6&&uWakes[i].w>0.){
+      vec2 dir=uWakeDirs[i];
+      vec2 delta=p-uWakes[i].xy-dir*elapsed*.28*uWakes[i].w;
+      vec2 local=vec2(dot(delta,dir)*1.55,dot(delta,vec2(-dir.y,dir.x)));
+      float radius=length(local);
+      float front=radius-(.09+elapsed*.88);
+      float envelope=exp(-front*front*95.)*exp(-elapsed*2.5)*uWakes[i].w;
+      float crest=sin(front*25.-elapsed*3.);
+      wake+=crest*envelope;
+      wakeSlope+=delta/max(length(delta),.02)*cos(front*25.-elapsed*3.)*envelope*.065;
+    }
+  }
+  wake*=smoothstep(.06,.38,shore);
   vec2 distorted=p+.055*flow+vec2(.013,-.017)*sin(uTime*.42+p.y+flow.x);
   distorted+=.055*ring*(p-uLanding.xy)/max(radius,.01);
+  distorted+=wakeSlope*.25;
   Lens lens=lightNet(distorted,flow);
   float sunlight=.48+.44*weather.a;
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
   pigment+=vec3(.16,.30,.27)*focus*(.30+.35*shelf);
-  vec2 slope=seaWave(p).yz+flow*.025;
+  vec2 slope=seaWave(p).yz+flow*.025+wakeSlope;
   vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
   vec3 eye=normalize(cameraPosition-vWorld);
   float fresnel=.025+.975*pow(1.-max(dot(normal,eye),0.),5.);
@@ -106,7 +126,11 @@ void main() {
   float backwash=(1.-smoothstep(.003,.021+aa,tornEdge))*smoothstep(.48,.82,weather.a+flow.x*.56)*drift;
   float foam=gate*clamp(rim*(.32+.63*gaps)+fringe*gaps*.42+backwash*.49,0.,1.);
   pigment=mix(pigment,vec3(.88,.96,.83),foam);
-  pigment+=max(ring,0.)*vec3(.12,.19,.17);
+  pigment+=max(ring,0.)*vec3(.21,.32,.29);
+  float arrival=exp(-pow((radius-(.55+age*1.20))*7.,2.))*exp(-max(age,0.)*1.5);
+  if(age>=0.&&age<1.85)pigment=mix(pigment,vec3(.72,.92,.87),arrival*.38*gate);
+  pigment+=max(wake,0.)*vec3(.10,.17,.16);
+  pigment*=1.+min(wake,0.)*.07;
   float opacity=1.-.78*exp(-1.25*max(0.,depth-.25));
   opacity=mix(opacity,1.,smoothstep(2.38,3.25,depth));
   opacity=mix(opacity,.94,foam);

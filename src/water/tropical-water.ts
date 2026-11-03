@@ -11,12 +11,15 @@ export class TropicalWater {
   readonly root=new T.Group();
   private readonly field=new LagoonField();
   private readonly uniforms={
+    uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
+    uWakeDirs:{value:Array.from({length:12},()=>new T.Vector2(1,0))},
     uTime:{value:0},uLight:{value:lightField()},uCoast:{value:this.field.texture},
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
     uMint:{value:new T.Color('#87efd4')},uTurquoise:{value:new T.Color('#20d0c6')},
     uLagoon:{value:new T.Color('#22b7c7')},uDeep:{value:new T.Color('#318fc4')},
   };
+  private nextWake=0;
   private readonly sandGeometry=new T.PlaneGeometry(1,1,SAND_STEPS,SAND_STEPS).rotateX(-Math.PI/2);
   private readonly sandTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
   private readonly stones:T.InstancedMesh;
@@ -100,6 +103,12 @@ export class TropicalWater {
     if(this.stones.instanceColor)this.stones.instanceColor.needsUpdate=true;
     this.stones.computeBoundingSphere();
   }
+  stir(x:number,z:number,dx:number,dz:number,strength:number){
+    const i=this.nextWake;this.nextWake=(i+1)%12;
+    this.uniforms.uWakes.value[i].set(x,z,this.uniforms.uTime.value,.15+.85*strength);
+    this.uniforms.uWakeDirs.value[i].set(dx,dz);
+  }
+  clearWakes(){for(const wake of this.uniforms.uWakes.value)wake.set(0,0,-10,0)}
   update(time:number){this.uniforms.uTime.value=time}
 }
 

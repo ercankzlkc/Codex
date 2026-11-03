@@ -38,20 +38,23 @@ export class Environment {
       const surface=new T.Mesh(terrainGeometry(id,board),this.landMat);surface.castShadow=true;surface.receiveShadow=true;
       const grass=meadow(id);grass.position.set(0,LAND_Y,0);root.add(surface,grass);
       if(id===CENTER){const sprig=new T.Group();sprig.position.set(.44,LAND_Y,-.37);tree(sprig,0,0,1,.47);root.add(sprig)}
-      this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?0:1});
+      root.visible=id!==placed;
+      this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?-.60/.72:1});
     }
     const dockEdge=edges.find(e=>e.id===CENTER&&e.side===1)??edges.find(e=>e.id===CENTER)??edges[0];
     this.harbour.position.set((dockEdge.ax+dockEdge.bx)/2,0,(dockEdge.az+dockEdge.bz)/2);
     this.harbour.rotation.y=-dockEdge.side*Math.PI/3;
   }
+  stir(x:number,z:number,dx:number,dz:number,strength:number){this.water.stir(x,z,dx,dz,strength)}
   update(time:number){
     const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);
     this.boat.position.y=SEA_Y+.07+Math.sin(time*1.3)*.014;this.boat.rotation.x=Math.sin(time*.84)*.045;
     for(const tile of this.land.values())if(tile.age<1){
       tile.age=Math.min(1,tile.age+dt/.72);
-      const t=tile.age;tile.root.position.y=-.74*(1-t*t*(3-2*t));
+      tile.root.visible=tile.age>=0;
+      const t=Math.max(0,tile.age);tile.root.position.y=-.74*(1-t*t*(3-2*t));
     }
   }
-  reset(){for(const tile of this.land.values()){this.root.remove(tile.root);tile.surface.geometry.dispose();tile.root.traverse(o=>{if(o instanceof T.Mesh&&o.material.vertexColors&&o!==tile.surface){o.geometry.dispose();o.material.dispose()}})}this.land.clear()}
+  reset(){this.water.clearWakes();for(const tile of this.land.values()){this.root.remove(tile.root);tile.surface.geometry.dispose();tile.root.traverse(o=>{if(o instanceof T.Mesh&&o.material.vertexColors&&o!==tile.surface){o.geometry.dispose();o.material.dispose()}})}this.land.clear()}
 }
 

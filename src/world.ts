@@ -1,7 +1,8 @@
 import * as T from 'three';
 import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
-import {CENTER, position} from './hex';
+import {CENTER, position, fromWorld} from './hex';
+import {terrainGeometry} from './scenery';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, part, box } from './models';
 import { cards, type Card, type Kind, type Production } from './game';
@@ -45,6 +46,12 @@ export class World {
   private root=new T.Group();
   private buildings=new Map<number,T.Group>();
   private ghost:T.Group|null=null;
+  private previewLand:T.Mesh|null=null;
+  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
+  private readonly seaRay=new T.Raycaster();
+  private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
+  private readonly seaPoint=new T.Vector3();
+  private lastSea:{x:number;z:number;time:number}|null=null;
   private board:ReadonlyMap<number,Kind>=new Map();
   private sun=new T.DirectionalLight(0xffe1b7,2.35);
   private ghostPalette:{mat:T.MeshStandardMaterial;base:T.Color}[]=[];
@@ -88,7 +95,8 @@ export class World {
     new ResizeObserver(resize).observe(el);resize();
     const canvas=this.renderer.domElement;
     canvas.addEventListener('pointermove',e=>{if(this.selected&&!e.buttons)this.point(e.clientX,e.clientY)});
-    canvas.addEventListener('pointerleave',()=>this.setHover(-1));
+    canvas.addEventListener('pointerleave',()=>{this.setHover(-1);this.lastSea=null});
+    canvas.addEventListener('pointermove',e=>this.stirSea(e));
     canvas.addEventListener('click',e=>{if(e.button===0&&this.selected){const i=this.point(e.clientX,e.clientY);if(i>=0)this.onPick(i)}});
     this.renderer.setAnimationLoop(this.frame);
   }
@@ -98,6 +106,19 @@ export class World {
     const hit=document.elementFromPoint(x,y);
     const i=hit===this.renderer.domElement?this.grid.pick(x,y,this.cameraControl.camera,this.el):-1;
     this.setHover(i);return i;
+  }
+  private stirSea(event:PointerEvent){
+    if(event.buttons||this.selected||event.pointerType==='touch'){this.lastSea=null;return}
+    const r=this.renderer.domElement.getBoundingClientRect();
+    this.seaRay.setFromCamera(new T.Vector2((event.clientX-r.left)/r.width*2-1,1-(event.clientY-r.top)/r.height*2),this.cameraControl.camera);
+    if(!this.seaRay.ray.intersectPlane(this.seaPlane,this.seaPoint)||this.board.has(fromWorld(this.seaPoint.x,this.seaPoint.z))){this.lastSea=null;return}
+    const {x,z}=this.seaPoint,now=performance.now()/1000,previous=this.lastSea;
+    if(previous&&now-previous.time<.04)return;
+    this.lastSea={x,z,time:now};
+    if(!previous||now-previous.time>.25)return;
+    const dx=x-previous.x,dz=z-previous.z,distance=Math.hypot(dx,dz);
+    if(distance<.025||distance>2)return;
+    this.environment.stir(x,z,dx/distance,dz/distance,Math.min(1,distance/(now-previous.time)/12));
   }
   private setHover(i:number,force=false) {
     if(!force&&i===this.hover)return;
@@ -116,10 +137,18 @@ export class World {
         });
       }
     }
+    if(this.previewLand){this.ghost?.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
+    if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
+      const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
+      this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
+      this.previewLand.position.y=-LAND_Y-.035;
+      this.previewLand.receiveShadow=true;this.ghost.add(this.previewLand);
+    }
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {
     this.cameraControl.setPlacement(carrying);
+    if(this.previewLand){this.previewLand.geometry.dispose();this.previewLand=null}
     if(this.ghost){this.scene.remove(this.ghost);this.ghost=null}
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
     this.selected=card;
@@ -155,7 +184,7 @@ export class World {
       const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){g.scale.setScalar(.01);g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
+      if(i===placed){g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:-.60/.94,kind})}
     });
   }
   private pulse(i:number,color:number) {
@@ -177,7 +206,7 @@ export class World {
       const el=document.createElement('div');el.className='float'+(r.bonus?' bonus':'');
       el.textContent=[r.wood&&`+${r.wood} odun`,r.food&&`+${r.food} yiyecek`,r.happy&&`+${r.happy} refah`,!r.active&&'İşçi bekliyor'].filter(Boolean).join(' · ');
       el.style.opacity='0';this.el.append(el);
-      this.labels.push({el,position:cellPosition(r.i,1.05),life:1.4,delay:.1+j*.035});
+      this.labels.push({el,position:cellPosition(r.i,1.05),life:1.4,delay:(r.i===placed?.85:.1)+j*.035});
       if(bonuses.includes(r.i)||(r.bonus&&r.i===placed))this.pulse(r.i,0xf7d579);
     });
   }
@@ -195,6 +224,8 @@ export class World {
     this.builds=this.builds.filter(b=>{
       const previous=b.time;
       b.time=Math.min(1,b.time+dt/.94);
+      b.group.visible=b.time>=0;
+      if(b.time<0)return true;
       if(previous<.56&&b.time>=.56)this.burst(b.id);
       const growth=T.MathUtils.smoothstep(b.time,.35,.98);
       const bump=Math.sin(Math.PI*growth)*.14;
