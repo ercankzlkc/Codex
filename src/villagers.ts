@@ -197,7 +197,7 @@ export class Villagers {
           c.root.position.x=p.x;c.root.position.z=p.z;c.path=[];const key=`${Math.floor(p.x/.32)}:${Math.floor(p.z/.32)}`;if(!this.buckets.has(key))this.buckets.set(key,[]);this.buckets.get(key)!.push(c);
         }else continue;
       }
-      if(c.job&&!g.board.has(c.job.source))this.releaseJob(c);
+      if(c.job&&g.productAt(c.job.source)?.resource!==c.job.resource)this.releaseJob(c);
       c.retry-=dt;
       if(c.eatUntil>this.time){c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.body.rotation.x=.06;c.arms[0].rotation.x=-1.9+Math.sin(this.time*7)*.12;c.arms[1].rotation.x=c.bundle.visible?-.8:-.2;c.legs.forEach(leg=>leg.rotation.x=0);continue}
       if(c.stage==='idle'&&c.retry<=0){c.retry=1.5+(c.id%3)*.2;if(!this.findJob(c)&&!c.path.length)this.wander(c)}

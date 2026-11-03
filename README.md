@@ -6,40 +6,43 @@ Three.js, TypeScript ve Vite ile geliştirilmiş, gerçek zamanlı küçük ada 
 
 Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build -- --base=/Codex/`.
 
-## Üretim ve kıyı ticareti
+## Kısıtlı topraktan yaşayan köye
 
-Ana döngü: **üret → depoya taşı → siparişi gönder → üç karttan birini seç**. Sol üstteki Kıyı Ticareti paneli mevcut siparişi, depodaki ilerlemeyi ve ödülü gösterir. Süre sınırı yoktur. İlk sefer 20 odun ve 10 çilek ister; sonraki seferler buğday, balık ve taş üretimini tanıtır. Gönderilen ürünler hem toplam stoktan hem depolardan düşer. Köyün 30 saniyelik yiyeceği gönderilemez. Her sefer +4 refah ve bir yapı kartı verir; ödülün kurulum bedeli geçerlidir. Çiftlik ve balıkçı ilk, taş ocağı ikinci, büyük ev üçüncü seferden sonra kart havuzuna açılır. Eksik temel üretim kartları çekilişte korunur; başlangıç eli orman, çilek bahçesi ve evdir.
+**Kur → üret → ticaret yap → yeni arsa aç veya elindekini yükselt.** Başlangıçta merkez, iki sakin ve altı boş arsa bulunur. Yapı kartı sadece mevcut boş arsaya yerleşir, yeni toprak vermez. Orman, çilek ve taş üretimi başlangıç ekonomisini oluşturur. Bir yapı kaldırılınca arsa kalır; kaynak iadesi olmaz. Uygun kart gelmezse Yeni planlar düğmesi 20 saniyede bir eli yeniler. Eksik temel üretim kartları çekilişte korunur.
 
-Başlangıçta merkez önünde bir sakin bulunur. Ev iki, büyük ev dört yeni sakin getirir; taşınma sırasıyla 4 ve 8 yiyecek harcar. Taşınmadan sonraki toplam nüfus için ayrıca 30 saniyelik yiyecek depoda kalmalıdır. Her sakin dakikada 2 yiyecek tüketir. Üstteki sofra satırı stokun kaç dakika yeteceğini ve son teslimatlardan hesaplanan üretim/tüketim temposunu gösterir. Açlık refahı azaltır ve yürümeyi/çalışmayı en fazla %25 yavaşlatır; yiyecek geldikçe toparlanır, oyun sona ermez. Stok bir dakikanın altındaysa en az bir çalışan yiyeceğe ayrılır; tüm yiyecek önceliklerini sıfırlamak bu yardımı kapatır. Stok azalınca görünen Acil Hasat en fazla 12 yiyecek verir, 5 refah harcar ve kartla ortak 90 saniye bekleme süresine sahiptir; depo kapasitesini aşmaz.
+Odun, taş ve yiyecek farklı amaçlara sahiptir. Orman ücretsizdir ama fidanlar 35 saniye büyümeden çalışılamaz. Ev 8 odun, 2 taş ve 4 hazırlık yiyeceği; depo 8 odun ve 4 taş ister. Çiftlik, balıkçı, oduncu kulübesi, bahçe ve büyük ev de taş gerektirir. Bedeller kartın üzerinde ayrı ikonlarla gösterilir.
 
-Sakinler kara üzerinden yürür; ürünleri uygun depoya taşır. Yüklü yürüyüş hızı normalin %78'idir; uzun yol gerçekten daha seyrek teslimat demektir. İş seçiminde hem kaynağa hem depoya mesafe dikkate alınır. Üretim altıgeninin bilgi paneli depo mesafesini, tamamlanan seferlerden ölçülen yüklü yürüyüş ve toplam teslimat süresini gösterir. Yakına depo kurmak taşıma süresini azaltır. Kaynaklar yalnızca teslimatta eklenir. Çilek, buğday ve balık ayrı stoklanır; döküm yiyecek göstergesinin üzerinde görünür.
+## Nüfus ve refah
 
-Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebilir. Merkez deposu 80, yeni depolar 60 ürün alır; depo panelinden odunla yükseltmek kapasiteyi aynı miktarda artırır. Dolu depoya giden sakin başka uygun depo arar; dolu deponun üzerinde hareketli bir uyarı görünür. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Ağaçlar, taş damarları, çilekler, buğday ve çiçekler 30 saniyede yenilenir; küçük halkalar kalan süreyi gösterir. Hasatta ürünler kademeli azalır. Balıkçı iskelesi açık denize yönelir; son su komşusu yapı ile kapatılamaz. Balıkçılar kıyıdaki iskelelerinden olta atar; yakalanan balık teslimatta stoğa eklenir.
+Ev anında çalışan vermez; iki yatak açar. Büyük ev dört, başlangıç merkezi üç yatak sağlar. Boş yatak, en az 65 refah ve 90 saniyelik yiyecek varsa 55 saniyede bir yeni sakin gelir. Koşullar bozulunca geliş ilerlemesi yavaşça azalır. Sağdaki gelişim paneli engeli veya kalan süreyi gösterir.
 
-Taş Ocağı kartında köylüler kazmayla çalışır; vuruşlarda kaya sallanır, küçük kıvılcım ve taş parçaları çıkar. Ağaç kesimi 6, taş çıkarma 6,8 saniye sürer. Taş, odun ve yiyecekle birlikte HUD’da ve depolarda ayrı stoklanır. Kaynak sayaçları yumuşak geçişlerle değişir; artış yeşil, azalış kırmızı görünür.
+Her sakin 2 yiyecek / dk tüketir. Erzak rezervi, yiyecek çeşitliliği ve bahçeler refahın sürdürülebilir seviyesini yükseltir; açlık ve barınma eksikliği düşürür. Refah para olarak harcanmaz. Açlık ayrıca çalışmayı ve yürüyüşü en fazla %25 yavaşlatır; erzak gelince toparlanılır. Sofra satırı stokun ne kadar yeteceğini ve son teslimatlardan hesaplanan üretim/tüketim temposunu gösterir. Stok bir dakikanın altındaysa bir çalışan yiyeceğe ayrılır; yiyecek önceliklerini tamamen sıfırlamak bu yardımı kapatır. Acil Hasat en fazla 12 yiyecek verir, 5 refah harcar ve kartla ortak 90 saniye bekleme süresine sahiptir; depo kapasitesini aşmaz.
 
-Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction` animasyonuyla kıyıda uçar; model ve lisans bilgileri [model künyesinde](public/models/CREDITS.txt) bulunur. balıklar ara sıra sudan kavis çizerek atlar. Balıkçı iskelesi açık denize otomatik yönelir ve köylü iskelenin ucunda çalışır; R ile başka bir açık su yönü seçilebilir.
+## Ticaret, arsalar ve ustalık
 
-## İş öncelikleri
+Siparişlerin süre sınırı yoktur. İlk sefer 24 odun ve 12 çilek ister; ardından buğday, taş ve balık devreye girer. Gönderilen ürünler toplamdan ve gerçek depolardan düşer. Köyün son 30 saniyelik yiyeceği gönderilemez. Her sefer +4 refah verir; oyuncu **bir yeni arsa hakkı** veya **bir ustalık hakkı** seçer. Genişleme hakkı sağdaki düğmeyle seçilen kıyı altıgeninde kullanılır. Balıkçının son açık kıyısı kapatılamaz.
 
-Sağ alttaki Görevler panelinde odun, taş, çilek, buğday ve balık ağırlıklarını ayarlayın. Yüzdeler mevcut işlere göre çalışan hedeflerine dönüşür; taşıma halindeki sakinler teslimatlarını bitirir. Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur. Takılan sakinler alternatif rota ve depo girişleri arar. Başlarının üzerindeki Font Awesome ikonları toplama, taşıma, yemek, dinlenme ve dolu depo durumlarını gösterir. Yürürken hedef işin ikonu görünür; kamera uzaklaştığında baloncuklar küçülerek kaybolur.
+Bir yapıya tıklayıp ustalık hakkı ve malzeme harcayarak aynı arsayı geliştirebilirsin. Seviye 1 → 2, 6 odun ve 2 taş; seviye 2 → 3, 12 odun ve 4 taş ister. Seviye üst sınırı 3'tür; son seviye Ticaret Limanı aşamasında, 6 seferden sonra açılır. Üretim yapıları her seviyede teslimata +2 ürün, bahçeler +1 refah, oduncu kulübeleri komşu ormanlara +2 odun verir. Evler +1, büyük evler +2 yatak açar; depolar +60, merkez +80 kapasite kazanır. Yükseltmeler yapı üzerinde seviye işaretleriyle görünür.
+
+Çiftlik ve balıkçı ilk, büyük ev üçüncü seferden sonra kart havuzuna açılır; taş ocağı başlangıçtan itibaren vardır. Köy 3, 6, 10 ve 16 seferde Kıyı Köyü, Ticaret Limanı, Küçük Kasaba ve Canlı Koy aşamalarına geçer. Ticaret Limanı son yükseltme seviyesini açar; Küçük Kasaba merkeze +80 depo kapasitesi verir, Canlı Koy ustalık rozeti kazanır. Sonraki siparişlerin miktarları büyür; final veya beş dakikalık oyun sonu yoktur.
+
+## Üretim ve taşıma
+
+Kaynaklar yalnızca teslimatta eklenir. Çilek, buğday ve balık ayrı stoklanır. Depolarda kapsama yarıçapı yoktur; yüklü yürüyüş hızı normalin %78'idir, uzun yol gerçekten daha seyrek teslimat demektir. İş seçiminde kaynağa ve depoya mesafe dikkate alınır. Altıgenin bilgi paneli ölçülen yüklü yürüyüş ve toplam teslimat süresini gösterir. Yakına depo kurmak, yeni üretim yapısı eklemeye alternatif bir iyileştirmedir.
+
+Merkez deposu 80, yeni depo 60 ürünle başlar. Dolu depoya giden sakin başka uygun depo arar. Ağaçlar, taşlar ve ürünler 30 saniyede yenilenir. Kesilen ağaç devrilir; toz, sekme ve sürtünme ile yere oturan kütükleri çalışan eğilerek toplar. Elde taşınan kaynaklar ayrı modellerle görünür. Taşta iki elli dikey kazma, dökülen parçalar ve toz; buğdayda taneler ve kılçıklar bulunur. Çimler modellerden ve kıyıdan uzak, rastgele yerlerde bağımsız salınır.
 
 ## Kontroller
 
-- Kartları kıyıdaki boş altıgenlere sürükleyin.
-- Seçili kartı veya yapıyı tekerlek / R ile döndürün; Shift + R ters yöndür.
-- Sağ fareyle 360° döndürün, orta fare veya Shift + sağ fareyle kaydırın.
-- Tekerlekle yakınlaşın, H ile adayı ortalayın, Esc ile seçimi bırakın.
-- Mevcut altıgene tıklayarak döndürün veya yıkın. Merkez korunur; yıkım kaynak vermez.
-- Depoyu seçerek kapasitesini görün veya odunla yükseltin.
-- Altıgen bilgileri, zemini kapatmayacak şekilde farenin yanında gösterilir.
+- Kartı mevcut boş arsaya sürükle veya seçip arsaya tıkla.
+- Yeni arsa aç düğmesinden kıyıda genişleme yap; Esc ile vazgeç.
+- Yapıya tıklayarak döndür, yükselt veya kaldır. Merkez kaldırılamaz.
+- Sağ fareyle döndür, orta fare veya Shift + sağ fareyle kaydır.
+- Tekerlekle yakınlaş, H ile ortala. Seçili kart/yapıda tekerlek veya R döndürür; Shift + R ters yöndür.
+- Görevler panelinden odun, taş, çilek, buğday ve balık önceliklerini ayarla.
 
-Sesler yerel örneklerden çalınır. Kaynaklar ve lisanslar: [ses künyesi](public/audio/CREDITS.txt).
+Derleme yayın için alınır; oyun, tarayıcı, otomatik testler ve oynanış dengesi denemeleri proje tercihine göre kullanıcı tarafından yapılır.
 
-Bu geliştirme aşamasında oyun ve cihaz denemeleri kullanıcı tarafından yapılır.
+## Kaynaklar
 
-İkonlar: [Font Awesome Free](https://fontawesome.com/), CC BY 4.0 / MIT. Lisanslar: [ikonlar](public/licenses/fontawesome-icons.txt), [SVG çekirdeği](public/licenses/fontawesome-core.txt).
-
-Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele dağıtılmasıyla oluşur. Kesilen ağaç devrilir, toz bulutu çıkarır ve kütükler yerçekimi, sekme, sürtünme ve birbirleriyle temasla yere yerleşir. Çalışan kütüklere yürür, eğilerek alır ve depoya taşır. Elde taşınan balık, çilek, buğday, taş ve odun ayrı modellerle görünür. Çimenler kökleri sabit kalacak şekilde farklı fazlarda rüzgârda salınır. Taşların çarpışma alanları gerçek konumlarını izler; kazma iki elle baş üstünden savrulur ve parçalar yere düşüp seker. Depo yükseltmesi kapasite önizlemesi, seviye işaretleri, sandıklar ve bildirimle gösterilir.
-
-Çimenlerde beyaz çiçek/taş süsleri bulunmaz; çimler altıgenin yeşil yüzeyine rastgele yayılır ve model sınırlarından uzak tutulur. Buğday başakları çift sıralı taneler, kılçıklar ve yapraklarla modellenir. Kazma başı dikey vuruş düzlemindedir; kırılma anında toz ve sekerek dökülen parçalar çıkar. Sağ tuşla kamera daha alçak ve daha yüksek açılara dönebilir; alt açı deniz ve model yüksekliğine göre sınırlandırılır.
+Sesler: [ses künyesi](public/audio/CREDITS.txt). Martı: kullanıcı tarafından sağlanan rigli GLB ve `ArmatureAction` animasyonu, [model künyesi](public/models/CREDITS.txt). İkonlar: [Font Awesome Free](https://fontawesome.com/), [ikon lisansı](public/licenses/fontawesome-icons.txt), [SVG çekirdeği](public/licenses/fontawesome-core.txt).

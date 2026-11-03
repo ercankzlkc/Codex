@@ -26,8 +26,8 @@ export class PlacementGrid {
   constructor(scene:T.Scene){this.root.add(this.markers,this.hover);this.hover.visible=false;scene.add(this.root)}
   rebuild(board:ReadonlyMap<number,unknown>){
     this.occupied=new Set(board.keys());this.markers.clear();
-    for(const id of frontier(board)){
-      const tile=new T.Group();tile.position.copy(cellPosition(id,SEA_Y+.055));tile.userData.id=id;
+    for(const id of [...[...board].filter(([,kind])=>kind==='empty').map(([id])=>id),...frontier(board)]){
+      const tile=new T.Group();tile.position.copy(cellPosition(id,board.has(id)?LAND_Y+.018:SEA_Y+.055));tile.userData.id=id;
       const fill=new T.Mesh(this.fillGeo,this.fillMat),line=new T.LineLoop(this.rim,this.rimMat);
       fill.renderOrder=4;line.renderOrder=5;tile.add(fill,line);this.markers.add(tile);
     }
