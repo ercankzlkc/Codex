@@ -2,6 +2,7 @@ import './style.css';
 import {CENTER} from './hex';
 import {Game,cards,type Card} from './game';
 import {World} from './world';
+import {rewardLabel} from './objectives';
 import {CardDrag} from './drag';
 import {TableSound} from './sound';
 
@@ -20,6 +21,8 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div class="vignette"></div>
  <div class="kingdom-hud" aria-label="Krallığın durumu"><div id="stats" aria-label="Krallığın kaynakları"></div>
  <div class="run"><div id="turn"></div><small>Hedef · 10 nüfus / 50 refah</small></div></div>
+ <section id="objective" aria-label="Küçük hedef"><div class="objective-header"><span>KÜÇÜK HEDEF</span><div id="objective-steps" role="img" aria-label="Tamamlanan hedefler"></div></div><div class="objective-body"><div><strong id="objective-title"></strong><p id="objective-description"></p></div><span id="objective-reward"></span></div><div class="objective-footer"><progress id="objective-progress" value="0" max="1" aria-label="Hedef ilerlemesi"></progress><small id="objective-count"></small></div></section>
+ <div id="goal-celebration" role="status" aria-live="polite" hidden></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
@@ -34,6 +37,7 @@ let game=new Game();
 let selected:Card|null=null,turnTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
 let editedTile=-1;
+let goalTimer:number|undefined;
 
 function affordable(c:Card) { return c.cost<=game.wood&&(c.id!=='festival'||game.food>=3); }
 function select(c:Card|null,carrying=false) {
@@ -76,6 +80,13 @@ function commit(i:number) {
   if(card.event)world.burst(i);
   world.feedback(production,i,preview.neighbors);render();
   toast(game.log);
+  if(game.completedThisTurn){
+    const celebration=get('#goal-celebration');celebration.textContent=`✓ ${game.completedThisTurn.title} · ${rewardLabel(game.completedThisTurn.reward)}`;
+    celebration.hidden=false;sound.play('bonus');
+    celebration.getAnimations().forEach(a=>a.cancel());
+    celebration.animate([{opacity:0,transform:'translate(-50%, 10px) scale(.96)'},{opacity:1,transform:'translate(-50%, 0) scale(1)'}],{duration:350,easing:'ease-out'});
+    clearTimeout(goalTimer);goalTimer=window.setTimeout(()=>{celebration.hidden=true},2600);
+  }
   hand.animate([{opacity:.35,transform:'translateY(17px)'},{opacity:1,transform:'translateY(0)'}],{duration:330,easing:'ease-out'});
   clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,2000);return true;
 }
@@ -121,6 +132,15 @@ const drag=new CardDrag(hand,{
   tap:i=>{const c=game.hand[i];select(selected===c?null:c)},
 });
 function render() {
+  const goal=game.activeObjective,progress=game.objectiveProgress;
+  get('#objective-steps').innerHTML=game.objectiveOrder.map((_,i)=>`<i class="${i<game.completedObjectives?'done':i===game.completedObjectives?'current':''}" aria-hidden="true">${i<game.completedObjectives?'✓':i+1}</i>`).join('');
+  get('#objective-steps').setAttribute('aria-label',`${game.completedObjectives} / 3 hedef tamamlandı`);
+  get('#objective-title').textContent=goal?.title??'Köyün küçük mutlulukları';
+  get('#objective-description').textContent=goal?.description??'Üç hedef de tamam! Şimdi adanın keyfini çıkar.';
+  get('#objective-reward').textContent=goal?rewardLabel(goal.reward):'✓ 3 / 3';
+  const bar=get<HTMLProgressElement>('#objective-progress');bar.max=goal?.target??3;bar.value=goal?progress:3;
+  get('#objective-count').textContent=goal?(progress>=goal.target?'Hazır · sonraki hamlede ödül':`${progress} / ${goal.target}`):'Tamamlandı';
+  get('#objective').classList.toggle('all-done',!goal);
   const p=game.production(),net=p.food-game.people;
   get('#stats').innerHTML=[
     ['wood','Odun',game.wood,`+${p.wood}/tur`],['food','Yiyecek',game.food,`${net>=0?'+':''}${net}/tur`],
@@ -144,9 +164,10 @@ function modal(html:string) {
 }
 function finish(){
   modal(`<small>YELKEN KOYU · TUR ${game.turn}</small><h1>${game.won?'Koyda hayat var.':'Bir mevsim sona erdi.'}</h1>
-    <p>${game.won?'Köyün yeni mevsime hazır.':game.turn<15?'Halkın köyü terk etti.':'Hedef 10 nüfus ve 50 refahtı.'}</p><p>${game.people} nüfus · ${game.happy} refah · ${game.food} yiyecek</p><button data-new>Yeni krallık kur</button>`);
+    <p>${game.won?'Köyün yeni mevsime hazır.':game.turn<15?'Halkın köyü terk etti.':'Hedef 10 nüfus ve 50 refahtı.'}</p><p>${game.people} nüfus · ${game.happy} refah · ${game.food} yiyecek</p><p>${game.completedObjectives} / 3 küçük hedef tamamlandı</p><button data-new>Yeni krallık kur</button>`);
 }
 function reset(){
+  clearTimeout(goalTimer);get('#goal-celebration').hidden=true;
   clearTimeout(turnTimer);clearTimeout(toastTimer);log.classList.remove('visible');
   drag.cancel();sound.cancel();game=new Game();selected=null;locked=false;
   world.reset();world.sync(game.board);select(null);render();
@@ -155,6 +176,7 @@ get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona e
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Adada yaşam</h1>
  <p>Kartı kıyıdaki boş bir altıgene bırak. Yeni kara denizden yükselir. Merkez her tur 2 odun ve bir işçiyle 4 yiyecek üretir. Anlık kartlar adanın herhangi bir hücresinde kullanılır. İstersen kartı seçip hücreye tıklayabilirsin. Esc seçimi iptal eder.</p>
  <p>Her tur önce üretim yapılır, ardından her kişi 1 yiyecek tüketir. İşçiler önce yiyecek yapılarına atanır. Kıtlık 1 nüfus ve 14 refah götürür.</p>
+ <p>Her koşuda sırayla üç küçük hedef gelir. Bir hamle sonunda hedefi tamamlarsan küçük bir ödül alırsın. Ödüller bir kez verilir; yıkım ve döndürme ödül kazandırmaz.</p>
  <p>Komşu yapılar birbirini güçlendirir. Ormanlar oduncu kartlarını sıklaştırır. 6 nüfusta çiftlik ve büyük ev açılır. 15 tur sonunda 10 nüfus ve 50 refaha ulaş.</p>
  <p class="controls">Sağ tuş · döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · kamerayı ortala<br>Kart seçiliyken tekerlek / R · döndür &nbsp; Shift + R · ters yön</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){drag.cancel();select(null)}});

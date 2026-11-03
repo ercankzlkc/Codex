@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import {Game,cards} from './src/game.ts';
+import {objectives} from './src/objectives.ts';
 import {key,axial,position,fromWorld,adjacent,frontier,coast,CENTER} from './src/hex.ts';
 
 const card=id=>cards.find(c=>c.id===id);
 const give=(g,id)=>{const c=card(id);g.hand=[c];return c};
-const state=g=>JSON.stringify([[...g.board],g.turn,g.wood,g.food,g.people,g.happy,g.hand,g.log,g.over,g.won]);
+const state=g=>JSON.stringify([[...g.board],g.turn,g.wood,g.food,g.people,g.happy,g.hand,g.log,g.over,g.won,g.objectiveOrder.map(g=>g.id),g.completedObjectives,g.completedThisTurn?.id]);
 const expectNoChange=(g,fn)=>{const before=state(g);fn();assert.equal(state(g),before)};
 const start=new Game();
 assert.deepEqual([...start.board],[[CENTER,'house']]);
@@ -80,9 +81,10 @@ for(let seed=1;seed<=100;seed++){
     assert.equal(actual.wood-before.wood,preview.wood);assert.equal(actual.food-before.food,preview.food);
     assert.equal(actual.happy-before.happy,preview.happy);assert.equal(g.board.size,land+(c.event?0:1));
     const remainder=food+actual.food-mouths+(c.id==='harvest'?12:c.id==='festival'?-3:0);
-    assert.equal(g.wood,wood-c.cost+actual.wood);assert.equal(g.food,Math.max(0,remainder));
+    const reward=g.completedThisTurn?.reward??{wood:0,food:0,happy:0};
+    assert.equal(g.wood,wood-c.cost+actual.wood+reward.wood);assert.equal(g.food,Math.max(0,remainder)+reward.food);
     assert.equal(g.people,mouths-(remainder<0?1:0));
-    assert.equal(g.happy,Math.max(0,Math.min(100,happy+actual.happy+(c.id==='festival'?16:c.id==='harvest'?-5:0)-(remainder<0?14:0))));
+    assert.equal(g.happy,Math.min(100,Math.max(0,Math.min(100,happy+actual.happy+(c.id==='festival'?16:c.id==='harvest'?-5:0)-(remainder<0?14:0)))+reward.happy));
   }
   if(moves===15)complete++;if(g.won)wins++;
 }
@@ -106,3 +108,59 @@ console.log(`100 seeded runs: ${complete} reached turn 15; ${wins} won. Resource
   g.board.set(a,'house');assert.equal(g.remove(a),false);assert.equal(g.board.has(a),true);
 }
 console.log('PASS: demolition removes land and future production without refunds, yields, population changes, redraws or turn advancement; centre and ended runs protected.');
+
+const seeded=seed=>()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/2**32};
+const gameWithGoal=id=>{
+  for(let seed=1;seed<=100;seed++){
+    const g=new Game(seeded(seed*2654435761)),index=g.objectiveOrder.findIndex(goal=>goal.id===id);
+    if(index>=0){g.completedObjectives=index;return g}
+  }
+  throw Error(`Goal not drawn: ${id}`);
+};
+const readyBoard=()=>new Map([[CENTER,'house'],[a,'forest'],[b,'forest'],[key(-1,0),'berry'],[key(0,-1),'garden'],[key(-1,1),'store']]);
+const schedules=new Set();
+for(let seed=1;seed<=50;seed++){
+  const g=new Game(seeded(seed*2654435761)),again=new Game(seeded(seed*2654435761));
+  assert.equal(g.objectiveOrder.length,3);assert.equal(new Set(g.objectiveOrder.map(g=>g.id)).size,3);
+  assert.deepEqual(g.objectiveOrder.map(g=>g.id),again.objectiveOrder.map(g=>g.id));
+  assert.deepEqual(g.hand,again.hand);
+  assert.ok(g.objectiveOrder.every((goal,i)=>i===0||goal.order>=g.objectiveOrder[i-1].order));
+  schedules.add(g.objectiveOrder.map(g=>g.id).join(','));
+}
+assert.ok(schedules.size>1);
+for(const goal of objectives){
+  const g=gameWithGoal(goal.id);g.board=readyBoard();g.people=6;g.food=200;g.wood=20;g.happy=80;
+  // The berry sits beside a forest; the garden sits beside the centre home.
+  if(goal.id==='forest-garden')g.board.set(key(-1,0),'forest'),g.board.set(key(-1,1),'berry');
+  assert.equal(g.objectiveProgress,goal.target,goal.id);
+  const completed=g.completedObjectives,c=give(g,'forest'),target=frontier(g.board)[0];
+  expectNoChange(g,()=>assert.ok(g.preview(c,target)));
+  expectNoChange(g,()=>assert.equal(g.play(c,CENTER),null));
+  assert.equal(g.completedObjectives,completed);
+  const old={wood:g.wood,food:g.food,happy:g.happy,turn:g.turn};
+  const p=g.play(c,target);assert.ok(p);
+  assert.equal(g.completedThisTurn.id,goal.id);assert.equal(g.completedObjectives,completed+1);
+  assert.equal(g.wood,old.wood+p.wood+goal.reward.wood);
+  assert.equal(g.food,old.food+p.food-g.people+goal.reward.food);
+  assert.equal(g.happy,Math.min(100,old.happy+p.happy+goal.reward.happy));
+  assert.equal(g.turn,old.turn+1);
+  const earned=g.completedObjectives;assert.equal(g.remove(target),true);assert.equal(g.completedObjectives,earned);
+  g.completedObjectives=3;g.play(give(g,'forest'),target);
+  assert.equal(g.completedThisTurn,null);assert.equal(g.completedObjectives,3);
+}
+{
+  const g=gameWithGoal('forest-neighbours');g.board=new Map([[CENTER,'house'],[a,'forest']]);g.food=100;
+  const completed=g.completedObjectives;assert.equal(g.objectiveProgress,1);
+  g.play(give(g,'forest'),b);assert.equal(g.completedObjectives,completed+1);
+  assert.equal(g.completedThisTurn.id,'forest-neighbours');
+  g.remove(b);g.completedObjectives=3;g.play(give(g,'forest'),b);
+  assert.equal(g.completedThisTurn,null);
+  assert.equal(new Game(seeded(1)).completedObjectives,0);
+}
+{
+  const g=gameWithGoal('varied-village');g.board=readyBoard();g.people=10;g.food=300;g.turn=15;
+  g.happy=47-g.production().happy;
+  g.play(give(g,'forest'),frontier(g.board)[0]);
+  assert.equal(g.completedThisTurn.id,'varied-village');assert.equal(g.happy,51);assert.equal(g.over,true);assert.equal(g.won,true);
+}
+console.log('PASS: six goal conditions, distinct seeded schedules, bounded progress, preview purity, one goal per valid turn, exact rewards, no demolition/rebuild farming, all-done/reset and final-turn reward before victory check.');

@@ -70,7 +70,7 @@ export class CameraController {
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
     const aspect = safeWidth / safeHeight;
-    const topReserved = safeWidth < 700 ? 140 : 85;
+    const topReserved = safeWidth < 700 ? 210 : 155;
     const bottomReserved = safeWidth < 700 ? 205 : safeHeight < 760 ? 190 : 225;
     const availableHeight = Math.max(safeHeight * 0.43, safeHeight - topReserved - bottomReserved);
     this.viewportWidth=safeWidth;this.viewportHeight=safeHeight;

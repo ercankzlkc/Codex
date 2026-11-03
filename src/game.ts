@@ -1,4 +1,5 @@
 import { CENTER, adjacent, frontier, canGrow } from './hex.ts';
+import {drawObjectives,type Objective} from './objectives.ts';
 export type Kind =
   | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
   | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
@@ -56,9 +57,15 @@ export class Game {
   hand: Card[] = [];
   log = 'Krallığın seni bekliyor.';
   rng: () => number;
+  readonly objectiveOrder:readonly Objective[];
+  completedObjectives=0;
+  completedThisTurn:Objective|null=null;
+  get activeObjective(){return this.objectiveOrder[this.completedObjectives]??null}
+  get objectiveProgress(){const goal=this.activeObjective;return goal?Math.max(0,Math.min(goal.target,goal.progress(this))):0}
 
   constructor(rng = Math.random) {
     this.rng = rng;
+    this.objectiveOrder=drawObjectives(rng);
     this.draw();
   }
 
@@ -209,6 +216,7 @@ export class Game {
 
   play(card: Card, i = CENTER) {
     if (!this.valid(card, i)) return null;
+    this.completedThisTurn=null;
     this.wood -= card.cost;
     if (!card.event) this.board.set(i, card.id);
     this.people += populationGain(card);
@@ -231,6 +239,12 @@ export class Game {
     }
     this.happy = Math.max(0, Math.min(100, this.happy + production.happy - (shortage ? 14 : 0)));
     this.log = `+${production.wood} odun · +${production.food} hasat · −${consumption} tüketim${shortage ? ' · Açlık: −1 nüfus, −14 refah' : ''}`;
+    const goal=this.activeObjective;
+    if(this.people>0&&this.happy>0&&goal&&this.objectiveProgress>=goal.target){
+      this.completedObjectives++;this.completedThisTurn=goal;
+      this.wood+=goal.reward.wood;this.food+=goal.reward.food;
+      this.happy=Math.min(100,this.happy+goal.reward.happy);
+    }
     if (this.people <= 0 || this.happy <= 0) {
       this.over = true;
     } else if (this.turn === 15) {

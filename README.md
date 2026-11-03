@@ -14,6 +14,10 @@ Merkez her tur 2 odun, bir çalışanla 4 yiyecek sağlar. Tur sonunda her kişi
 
 Orman her komşu ormandan +1, her çalışan komşu oduncudan +2 odun alır. Çilek bahçesi komşu ormandan +1 yiyecek alır. Evler bahçelerle, çiftlikler depolarla güçlenir. Bonuslar yalnızca altı ortak kenar yönünde hesaplanır. Orman yoğunluğu oduncu şansını artırır. Altı nüfusta çiftlik ve büyük ev açılır. Erzak sıkıntısı kurtarıcı kartları sıklaştırır.
 
+## Küçük hedefler
+
+Her koşuda altı hedeften üç farklı hedef seçilir ve kolay olanlar önce gelir. Aynı anda bir hedef aktiftir: komşu ormanlar, orman–çilek bahçesi, ev–bahçe, 6 nüfus, tüketimden fazla yiyecek veya dört yapı türü. İlerleme ve küçük odun, yiyecek ya da refah ödülü üstte görünür. Bir geçerli hamlenin sonunda en fazla bir hedef tamamlanır; her ödül yalnızca bir kez verilir. Yıkım ve döndürme ödül kazandırmaz. Hedefler isteğe bağlıdır; 15 turluk kazanma koşulu aynı kalır.
+
 ## Kontroller ve ses
 
 Sağ fareyle döndürün, orta fare veya Shift + sağ fareyle kaydırın, tekerlekle yakınlaşın. H büyüyen adanın varsayılan kadrajına döner. Kamera kart taşınırken sabit kalır. Kart seçiliyken fare tekerleği veya R yapıyı 60° döndürür; Shift + R ters yönde döndürür. Seçilen yön yerleştirmede korunur. Mevcut altıgene tıklayarak yapıyı yeniden döndürebilir veya yıkabilirsin. Yıkım kaynak iadesi vermez, nüfusu ya da turu değiştirmez; kaldırılan yapı sonraki turlarda üretim yapmaz. Krallık merkezi korunur. Genel ses, efekt, kıyı ambiyansı ve sessiz ayarlarına soru işaretinden ulaşılır. Tarayıcının ses izni için ilk tıklama veya tuş gerekir. Ses tercihi yerelde saklanır, sayfayı yenilemek yeni bir koşu başlatır.
