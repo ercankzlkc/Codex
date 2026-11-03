@@ -15,7 +15,7 @@ export class TropicalWater {
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
     uMint:{value:new T.Color('#87efd4')},uTurquoise:{value:new T.Color('#20d0c6')},
-    uLagoon:{value:new T.Color('#1389a2')},uDeep:{value:new T.Color('#124675')},
+    uLagoon:{value:new T.Color('#22b7c7')},uDeep:{value:new T.Color('#318fc4')},
   };
   private readonly sandGeometry=new T.PlaneGeometry(1,1,SAND_STEPS,SAND_STEPS).rotateX(-Math.PI/2);
   private readonly sandTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);

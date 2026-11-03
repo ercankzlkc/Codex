@@ -5,13 +5,13 @@ uniform float uTime;
 uniform sampler2D uLight;
 const mat2 turn = mat2(.891, .454, -.454, .891);
 vec2 current(vec2 p) {
-  vec2 longFlow = texture2D(uLight, turn*p*.057 + vec2(.14,.37) + uTime*vec2(.0016,-.0011)).ba - .5;
-  vec2 crossFlow = texture2D(uLight, p*.136 - vec2(.11,.64) + uTime*vec2(-.0021,.0013)).ab - .5;
+  vec2 longFlow = texture2D(uLight, turn*p*.057 + vec2(.14,.37) + uTime*vec2(.0056,-.00385)).ba - .5;
+  vec2 crossFlow = texture2D(uLight, p*.136 - vec2(.11,.64) + uTime*vec2(-.00735,.00455)).ab - .5;
   return longFlow*.72 + crossFlow*.31;
 }
 struct Lens {float thread; float halo; float knot;};
 Lens lightNet(vec2 p,vec2 flow) {
-  vec2 largeUV=turn*p*.123 + flow*.175 + uTime*vec2(.0024,-.00165);
+  vec2 largeUV=turn*p*.123 + flow*.175 + uTime*vec2(.0084,-.005775);
   vec2 smallBend=texture2D(uLight,largeUV*1.91+vec2(.28,.61)).ba-.5;
   vec4 field=texture2D(uLight,largeUV+smallBend*.067);
   float width=.009+.020*field.g+.017*field.b;
@@ -61,7 +61,7 @@ void main() {
   vec4 weather=texture2D(uLight,turn*p*.038+flow*.053+vec2(.29,.51));
   float shelf=1.-smoothstep(.45,2.65,depth);
   float bank=.62*weather.b+.38*weather.a;
-  float channel=.40+.60*smoothstep(.20,.84,bank);
+  float channel=smoothstep(.16,.90,bank);
   vec3 offshore=mix(uLagoon,uDeep,channel);
   vec3 pigment=mix(uMint,uTurquoise,smoothstep(.20,1.04,depth));
   pigment=mix(pigment,offshore,smoothstep(.88,3.15,depth));
@@ -80,21 +80,19 @@ void main() {
   float sunlight=.48+.44*weather.a;
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
-  pigment+=vec3(.19,.32,.24)*focus*shelf*.40;
+  pigment+=vec3(.16,.30,.27)*focus*(.30+.35*shelf);
   vec2 slope=seaWave(p).yz+flow*.025;
   vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
   vec3 eye=normalize(cameraPosition-vWorld);
   float fresnel=.025+.975*pow(1.-max(dot(normal,eye),0.),5.);
-  vec3 sky=mix(vec3(.12,.29,.46),vec3(.46,.69,.80),max(eye.y,0.));
+  vec3 sky=mix(vec3(.22,.48,.65),vec3(.53,.79,.87),max(eye.y,0.));
   pigment=mix(pigment,sky,fresnel*.60);
   vec3 halfway=normalize(normalize(vec3(-.5,1.,.4))+eye);
   float glint=pow(max(dot(normal,halfway),0.),150.);
   pigment+=vec3(.85,.87,.76)*glint*.48;
-  float ripples=pow(max(0.,sin(dot(p,vec2(4.7,2.6))-uTime*1.8+sin(dot(p,vec2(-1.8,2.1))+uTime*.43)*1.1+flow.x*5.)),14.);
-  pigment+=vec3(.018,.035,.045)*ripples*smoothstep(.35,.75,weather.a);
   // The beach crosses sea level at roughly .16 units beyond an exposed hex edge.
   float gate=smoothstep(-.07,.065,shore);
-  float drift=.5+.5*sin(uTime*.79+flow.y*7.+dot(p,vec2(.49,.71)));
+  float drift=.5+.5*sin(uTime*1.25+flow.y*7.+dot(p,vec2(.49,.71)));
   float wash=.205+.083*drift+.070*flow.x;
   float surfDistance=abs(shore-wash);
   float aa=max(.006,fwidth(shore)*.68);
