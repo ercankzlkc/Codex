@@ -89,3 +89,20 @@ for(let seed=1;seed<=100;seed++){
 assert.equal(complete,100);
 console.log('PASS: axial round trips, six sides, edge picking, outer coast, frontier, illegal and instant moves, previews, workers, food and forest bonuses, growth cap and both end states.');
 console.log(`100 seeded runs: ${complete} reached turn 15; ${wins} won. Resource changes checked on every move.`);
+
+{
+  const g=new Game();g.board=new Map([[CENTER,'house'],[a,'house'],[b,'forest']]);
+  g.wood=17;g.food=29;g.people=8;g.happy=63;g.turn=7;
+  const counters=()=>[g.wood,g.food,g.people,g.happy,g.turn,g.over,g.won];
+  const before=counters(),hand=g.hand,production=g.production();
+  assert.equal(g.remove(CENTER),false);assert.equal(g.remove(-1),false);
+  assert.equal(g.remove(b),true);assert.equal(g.board.has(b),false);
+  assert.deepEqual(counters(),before);assert.equal(g.hand,hand);
+  assert.equal(g.production().wood,production.wood-2);
+  assert.equal(g.remove(b),false);
+  g.hand=[cards[0]];assert.equal(g.valid(cards[0],b),true);
+  assert.equal(g.remove(a),true);assert.deepEqual(counters(),before);
+  g.over=true;assert.equal(g.remove(CENTER),false);
+  g.board.set(a,'house');assert.equal(g.remove(a),false);assert.equal(g.board.has(a),true);
+}
+console.log('PASS: demolition removes land and future production without refunds, yields, population changes, redraws or turn advancement; centre and ended runs protected.');

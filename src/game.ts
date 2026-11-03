@@ -200,6 +200,13 @@ export class Game {
     };
   }
 
+  /** Demolition changes future production, without refunds, yields or a turn. */
+  remove(i:number){
+    if(this.over||i===CENTER||!this.board.has(i))return false;
+    this.board.delete(i);
+    return true;
+  }
+
   play(card: Card, i = CENTER) {
     if (!this.valid(card, i)) return null;
     this.wood -= card.cost;

@@ -3,7 +3,7 @@ import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,meadow,LAND_Y,SEA_Y} from './scenery';
 import {box,ball,tree} from './models';
-import {LAND_START,LAND_END,easeBetween} from './emergence';
+import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
 
 
@@ -17,6 +17,7 @@ export class Environment {
   private readonly harbour=new T.Group();
   private readonly boat=new T.Group();
   private last=0;
+  private sinking=new Map<number,number>();
   private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
@@ -29,7 +30,7 @@ export class Environment {
     this.boat.position.set(.37,SEA_Y+.06,.46);this.harbour.add(this.boat);
   }
   sync(board:ReadonlyMap<number,unknown>,placed:number){
-    for(const [id,tile] of this.land)if(!board.has(id)){this.root.remove(tile.root);tile.surface.geometry.dispose();this.land.delete(id)}
+    for(const id of this.land.keys())if(!board.has(id))this.removeLand(id)
     this.pendingBoard=placed>=0?new Map(board):null;
     const edges=coast(board);
     this.water.sync(board,edges,placed);
@@ -49,6 +50,16 @@ export class Environment {
     this.harbour.position.set((dockEdge.ax+dockEdge.bx)/2,0,(dockEdge.az+dockEdge.bz)/2);
     this.harbour.rotation.y=-dockEdge.side*Math.PI/3;
   }
+  demolish(board:ReadonlyMap<number,unknown>,id:number){
+    this.pendingBoard=new Map(board);this.sinking.set(id,0);
+    this.water.sync(board,coast(board),-1,id);
+  }
+  private removeLand(id:number){
+    const tile=this.land.get(id);if(!tile)return;
+    this.root.remove(tile.root);tile.surface.geometry.dispose();
+    tile.root.traverse(o=>{if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
+    this.land.delete(id);
+  }
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
     const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);
@@ -60,7 +71,16 @@ export class Environment {
       tile.root.position.y=-1.1*(1-progress);
       tile.root.scale.set(.35+.65*progress,1,.35+.65*progress);
     }
-    if(this.pendingBoard&&[...this.land.values()].every(tile=>tile.age>=LAND_END)){
+    for(const [id,age] of this.sinking){
+      const next=age+dt;this.sinking.set(id,next);
+      const tile=this.land.get(id),progress=easeBetween(next,SINK_START,SINK_END);
+      if(tile){
+        tile.root.position.y=-1.6*progress;tile.root.scale.set(1-.70*progress,1-.18*progress,1-.70*progress);
+        tile.root.rotation.z=Math.sin(next*25)*Math.sin(progress*Math.PI)*.025;
+      }
+      if(next>=DEMOLISH_END){this.removeLand(id);this.sinking.delete(id)}
+    }
+    if(this.pendingBoard&&this.sinking.size===0&&[...this.land.values()].every(tile=>tile.age>=LAND_END)){
       const board=this.pendingBoard,edges=coast(board);
       for(const [id,tile] of this.land){
         const signature=edges.filter(e=>e.id===id).map(e=>e.side).join(',');
@@ -70,6 +90,5 @@ export class Environment {
     }
   }
 
-  reset(){this.pendingBoard=null;this.water.clearWakes();for(const tile of this.land.values()){this.root.remove(tile.root);tile.surface.geometry.dispose();tile.root.traverse(o=>{if(o instanceof T.Mesh&&o.material.vertexColors&&o!==tile.surface){o.geometry.dispose();o.material.dispose()}})}this.land.clear()}
+  reset(){this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
 }
-

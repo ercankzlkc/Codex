@@ -9,8 +9,42 @@ vec2 current(vec2 p) {
   vec2 crossFlow = texture2D(uLight, p*.136 - vec2(.11,.64) + uTime*vec2(-.00735,.00455)).ab - .5;
   return longFlow*.72 + crossFlow*.31;
 }
+uniform vec3 uLanding;
+uniform vec4 uWakes[12],uWakeDirs[12];
+vec4 waterDisturbance(vec2 p){
+  float wake=0.;vec2 displacement=vec2(0.);
+  for(int i=0;i<12;i++){
+    float elapsed=uTime-uWakes[i].z;
+    if(elapsed>=0.&&elapsed<1.5&&uWakes[i].w>0.){
+      float speed=uWakes[i].w,seed=uWakeDirs[i].w*6.28318;
+      vec2 dir=uWakeDirs[i].xy;
+      vec2 delta=p-uWakes[i].xy-dir*elapsed*.12*speed;
+      float radius=length(delta),theta=atan(delta.y,delta.x);
+      float travel=.07+elapsed*(.50+1.05*speed);
+      float front=radius-travel+.009*sin(theta*3.+seed+elapsed*2.);
+      float width=.065+.035*speed;
+      float crest=exp(-pow(front/width,2.));
+      float trough=exp(-pow((front+.09)/(.085+.02*speed),2.));
+      float second=exp(-pow((radius-travel*.70-.015)/width,2.))*.30;
+      float fade=exp(-elapsed*(2.2+.4*speed))*speed;
+      float shape=crest-trough*.30+second;
+      wake+=shape*fade;
+      displacement+=delta/max(radius,.02)*(crest-trough)*fade*.30;
+    }
+  }
+  float age=uTime-uLanding.z;
+  if(age>=0.&&age<2.1){
+    vec2 delta=p-uLanding.xy;float r=length(delta);
+    float front=r-(.65+max(0.,age-.3)*.95);
+    float pulse=exp(-front*front*38.)*sin(front*17.)*(1.-smoothstep(.6,2.1,age));
+    displacement+=delta/max(r,.02)*pulse*.25;
+    wake+=pulse*.3;
+  }
+  return vec4(displacement,wake,clamp(length(displacement)*3.8,0.,1.));
+}
 struct Lens {float thread; float halo; float knot;};
-Lens lightNet(vec2 p,vec2 flow) {
+Lens lightNet(vec2 p,vec2 flow,vec4 disturbance) {
+  p+=disturbance.xy;
   vec2 largeUV=turn*p*.123 + flow*.175 + uTime*vec2(.0084,-.005775);
   vec2 smallBend=texture2D(uLight,largeUV*1.91+vec2(.28,.61)).ba-.5;
   vec4 field=texture2D(uLight,largeUV+smallBend*.067);
@@ -18,7 +52,7 @@ Lens lightNet(vec2 p,vec2 flow) {
   float aa=clamp(fwidth(field.r)*.65,.004,.032);
   float core=1.-smoothstep(max(.0,width-aa),width+aa+.021,field.r);
   float halo=1.-smoothstep(.0,.19+field.g*.065,field.r);
-  float visibility=smoothstep(.18,.76,field.a)*(.51+.49*field.b);
+  float visibility=smoothstep(.18,.76,field.a)*(.51+.49*field.b)*(1.-disturbance.w*.70);
   return Lens(core*visibility,halo*halo*visibility,field.g*field.g*core);
 }
 `;
@@ -48,9 +82,6 @@ uniform sampler2D uCoast,uPreviousCoast;
 uniform float uCoastMix;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
-uniform vec3 uLanding;
-uniform vec4 uWakes[12];
-uniform vec4 uWakeDirs[12];
 varying vec3 vWorld;
 void main() {
   vec2 p=vWorld.xz;
@@ -88,33 +119,14 @@ void main() {
     ring=(gather*.45+outward*.65)*broken;
     arrivalFoam=(max(outward,0.)*.36+exp(-second*second*80.)*fade*.16)*broken;
   }
-  // Every stroke stays round. Speed controls travel, spacing and lifetime.
-  float wake=0.;vec2 wakeSlope=vec2(0.);
-  for(int i=0;i<12;i++){
-    float elapsed=uTime-uWakes[i].z;
-    if(elapsed>=0.&&elapsed<1.5&&uWakes[i].w>0.){
-      float speed=uWakes[i].w,seed=uWakeDirs[i].w*6.28318;
-      vec2 dir=uWakeDirs[i].xy;
-      vec2 delta=p-uWakes[i].xy-dir*elapsed*.12*speed;
-      float radius=length(delta),theta=atan(delta.y,delta.x);
-      float travel=.07+elapsed*(.50+1.05*speed);
-      float front=radius-travel+.009*sin(theta*3.+seed+elapsed*2.);
-      float width=.065+.035*speed;
-      float crest=exp(-pow(front/width,2.));
-      float trough=exp(-pow((front+.09)/(.085+.02*speed),2.));
-      float second=exp(-pow((radius-travel*.70-.015)/width,2.))*.30;
-      float fade=exp(-elapsed*(2.2+.4*speed))*speed;
-      float shape=crest-trough*.30+second;
-      wake+=shape*fade;
-      wakeSlope+=delta/max(radius,.02)*(crest-trough)*fade*.065;
-    }
-  }
+  vec4 disturbance=waterDisturbance(p);
+  float wake=disturbance.z;vec2 wakeSlope=disturbance.xy*.24;
   float seaGate=smoothstep(.06,.38,shore);
   wake*=seaGate;wakeSlope*=seaGate;
   vec2 distorted=p+.055*flow+vec2(.013,-.017)*sin(uTime*.42+p.y+flow.x);
   distorted+=.055*ring*(p-uLanding.xy)/max(radius,.01);
-  distorted+=wakeSlope*.25;
-  Lens lens=lightNet(distorted,flow);
+  disturbance*=seaGate;
+  Lens lens=lightNet(distorted,flow,disturbance);
   float sunlight=.48+.44*weather.a;
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
@@ -161,7 +173,8 @@ export const receiverLight = /* glsl */ `
   float immersion=max(0.,-.18-vReceiver.y);
   vec2 refraction=current(bedPosition);
   vec2 projected=bedPosition + immersion*vec2(.19,-.12) + refraction*(.15+.11*immersion);
-  Lens sunprint=lightNet(projected*1.24,refraction);
+  vec4 disturbance=waterDisturbance(bedPosition);
+  Lens sunprint=lightNet(projected*1.24,refraction,disturbance);
   float transmission=exp(-immersion*.98);
   float concentration=sunprint.thread*.64 + sunprint.halo*.32 + sunprint.knot*.18;
   diffuseColor.rgb*=.90 + transmission*(.09+concentration*.49);

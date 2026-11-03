@@ -1,6 +1,6 @@
 import * as T from 'three';
 import { coast, position, type ShoreEdge } from '../hex';
-import {LAND_START,LAND_END,easeBetween} from '../emergence';
+import {LAND_START,LAND_END,SINK_START,SINK_END,easeBetween} from '../emergence';
 import { SEA_Y } from '../scenery';
 import { LagoonField, lightField } from './field';
 import { optics, receiverLight, waterFragment, waterVertex } from './shaders';
@@ -14,6 +14,8 @@ export class TropicalWater {
   private readonly previousField=new LagoonField();
   private previousBoard:ReadonlyMap<number,unknown>=new Map();
   private transitionAt=-10;
+  private transitionStart=LAND_START;
+  private transitionEnd=LAND_END;
   private pendingEdges:ShoreEdge[]|null=null;
   private readonly uniforms={
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
@@ -51,6 +53,7 @@ export class TropicalWater {
     const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,depthWrite:!sand});
     mat.onBeforeCompile=shader=>{
       shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
+      shader.uniforms.uWakes=this.uniforms.uWakes;shader.uniforms.uWakeDirs=this.uniforms.uWakeDirs;shader.uniforms.uLanding=this.uniforms.uLanding;
       shader.vertexShader='varying vec3 vReceiver;\n'+shader.vertexShader;
       if(sand){
         shader.uniforms.uCoastMix=this.uniforms.uCoastMix;
@@ -68,13 +71,15 @@ export class TropicalWater {
       shader.fragmentShader='varying vec3 vReceiver;\n'+optics+'\n'+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'+receiverLight+(sand?'\ndiffuseColor.a *= 1. - smoothstep(.65, 1.65, max(0., -.18-vReceiver.y));':'' ));
     };
-    mat.customProgramCacheKey=()=> sand?'lagoon-sand-morph-v2':'lagoon-rock-v2';
+    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v3':'lagoon-rock-disturbance-v3';
     return mat;
   }
 
-  sync(board:ReadonlyMap<number,unknown>,edges:ShoreEdge[],placed:number){
+  sync(board:ReadonlyMap<number,unknown>,edges:ShoreEdge[],placed:number,removed=-1){
     this.field.rebuild(board,edges);
-    const animate=placed>=0&&this.previousBoard.size>0;
+    const changed=placed>=0?placed:removed;
+    const animate=changed>=0&&this.previousBoard.size>0;
+    this.transitionStart=removed>=0?SINK_START:LAND_START;this.transitionEnd=removed>=0?SINK_END:LAND_END;
     this.previousField.rebuild(animate?this.previousBoard:board,animate?coast(this.previousBoard):edges,this.field.region);
     this.uniforms.uCoastMix.value=animate?0:1;
     this.transitionAt=animate?this.uniforms.uTime.value:-10;
@@ -82,7 +87,7 @@ export class TropicalWater {
     if(animate)this.pendingEdges=edges;
     else {this.placeStones(edges);this.pendingEdges=null}
     this.previousBoard=new Map(board);
-    if(placed>=0){const p=position(placed);this.uniforms.uLanding.value.set(p.x,p.z,this.uniforms.uTime.value)}
+    if(changed>=0){const p=position(changed);this.uniforms.uLanding.value.set(p.x,p.z,this.uniforms.uTime.value)}
     else this.uniforms.uLanding.value.z=-10;
   }
 
@@ -140,7 +145,7 @@ export class TropicalWater {
   clearWakes(){for(const wake of this.uniforms.uWakes.value)wake.set(0,0,-10,0)}
   update(time:number){
     this.uniforms.uTime.value=time;
-    this.uniforms.uCoastMix.value=easeBetween(time-this.transitionAt,LAND_START,LAND_END);
+    this.uniforms.uCoastMix.value=easeBetween(time-this.transitionAt,this.transitionStart,this.transitionEnd);
     if(this.pendingEdges&&this.uniforms.uCoastMix.value>=1){this.placeStones(this.pendingEdges);this.pendingEdges=null}
   }
 }

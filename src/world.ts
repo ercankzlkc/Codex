@@ -3,7 +3,7 @@ import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld} from './hex';
 import {terrainGeometry} from './scenery';
-import {BUILD_START,BUILD_END,easeBetween} from './emergence';
+import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, part, box } from './models';
 import { cards, type Card, type Kind, type Production } from './game';
@@ -46,6 +46,9 @@ export class World {
   readonly environment:Environment;
   private root=new T.Group();
   private buildings=new Map<number,T.Group>();
+  private editing=-1;
+  private rotationTargets=new Map<number,number>();
+  private demolitions:{id:number;group:T.Group;time:number}[]=[];
   private ghost:T.Group|null=null;
   private ghostModel:T.Group|null=null;
   private desiredGhostYaw=0;
@@ -79,6 +82,7 @@ export class World {
   valid=(_i:number)=>false;
   onHover=(_i:number)=>{};
   onPick=(_i:number)=>{};
+  onTileSelect=(_i:number)=>{};
 
   constructor(readonly el:HTMLElement) {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
@@ -103,9 +107,16 @@ export class World {
     canvas.addEventListener('pointermove',e=>{if(this.selected&&!e.buttons)this.point(e.clientX,e.clientY)});
     canvas.addEventListener('pointerleave',()=>{this.setHover(-1);this.lastSea=null});
     canvas.addEventListener('pointermove',e=>this.stirSea(e));
-    canvas.addEventListener('click',e=>{if(e.button===0&&this.selected){const i=this.point(e.clientX,e.clientY);if(i>=0)this.onPick(i)}});
+    canvas.addEventListener('click',e=>{
+      if(e.button!==0)return;
+      if(this.selected){const i=this.point(e.clientX,e.clientY);if(i>=0)this.onPick(i)}
+      else if(!this.placing&&!document.querySelector('dialog[open]')){
+        const i=this.grid.pick(e.clientX,e.clientY,this.cameraControl.camera,this.el);
+        this.editTile(this.board.has(i)?i:-1);
+      }
+    });
     window.addEventListener('wheel',event=>{
-      if(!this.selected||this.selected.event||document.querySelector('dialog[open]'))return;
+      if(((!this.selected||this.selected.event)&&this.editing<0)||document.querySelector('dialog[open]'))return;
       event.preventDefault();event.stopImmediatePropagation();
       const delta=event.deltaY*(event.deltaMode===1?16:event.deltaMode===2?300:1);
       this.wheelRotation=T.MathUtils.clamp(this.wheelRotation+delta,-240,240);
@@ -115,7 +126,7 @@ export class World {
     window.addEventListener('keydown',event=>{
       if(event.key.toLowerCase()!=='r'||event.repeat||event.ctrlKey||event.metaKey||event.altKey||document.querySelector('dialog[open]'))return;
       if(event.target instanceof Element&&event.target.closest('input,textarea,select,[contenteditable]'))return;
-      if(this.selected&&!this.selected.event){event.preventDefault();this.rotateSelection(event.shiftKey?-1:1)}
+      if((this.selected&&!this.selected.event)||this.editing>=0){event.preventDefault();this.rotateSelection(event.shiftKey?-1:1)}
     });
     this.renderer.setAnimationLoop(this.frame);
   }
@@ -123,9 +134,23 @@ export class World {
   holdSelection(){this.placementQueued=true;this.cameraControl.setPlacement(false)}
   get placementRotation(){return this.desiredGhostYaw}
   rotateSelection(steps:number){
+    this.lastRotationWake=this.time-.06;
     if(this.selected&&!this.selected.event)this.desiredGhostYaw+=steps*Math.PI/3;
+    else if(this.editing>=0&&!this.placing){
+      const g=this.buildings.get(this.editing);if(g)this.rotationTargets.set(this.editing,(this.rotationTargets.get(this.editing)??g.rotation.y)+steps*Math.PI/3);
+    }
   }
-  get placing(){return this.builds.length>0}
+  get placing(){return this.builds.length>0||this.demolitions.length>0}
+  editTile(id:number){
+    this.editing=id;this.wheelRotation=0;
+    this.grid.setHover(id,true,id>=0);this.onTileSelect(id);
+  }
+  demolish(board:ReadonlyMap<number,Kind>,id:number){
+    const group=this.buildings.get(id);if(!group)return;
+    this.editTile(-1);this.rotationTargets.delete(id);this.board=board;
+    this.grid.rebuild(board);this.grid.showAvailable(false,this.valid);
+    this.environment.demolish(board,id);this.demolitions.push({id,group,time:0});
+  }
 
   point(x:number,y:number) {
     if(this.placementQueued)return this.hover;
@@ -148,6 +173,7 @@ export class World {
     this.environment.stir(x,z,dx/distance,dz/distance,Math.min(1,distance/(now-previous.time)/12),distance);
   }
   private setHover(i:number,force=false) {
+    if(this.editing>=0&&!this.selected){this.grid.setHover(this.editing,true,true);return}
     if(!force&&i===this.hover)return;
     this.hover=i;
     const valid=i>=0&&this.valid(i);
@@ -174,6 +200,7 @@ export class World {
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {
+    this.editTile(-1);
     const same=!!card&&card===this.selected;
     const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
     this.cameraControl.setPlacement(carrying);
@@ -192,10 +219,10 @@ export class World {
     }
     this.grid.showAvailable(!!card&&!card.event,this.valid);this.setHover(-1,true);
   }
-  sync(board:ReadonlyMap<number,Kind>,placed=-1,rotation=0) {
+  sync(board:ReadonlyMap<number,Kind>,placed=-1,rotation=0,refresh=false) {
     const opening=this.buildings.size===0;
     this.board=board;
-    if(opening||placed>=0){
+    if(opening||placed>=0||refresh){
       this.grid.rebuild(board);this.environment.sync(board,placed);
       const centers=[...board.keys()].map(position);
       this.cameraControl.frameIsland(centers,opening);
@@ -241,7 +268,7 @@ export class World {
   }
   reset(){
     this.setSelection(null);this.cameraControl.reset();
-    this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];
+    this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
     for(const {el} of this.labels)el.remove();this.labels=[];
     for(const {mesh} of this.motes)this.scene.remove(mesh);this.motes=[];
     for(const {mesh} of this.rings){this.scene.remove(mesh);(mesh.material as T.Material).dispose()}this.rings=[];
@@ -261,6 +288,24 @@ export class World {
         }
       }
     }
+    for(const [id,target] of this.rotationTargets){
+      const g=this.buildings.get(id);if(!g){this.rotationTargets.delete(id);continue}
+      const difference=target-g.rotation.y;
+      g.rotation.y+=difference*(1-Math.exp(-16*dt));
+      if(Math.abs(difference)<.001){g.rotation.y=target;this.rotationTargets.delete(id)}
+      else if(this.time-this.lastRotationWake>.05){
+        const a=g.rotation.y,sign=Math.sign(difference);
+        this.environment.stir(g.position.x+Math.cos(a)*.8,g.position.z+Math.sin(a)*.8,-Math.sin(a)*sign,Math.cos(a)*sign,.35,.1);
+        this.lastRotationWake=this.time;
+      }
+    }
+    this.demolitions=this.demolitions.filter(d=>{
+      d.time+=dt;const p=easeBetween(d.time,SINK_START,SINK_END);
+      d.group.position.y=LAND_Y-1.6*p;d.group.scale.setScalar(1-.70*p);
+      d.group.rotation.z=Math.sin(d.time*25)*Math.sin(p*Math.PI)*.035;
+      if(d.time>=DEMOLISH_END){this.root.remove(d.group);this.buildings.delete(d.id);this.sync(this.board,-1,0,true);return false}
+      return true;
+    });
     this.builds=this.builds.filter(b=>{
       const previous=b.time;
       b.time=Math.min(BUILD_END,b.time+dt);

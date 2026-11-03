@@ -16,7 +16,7 @@ Orman her komşu ormandan +1, her çalışan komşu oduncudan +2 odun alır. Çi
 
 ## Kontroller ve ses
 
-Sağ fareyle döndürün, orta fare veya Shift + sağ fareyle kaydırın, tekerlekle yakınlaşın. H büyüyen adanın varsayılan kadrajına döner. Kamera kart taşınırken sabit kalır. Kart seçiliyken fare tekerleği veya R yapıyı 60° döndürür; Shift + R ters yönde döndürür. Seçilen yön yerleştirmede korunur. Genel ses, efekt, kıyı ambiyansı ve sessiz ayarlarına soru işaretinden ulaşılır. Tarayıcının ses izni için ilk tıklama veya tuş gerekir. Ses tercihi yerelde saklanır, sayfayı yenilemek yeni bir koşu başlatır.
+Sağ fareyle döndürün, orta fare veya Shift + sağ fareyle kaydırın, tekerlekle yakınlaşın. H büyüyen adanın varsayılan kadrajına döner. Kamera kart taşınırken sabit kalır. Kart seçiliyken fare tekerleği veya R yapıyı 60° döndürür; Shift + R ters yönde döndürür. Seçilen yön yerleştirmede korunur. Mevcut altıgene tıklayarak yapıyı yeniden döndürebilir veya yıkabilirsin. Yıkım kaynak iadesi vermez, nüfusu ya da turu değiştirmez; kaldırılan yapı sonraki turlarda üretim yapmaz. Krallık merkezi korunur. Genel ses, efekt, kıyı ambiyansı ve sessiz ayarlarına soru işaretinden ulaşılır. Tarayıcının ses izni için ilk tıklama veya tuş gerekir. Ses tercihi yerelde saklanır, sayfayı yenilemek yeni bir koşu başlatır.
 
 Sesler yerel örneklerden çalınır. Kenney'nin kart ve darbe kayıtları ile RandomMind'ın dalga kaydının kaynak ve CC0 bilgileri [ses künyesinde](public/audio/CREDITS.txt) bulunur.
 

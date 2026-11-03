@@ -1,6 +1,6 @@
 import './style.css';
 import {CENTER} from './hex';
-import {Game,type Card} from './game';
+import {Game,cards,type Card} from './game';
 import {World} from './world';
 import {CardDrag} from './drag';
 import {TableSound} from './sound';
@@ -23,6 +23,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
+ <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <dialog></dialog>`;
 const get=<E extends HTMLElement=HTMLElement>(selector:string)=>app.querySelector<E>(selector)!;
 const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=get<HTMLDialogElement>('dialog');
@@ -32,6 +33,7 @@ const sound=new TableSound();
 let game=new Game();
 let selected:Card|null=null,turnTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
+let editedTile=-1;
 
 function affordable(c:Card) { return c.cost<=game.wood&&(c.id!=='festival'||game.food>=3); }
 function select(c:Card|null,carrying=false) {
@@ -75,14 +77,31 @@ function commit(i:number) {
   world.feedback(production,i,preview.neighbors);render();
   toast(game.log);
   hand.animate([{opacity:.35,transform:'translateY(17px)'},{opacity:1,transform:'translateY(0)'}],{duration:330,easing:'ease-out'});
-  const settle=()=>{
-    if(world.placing){turnTimer=window.setTimeout(settle,100);return}
-    locked=false;
-    if(game.over){finish();return}
-    if(pendingPlacement!==null){const i=pendingPlacement;pendingPlacement=null;commit(i)}
-  };
   clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,2000);return true;
 }
+function settle(){
+  if(world.placing){turnTimer=window.setTimeout(settle,100);return}
+  locked=false;
+  if(game.over){finish();return}
+  if(pendingPlacement!==null){const i=pendingPlacement;pendingPlacement=null;commit(i)}
+}
+world.onTileSelect=i=>{
+  editedTile=i;const editor=get('#tile-editor');editor.hidden=i<0;
+  if(i<0)return;
+  get('#tile-editor strong').textContent=i===CENTER?'Krallık merkezi':cards.find(c=>c.id===game.board.get(i))?.name??'Yerleşim';
+  get('#tile-editor small').textContent=i===CENTER?'Merkez korunur · R / tekerlek ile döndür':'R / tekerlek · Silmede kaynak iadesi yok';
+  const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER||game.over;
+  remove.title=i===CENTER?'Krallık merkezi silinemez':game.over?'Koşu sona erdi':'Yapı ve toprak denize çöker';
+};
+get('[data-tile-left]').onclick=()=>world.rotateSelection(-1);
+get('[data-tile-right]').onclick=()=>world.rotateSelection(1);
+get('[data-tile-close]').onclick=()=>world.editTile(-1);
+get('[data-tile-delete]').onclick=()=>{
+  const id=editedTile;if(world.placing||!game.remove(id))return;
+  locked=true;drag.cancel();select(null);world.demolish(game.board,id);render();toast('Yerleşim kaldırıldı · kaynak iadesi yok');
+  clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,1500);
+};
+
 world.onPick=commit;
 get('#event-target').onclick=()=>{if(selected?.event)commit(CENTER)};
 function dragPosition(x:number,y:number){
