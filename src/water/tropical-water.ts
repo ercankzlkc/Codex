@@ -1,5 +1,6 @@
 import * as T from 'three';
-import { position, type ShoreEdge } from '../hex';
+import { coast, position, type ShoreEdge } from '../hex';
+import {LAND_START,LAND_END,easeBetween} from '../emergence';
 import { SEA_Y } from '../scenery';
 import { LagoonField, lightField } from './field';
 import { optics, receiverLight, waterFragment, waterVertex } from './shaders';
@@ -10,9 +11,14 @@ const lerp=T.MathUtils.lerp;
 export class TropicalWater {
   readonly root=new T.Group();
   private readonly field=new LagoonField();
+  private readonly previousField=new LagoonField();
+  private previousBoard:ReadonlyMap<number,unknown>=new Map();
+  private transitionAt=-10;
+  private pendingEdges:ShoreEdge[]|null=null;
   private readonly uniforms={
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
-    uWakeDirs:{value:Array.from({length:12},()=>new T.Vector2(1,0))},
+    uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},
+    uCoastMix:{value:1},uPreviousCoast:{value:this.previousField.texture},
     uTime:{value:0},uLight:{value:lightField()},uCoast:{value:this.field.texture},
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
@@ -21,6 +27,8 @@ export class TropicalWater {
   };
   private nextWake=0;
   private readonly sandGeometry=new T.PlaneGeometry(1,1,SAND_STEPS,SAND_STEPS).rotateX(-Math.PI/2);
+  private readonly sandStart=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2),1);
+  private readonly sandStartTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
   private readonly sandTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
   private readonly stones:T.InstancedMesh;
   private readonly silhouettes=new T.IcosahedronGeometry(1,0);
@@ -31,6 +39,8 @@ export class TropicalWater {
     }));
     surface.rotation.x=-Math.PI/2;surface.position.y=SEA_Y;surface.renderOrder=2;
     this.sandGeometry.setAttribute('color',this.sandTint);
+    this.sandGeometry.setAttribute('aBedStart',this.sandStart);
+    this.sandGeometry.setAttribute('aTintStart',this.sandStartTint);
     const sand=new T.Mesh(this.sandGeometry,this.receiver(true));sand.receiveShadow=true;
     this.stones=new T.InstancedMesh(this.silhouettes,this.receiver(false),192);
     this.stones.count=0;this.stones.receiveShadow=true;
@@ -42,6 +52,12 @@ export class TropicalWater {
     mat.onBeforeCompile=shader=>{
       shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
       shader.vertexShader='varying vec3 vReceiver;\n'+shader.vertexShader;
+      if(sand){
+        shader.uniforms.uCoastMix=this.uniforms.uCoastMix;
+        shader.vertexShader='uniform float uCoastMix;\nattribute float aBedStart;\nattribute vec3 aTintStart;\n'+shader.vertexShader;
+        shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>','#include <begin_vertex>\ntransformed.y=mix(aBedStart,position.y,uCoastMix);');
+        shader.vertexShader=shader.vertexShader.replace('#include <color_vertex>','#include <color_vertex>\nvColor=mix(aTintStart,color,uCoastMix);');
+      }
       shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`
         vec4 receiverLocal=vec4(transformed,1.);
         #ifdef USE_INSTANCING
@@ -52,30 +68,43 @@ export class TropicalWater {
       shader.fragmentShader='varying vec3 vReceiver;\n'+optics+'\n'+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'+receiverLight+(sand?'\ndiffuseColor.a *= 1. - smoothstep(.65, 1.65, max(0., -.18-vReceiver.y));':'' ));
     };
-    mat.customProgramCacheKey=()=> 'lagoon-receiver-v1';
+    mat.customProgramCacheKey=()=> sand?'lagoon-sand-morph-v2':'lagoon-rock-v2';
     return mat;
   }
 
   sync(board:ReadonlyMap<number,unknown>,edges:ShoreEdge[],placed:number){
     this.field.rebuild(board,edges);
-    this.shapeBed();this.placeStones(edges);
+    const animate=placed>=0&&this.previousBoard.size>0;
+    this.previousField.rebuild(animate?this.previousBoard:board,animate?coast(this.previousBoard):edges,this.field.region);
+    this.uniforms.uCoastMix.value=animate?0:1;
+    this.transitionAt=animate?this.uniforms.uTime.value:-10;
+    this.shapeBed();
+    if(animate)this.pendingEdges=edges;
+    else {this.placeStones(edges);this.pendingEdges=null}
+    this.previousBoard=new Map(board);
     if(placed>=0){const p=position(placed);this.uniforms.uLanding.value.set(p.x,p.z,this.uniforms.uTime.value)}
     else this.uniforms.uLanding.value.z=-10;
   }
+
   private shapeBed(){
     const region=this.field.region;
     const vertices=this.sandGeometry.getAttribute('position');
     const sand=new T.Color('#d4cc9e'),silt=new T.Color('#79b8aa'),deep=new T.Color('#467f87'),c=new T.Color();
     for(let j=0;j<=SAND_STEPS;j++)for(let i=0;i<=SAND_STEPS;i++){
       const px=region.x+region.z*i/SAND_STEPS,pz=region.y+region.w*j/SAND_STEPS,idx=j*(SAND_STEPS+1)+i;
-      const depth=this.field.depthAt(px,pz);
+      const depth=this.field.depthAt(px,pz),oldDepth=this.previousField.depthAt(px,pz);
+      this.sandStart.setX(idx,SEA_Y-oldDepth);
+      c.copy(sand).lerp(silt,T.MathUtils.smoothstep(oldDepth,.28,1.10))
+        .lerp(deep,T.MathUtils.smoothstep(oldDepth,.93,2.6))
+        .multiplyScalar(.98+.027*Math.sin(px*2.73+pz*.83)+.02*Math.cos(px*1.88-pz*3.2));
+      this.sandStartTint.setXYZ(idx,c.r,c.g,c.b);
       vertices.setXYZ(idx,px,SEA_Y-depth,pz);
       c.copy(sand).lerp(silt,T.MathUtils.smoothstep(depth,.28,1.10))
         .lerp(deep,T.MathUtils.smoothstep(depth,.93,2.6))
         .multiplyScalar(.98+.027*Math.sin(px*2.73+pz*.83)+.02*Math.cos(px*1.88-pz*3.2));
       this.sandTint.setXYZ(idx,c.r,c.g,c.b);
     }
-    vertices.needsUpdate=true;this.sandTint.needsUpdate=true;
+    vertices.needsUpdate=true;this.sandTint.needsUpdate=true;this.sandStart.needsUpdate=true;this.sandStartTint.needsUpdate=true;
     this.sandGeometry.computeVertexNormals();this.sandGeometry.computeBoundingSphere();
   }
   private placeStones(edges:ShoreEdge[]){
@@ -103,13 +132,17 @@ export class TropicalWater {
     if(this.stones.instanceColor)this.stones.instanceColor.needsUpdate=true;
     this.stones.computeBoundingSphere();
   }
-  stir(x:number,z:number,dx:number,dz:number,strength:number){
+  stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){
     const i=this.nextWake;this.nextWake=(i+1)%12;
     this.uniforms.uWakes.value[i].set(x,z,this.uniforms.uTime.value,.15+.85*strength);
-    this.uniforms.uWakeDirs.value[i].set(dx,dz);
+    this.uniforms.uWakeDirs.value[i].set(dx,dz,Math.min(length,1.2),(this.uniforms.uTime.value*1.37+i*.618)%1);
   }
   clearWakes(){for(const wake of this.uniforms.uWakes.value)wake.set(0,0,-10,0)}
-  update(time:number){this.uniforms.uTime.value=time}
+  update(time:number){
+    this.uniforms.uTime.value=time;
+    this.uniforms.uCoastMix.value=easeBetween(time-this.transitionAt,LAND_START,LAND_END);
+    if(this.pendingEdges&&this.uniforms.uCoastMix.value>=1){this.placeStones(this.pendingEdges);this.pendingEdges=null}
+  }
 }
 
 

@@ -3,6 +3,7 @@ import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld} from './hex';
 import {terrainGeometry} from './scenery';
+import {BUILD_START,BUILD_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, part, box } from './models';
 import { cards, type Card, type Kind, type Production } from './game';
@@ -101,6 +102,8 @@ export class World {
     this.renderer.setAnimationLoop(this.frame);
   }
 
+  get placing(){return this.builds.length>0}
+
   point(x:number,y:number) {
     // Pointer capture delivers the gesture even over HUD. Only the visible sea/land is playable.
     const hit=document.elementFromPoint(x,y);
@@ -118,7 +121,7 @@ export class World {
     if(!previous||now-previous.time>.25)return;
     const dx=x-previous.x,dz=z-previous.z,distance=Math.hypot(dx,dz);
     if(distance<.025||distance>2)return;
-    this.environment.stir(x,z,dx/distance,dz/distance,Math.min(1,distance/(now-previous.time)/12));
+    this.environment.stir(x,z,dx/distance,dz/distance,Math.min(1,distance/(now-previous.time)/12),distance);
   }
   private setHover(i:number,force=false) {
     if(!force&&i===this.hover)return;
@@ -129,7 +132,7 @@ export class World {
       const wasVisible=this.ghost.visible;
       this.ghost.visible=i>=0;
       if(i>=0){
-        this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.065:LAND_Y+.035));
+        this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.035:LAND_Y+.025));
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
         this.ghostPalette.forEach(({mat,base})=>{
           mat.color.copy(base).lerp(new T.Color(valid?0xc5e7ae:0xe98875),valid?.04:.65);
@@ -141,7 +144,7 @@ export class World {
     if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
       const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
       this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
-      this.previewLand.position.y=-LAND_Y-.035;
+      this.previewLand.position.y=-LAND_Y-.025/.70;
       this.previewLand.receiveShadow=true;this.ghost.add(this.previewLand);
     }
     this.onHover(i);
@@ -153,7 +156,7 @@ export class World {
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
     this.selected=card;
     if(card){
-      this.ghost=model(card.id);
+      this.ghost=model(card.id);this.ghost.scale.setScalar(.70);
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
         const mat=(o.material as T.MeshStandardMaterial).clone();
         this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.72;mat.depthWrite=false;
@@ -184,7 +187,7 @@ export class World {
       const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:-.60/.94,kind})}
+      if(i===placed){g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
   }
   private pulse(i:number,color:number) {
@@ -206,7 +209,7 @@ export class World {
       const el=document.createElement('div');el.className='float'+(r.bonus?' bonus':'');
       el.textContent=[r.wood&&`+${r.wood} odun`,r.food&&`+${r.food} yiyecek`,r.happy&&`+${r.happy} refah`,!r.active&&'İşçi bekliyor'].filter(Boolean).join(' · ');
       el.style.opacity='0';this.el.append(el);
-      this.labels.push({el,position:cellPosition(r.i,1.05),life:1.4,delay:(r.i===placed?.85:.1)+j*.035});
+      this.labels.push({el,position:cellPosition(r.i,1.05),life:1.4,delay:(r.i===placed?1.5:.1)+j*.035});
       if(bonuses.includes(r.i)||(r.bonus&&r.i===placed))this.pulse(r.i,0xf7d579);
     });
   }
@@ -223,21 +226,21 @@ export class World {
     if(this.ghost?.visible)this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-28*dt));
     this.builds=this.builds.filter(b=>{
       const previous=b.time;
-      b.time=Math.min(1,b.time+dt/.94);
-      b.group.visible=b.time>=0;
-      if(b.time<0)return true;
-      if(previous<.56&&b.time>=.56)this.burst(b.id);
-      const growth=T.MathUtils.smoothstep(b.time,.35,.98);
+      b.time=Math.min(BUILD_END,b.time+dt);
+      b.group.visible=b.time>=BUILD_START;
+      if(b.time<BUILD_START)return true;
+      if(previous<1.42&&b.time>=1.42)this.burst(b.id);
+      const growth=easeBetween(b.time,BUILD_START,BUILD_END);
       const bump=Math.sin(Math.PI*growth)*.14;
       b.group.scale.set(Math.max(.01,growth+bump),Math.max(.01,growth+bump*1.6),Math.max(.01,growth+bump));
-      b.group.position.y=LAND_Y-.74*(1-T.MathUtils.smoothstep(b.time,0,.65));
+      b.group.position.y=LAND_Y-.24*(1-growth);
       if(b.kind==='berry') b.group.children.forEach(child=>{
         if(child.userData.plantOrder!==undefined){
-          const t=T.MathUtils.smoothstep(b.time,.28+child.userData.plantOrder*.018,1);
+          const t=easeBetween(b.time,BUILD_START+child.userData.plantOrder*.018,BUILD_END);
           child.scale.setScalar(Math.max(.01,t));
         }
       });
-      return b.time<1;
+      return b.time<BUILD_END;
     });
     this.motes=this.motes.filter(m=>{
       m.life-=dt*1.65;m.velocity.y-=dt*2.7;m.mesh.position.addScaledVector(m.velocity,dt);

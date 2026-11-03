@@ -44,18 +44,19 @@ void main() {
   gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.);
 }`;
 export const waterFragment = optics + waves + /* glsl */ `
-uniform sampler2D uCoast;
+uniform sampler2D uCoast,uPreviousCoast;
+uniform float uCoastMix;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
 uniform vec3 uLanding;
 uniform vec4 uWakes[12];
-uniform vec2 uWakeDirs[12];
+uniform vec4 uWakeDirs[12];
 varying vec3 vWorld;
 void main() {
   vec2 p=vWorld.xz;
   vec2 atlasUV=(p-uRegion.xy)/uRegion.zw;
   vec2 uv=clamp(atlasUV,vec2(0.),vec2(1.));
-  vec4 mask=texture2D(uCoast,uv);
+  vec4 mask=mix(texture2D(uPreviousCoast,uv),texture2D(uCoast,uv),uCoastMix);
   float shore=dot(mask.rg,vec2(65280.,255.))/65535.*8.-1.;
   float border=min(min(atlasUV.x,atlasUV.y),min(1.-atlasUV.x,1.-atlasUV.y));
   float depth=mix(3.8,mask.b*3.8,smoothstep(0.,.10,border));
@@ -71,28 +72,51 @@ void main() {
   pigment*=.95+.10*weather.a;
   float age=uTime-uLanding.z;
   float radius=length(p-uLanding.xy);
-  float ring=0.;
-  if(age>=0.&&age<1.85){
-    float front=radius-(.74+age*.93);
-    ring=exp(-115.*front*front)*sin(front*36.)*sin(3.14159*age/1.85)*smoothstep(.025,.22,shore);
+  float ring=0.,arrivalFoam=0.;
+  if(age>=0.&&age<2.1){
+    vec2 delta=p-uLanding.xy;
+    float angle=atan(delta.y,delta.x);
+    float broken=smoothstep(.16,.74,.46+.30*sin(angle*3.+age*1.6)+.18*sin(angle*7.-age*1.2));
+    float swell=radius+.045*sin(angle*4.+age*2.);
+    float gatherRadius=mix(1.45,.65,smoothstep(0.,.48,age));
+    float gather=exp(-pow((swell-gatherRadius)*8.,2.))*sin(3.14159*clamp(age/.6,0.,1.));
+    float travel=max(0.,age-.38);
+    float front=swell-(.77+travel*.95);
+    float fade=smoothstep(.32,.65,age)*(1.-smoothstep(.8,1.85,age));
+    float outward=exp(-front*front*55.)*cos(front*23.)*fade;
+    float second=swell-(.65+max(0.,age-.70)*1.15);
+    ring=(gather*.45+outward*.65)*broken;
+    arrivalFoam=(max(outward,0.)*.36+exp(-second*second*80.)*fade*.16)*broken;
   }
-  // A bounded, reusable wake pool: elongated across the pointer's direction.
+  // Gentle strokes leave irregular ripples; faster strokes open a feathered V wake.
   float wake=0.;vec2 wakeSlope=vec2(0.);
   for(int i=0;i<12;i++){
     float elapsed=uTime-uWakes[i].z;
-    if(elapsed>=0.&&elapsed<1.6&&uWakes[i].w>0.){
-      vec2 dir=uWakeDirs[i];
-      vec2 delta=p-uWakes[i].xy-dir*elapsed*.28*uWakes[i].w;
-      vec2 local=vec2(dot(delta,dir)*1.55,dot(delta,vec2(-dir.y,dir.x)));
-      float radius=length(local);
-      float front=radius-(.09+elapsed*.88);
-      float envelope=exp(-front*front*95.)*exp(-elapsed*2.5)*uWakes[i].w;
-      float crest=sin(front*25.-elapsed*3.);
-      wake+=crest*envelope;
-      wakeSlope+=delta/max(length(delta),.02)*cos(front*25.-elapsed*3.)*envelope*.065;
+    if(elapsed>=0.&&elapsed<1.65&&uWakes[i].w>0.){
+      float speed=uWakes[i].w,seed=uWakeDirs[i].w*6.28318;
+      vec2 dir=uWakeDirs[i].xy;
+      vec2 delta=p-uWakes[i].xy-dir*elapsed*(.10+.32*speed);
+      vec2 local=vec2(dot(delta,dir),dot(delta,vec2(-dir.y,dir.x)));
+      float theta=atan(local.y,local.x);
+      float radius=length(local*vec2(1.+speed*.3,1.));
+      float front=radius-(.07+elapsed*(.55+.38*speed));
+      front+=.018*sin(theta*3.+seed+elapsed*3.);
+      float ripple=exp(-front*front*130.)*cos(front*30.+seed*.3);
+      float behind=-local.x;
+      float arm=abs(local.y)-behind*(.36+.25*speed);
+      float wakeLength=.28+uWakeDirs[i].z+elapsed*.30;
+      float taper=smoothstep(-.04,.08,behind)*(1.-smoothstep(wakeLength*.3,wakeLength,behind));
+      float feather=.65+.35*sin(behind*15.-elapsed*5.+seed);
+      float bow=exp(-arm*arm/(.002+.004*speed))*taper*feather;
+      float trough=exp(-pow((arm+.075)*14.,2.))*taper;
+      float shape=mix(ripple,bow-trough*.38,smoothstep(.22,.65,speed));
+      float fade=exp(-elapsed*(2.1+.3*sin(seed)))*speed;
+      wake+=shape*fade;
+      wakeSlope+=(dir*shape*.025+vec2(-dir.y,dir.x)*sign(local.y)*shape*.055)*fade;
     }
   }
-  wake*=smoothstep(.06,.38,shore);
+  float seaGate=smoothstep(.06,.38,shore);
+  wake*=seaGate;wakeSlope*=seaGate;
   vec2 distorted=p+.055*flow+vec2(.013,-.017)*sin(uTime*.42+p.y+flow.x);
   distorted+=.055*ring*(p-uLanding.xy)/max(radius,.01);
   distorted+=wakeSlope*.25;
@@ -127,8 +151,7 @@ void main() {
   float foam=gate*clamp(rim*(.32+.63*gaps)+fringe*gaps*.42+backwash*.49,0.,1.);
   pigment=mix(pigment,vec3(.88,.96,.83),foam);
   pigment+=max(ring,0.)*vec3(.21,.32,.29);
-  float arrival=exp(-pow((radius-(.55+age*1.20))*7.,2.))*exp(-max(age,0.)*1.5);
-  if(age>=0.&&age<1.85)pigment=mix(pigment,vec3(.72,.92,.87),arrival*.38*gate);
+  pigment=mix(pigment,vec3(.73,.93,.88),clamp(arrivalFoam*gate,0.,.5));
   pigment+=max(wake,0.)*vec3(.10,.17,.16);
   pigment*=1.+min(wake,0.)*.07;
   float opacity=1.-.78*exp(-1.25*max(0.,depth-.25));

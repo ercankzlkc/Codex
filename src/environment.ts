@@ -3,6 +3,7 @@ import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,meadow,LAND_Y,SEA_Y} from './scenery';
 import {box,ball,tree} from './models';
+import {LAND_START,LAND_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
 
 
@@ -16,6 +17,7 @@ export class Environment {
   private readonly harbour=new T.Group();
   private readonly boat=new T.Group();
   private last=0;
+  private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
     this.root.add(this.water.root,this.harbour);
@@ -28,33 +30,46 @@ export class Environment {
   }
   sync(board:ReadonlyMap<number,unknown>,placed:number){
     for(const [id,tile] of this.land)if(!board.has(id)){this.root.remove(tile.root);tile.surface.geometry.dispose();this.land.delete(id)}
+    this.pendingBoard=placed>=0?new Map(board):null;
     const edges=coast(board);
     this.water.sync(board,edges,placed);
     for(const id of board.keys()){
       const signature=edges.filter(e=>e.id===id).map(e=>e.side).join(',');
       const old=this.land.get(id);
-      if(old){if(old.signature!==signature){old.surface.geometry.dispose();old.surface.geometry=terrainGeometry(id,board);old.signature=signature}continue}
-      const center=position(id),root=new T.Group();root.position.set(center.x,id===placed?-.74:0,center.z);
+      if(old){if(placed<0&&old.signature!==signature){old.surface.geometry.dispose();old.surface.geometry=terrainGeometry(id,board);old.signature=signature}continue}
+      const center=position(id),root=new T.Group();root.position.set(center.x,id===placed?-1.1:0,center.z);
+      if(id===placed)root.scale.set(.35,1,.35);
       const surface=new T.Mesh(terrainGeometry(id,board),this.landMat);surface.castShadow=true;surface.receiveShadow=true;
       const grass=meadow(id);grass.position.set(0,LAND_Y,0);root.add(surface,grass);
       if(id===CENTER){const sprig=new T.Group();sprig.position.set(.44,LAND_Y,-.37);tree(sprig,0,0,1,.47);root.add(sprig)}
       root.visible=id!==placed;
-      this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?-.60/.72:1});
+      this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?0:LAND_END});
     }
     const dockEdge=edges.find(e=>e.id===CENTER&&e.side===1)??edges.find(e=>e.id===CENTER)??edges[0];
     this.harbour.position.set((dockEdge.ax+dockEdge.bx)/2,0,(dockEdge.az+dockEdge.bz)/2);
     this.harbour.rotation.y=-dockEdge.side*Math.PI/3;
   }
-  stir(x:number,z:number,dx:number,dz:number,strength:number){this.water.stir(x,z,dx,dz,strength)}
+  stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
     const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);
     this.boat.position.y=SEA_Y+.07+Math.sin(time*1.3)*.014;this.boat.rotation.x=Math.sin(time*.84)*.045;
-    for(const tile of this.land.values())if(tile.age<1){
-      tile.age=Math.min(1,tile.age+dt/.72);
-      tile.root.visible=tile.age>=0;
-      const t=Math.max(0,tile.age);tile.root.position.y=-.74*(1-t*t*(3-2*t));
+    for(const tile of this.land.values())if(tile.age<LAND_END){
+      tile.age=Math.min(LAND_END,tile.age+dt);
+      const progress=easeBetween(tile.age,LAND_START,LAND_END);
+      tile.root.visible=tile.age>=LAND_START;
+      tile.root.position.y=-1.1*(1-progress);
+      tile.root.scale.set(.35+.65*progress,1,.35+.65*progress);
+    }
+    if(this.pendingBoard&&[...this.land.values()].every(tile=>tile.age>=LAND_END)){
+      const board=this.pendingBoard,edges=coast(board);
+      for(const [id,tile] of this.land){
+        const signature=edges.filter(e=>e.id===id).map(e=>e.side).join(',');
+        if(tile.signature!==signature){tile.surface.geometry.dispose();tile.surface.geometry=terrainGeometry(id,board);tile.signature=signature}
+      }
+      this.pendingBoard=null;
     }
   }
-  reset(){this.water.clearWakes();for(const tile of this.land.values()){this.root.remove(tile.root);tile.surface.geometry.dispose();tile.root.traverse(o=>{if(o instanceof T.Mesh&&o.material.vertexColors&&o!==tile.surface){o.geometry.dispose();o.material.dispose()}})}this.land.clear()}
+
+  reset(){this.pendingBoard=null;this.water.clearWakes();for(const tile of this.land.values()){this.root.remove(tile.root);tile.surface.geometry.dispose();tile.root.traverse(o=>{if(o instanceof T.Mesh&&o.material.vertexColors&&o!==tile.surface){o.geometry.dispose();o.material.dispose()}})}this.land.clear()}
 }
 

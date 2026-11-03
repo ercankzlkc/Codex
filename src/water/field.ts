@@ -18,10 +18,11 @@ export class LagoonField {
     this.texture.minFilter=this.texture.magFilter=T.LinearFilter;
     this.texture.generateMipmaps=false;this.texture.needsUpdate=true;
   }
-  rebuild(board:ReadonlyMap<number,unknown>,edges:ShoreEdge[]){
+  rebuild(board:ReadonlyMap<number,unknown>,edges:ShoreEdge[],region?:T.Vector4){
     const xs=edges.flatMap(e=>[e.ax,e.bx]),zs=edges.flatMap(e=>[e.az,e.bz]);
-    const left=Math.min(...xs)-SHORE_RANGE, back=Math.min(...zs)-SHORE_RANGE;
-    this.region.set(left,back,Math.max(...xs)-left+SHORE_RANGE,Math.max(...zs)-back+SHORE_RANGE);
+    const left=region?.x??Math.min(...xs)-SHORE_RANGE, back=region?.y??Math.min(...zs)-SHORE_RANGE;
+    if(region)this.region.copy(region);
+    else this.region.set(left,back,Math.max(...xs)-left+SHORE_RANGE,Math.max(...zs)-back+SHORE_RANGE);
     const segments=edges.map(e=>{const dx=e.bx-e.ax,dz=e.bz-e.az;return {...e,dx,dz,inv:1/(dx*dx+dz*dz)}});
     const dx=this.region.z/FIELD_SIZE,dz=this.region.w/FIELD_SIZE;
     const block=16,radius=Math.hypot(dx,dz)*block*.5;

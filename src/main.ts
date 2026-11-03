@@ -71,7 +71,11 @@ function commit(i:number) {
   world.feedback(production,i,preview.neighbors);render();
   toast(game.log);
   hand.animate([{opacity:.35,transform:'translateY(17px)'},{opacity:1,transform:'translateY(0)'}],{duration:330,easing:'ease-out'});
-  clearTimeout(turnTimer);turnTimer=window.setTimeout(()=>{locked=false;if(game.over)finish()},1650);return true;
+  const settle=()=>{
+    if(world.placing){turnTimer=window.setTimeout(settle,100);return}
+    locked=false;if(game.over)finish();
+  };
+  clearTimeout(turnTimer);turnTimer=window.setTimeout(settle,2000);return true;
 }
 world.onPick=commit;
 get('#event-target').onclick=()=>{if(selected?.event)commit(CENTER)};
