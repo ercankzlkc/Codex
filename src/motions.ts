@@ -23,7 +23,7 @@ export class MotionLibrary {
   constructor(){
     const base=(import.meta as unknown as {env:{BASE_URL:string}}).env.BASE_URL;
     this.ready=loadCompressedGLTF(`${base}models/motions.glb.gz`).then(gltf=>{
-      this.clips=gltf.animations;
+      this.clips=gltf.animations.filter(clip=>clip.name!=='fish_cast');
       // The reference mesh is only needed to decode the source bind skeleton.
       gltf.scene.traverse(object=>{if((object as T.Mesh).isMesh){const mesh=object as T.Mesh;mesh.geometry.dispose();for(const material of Array.isArray(mesh.material)?mesh.material:[mesh.material])material.dispose()}});
     }).catch(error=>console.error('Animasyon paketi yüklenemedi; yedek hareketler kullanılıyor.',error));

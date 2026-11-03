@@ -33,17 +33,17 @@ export class PersonVisual {
   private arms:Joint[]=[];private elbows:Joint[]=[];private legs:Joint[]=[];private knees:Joint[]=[];
   private spine:Joint|null=null;
   private hands:T.Bone[]=[];
-  private point=new T.Vector3();
   private playback:PersonPlayback|null=null;
   private overlay:PersonMotion='idle';
-  private handNeutralInverse=new T.Quaternion();
-  private toolRotation=new T.Quaternion();
-  private parentInverse=new T.Quaternion();
-  private toolOffset=new T.Vector3();
+  private modelScale=1;
+  private palm=new T.Vector3();
+  private socketRotation=new T.Quaternion();
+  private fishingClock:number|null=null;
+  private fishingBase:T.Quaternion[]=[];
   constructor(model:T.Object3D,motions:MotionLibrary){
     this.root.add(model);model.updateMatrixWorld(true);
     const bounds=new T.Box3().setFromObject(model),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3());
-    const scale=.46/Math.max(.01,size.y);model.scale.multiplyScalar(scale);
+    const scale=.46/Math.max(.01,size.y);this.modelScale=scale;model.scale.multiplyScalar(scale);
     model.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
     model.traverse(object=>{
       if((object as T.Bone).isBone)this.bones.push(object as T.Bone);
@@ -53,8 +53,7 @@ export class PersonVisual {
     const binds=new Map(this.bones.map(bone=>[bone,{quaternion:bone.quaternion.clone(),position:bone.position.clone()}]));
     this.playback=motions.create(model,this.bones,binds);
     const find=(name:string)=>this.bones.find(b=>b.name===name||b.name.startsWith(`${name}_`));
-    const ordered=['R','L'].map(side=>({upper:find(`Upperarm_${side}`),lower:find(`Lowerarm_${side}`),hand:find(`Hand_${side}`),leg:find(`Thigh_${side}`),knee:find(`Calf_${side}`)}))
-      .sort((a,b)=>(a.upper?.getWorldPosition(new T.Vector3()).x??0)-(b.upper?.getWorldPosition(new T.Vector3()).x??0));
+    const ordered=['R','L'].map(side=>({upper:find(`Upperarm_${side}`),lower:find(`Lowerarm_${side}`),hand:find(`Hand_${side}`),leg:find(`Thigh_${side}`),knee:find(`Calf_${side}`)}));
     for(const [i,limb] of ordered.entries()){
       if(limb.upper&&limb.lower){
         const parent=limb.upper.parent!.getWorldQuaternion(new T.Quaternion());
@@ -71,7 +70,13 @@ export class PersonVisual {
       if(limb.hand)this.hands.push(limb.hand);
     }
     const spine=find('Spine_01');if(spine)this.spine=this.joint(spine);
-    if(this.hands[0])this.handNeutralInverse.copy(this.hands[0].getWorldQuaternion(new T.Quaternion())).invert();
+    const index=find('Index_01_R'),ring=find('Ring_01_R');
+    if(index&&ring){
+      this.palm.copy(index.position).add(ring.position).multiplyScalar(.20);
+      const y=index.position.clone().sub(ring.position).normalize();
+      const x=index.position.clone().add(ring.position).normalize();x.addScaledVector(y,-x.dot(y)).normalize();
+      const z=x.clone().cross(y).normalize();this.socketRotation.setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z));
+    }
   }
   private joint(bone:T.Bone):Joint{
     const inverse=bone.parent!.getWorldQuaternion(new T.Quaternion()).invert();
@@ -84,6 +89,18 @@ export class PersonVisual {
   }
   update(body:T.Group,arms:T.Group[],legs:T.Group[],carrying:boolean){
     if(this.playback){
+      if(this.overlay==='fish_idle'&&this.fishingClock!==null){
+        const joints=[...this.arms,...this.elbows,...(this.spine?[this.spine]:[])];
+        joints.forEach((joint,i)=>{if(this.fishingBase[i])joint.bone.quaternion.copy(this.fishingBase[i])});
+        const t=this.fishingClock,wind=T.MathUtils.smoothstep(t,0,.45),release=T.MathUtils.smoothstep(t,.45,.95);
+        const reel=T.MathUtils.smoothstep(t,5.8,7.2),pulse=t>5.8?Math.sin((t-5.8)*16)*.10:0;
+        const swing=-.85*wind+.85*release-.38*reel+pulse;
+        for(let i=0;i<2;i++){
+          const arm=this.arms[i],elbow=this.elbows[i];
+          if(arm)arm.bone.quaternion.premultiply(rotation.setFromAxisAngle(arm.x,swing*(i===0?1:.45)));
+          if(elbow)elbow.bone.quaternion.premultiply(rotation.setFromAxisAngle(elbow.x,-.30*wind+.30*release-.25*reel));
+        }
+      }
       if(carrying||this.overlay==='eat'||this.overlay==='pick'){
         for(let i=0;i<2;i++){this.pose(this.arms[i],arms[i].rotation.x,arms[i].rotation.z);this.pose(this.elbows[i],carrying?-.32:-.08)}
         if(this.overlay==='pick'&&this.spine)this.pose(this.spine,body.rotation.x);
@@ -98,27 +115,25 @@ export class PersonVisual {
       this.pose(this.knees[i],Math.max(0,legs[i].rotation.x)*.55);
     }
   }
-  animate(dt:number,motion:PersonMotion,speed:number){this.overlay=motion;return this.playback?.step(dt,motion,speed)??false}
+  animate(dt:number,motion:PersonMotion,speed:number){
+    this.overlay=motion;const blocked=this.playback?.step(dt,motion,speed)??false;
+    if(motion==='fish_idle')this.fishingBase=[...this.arms,...this.elbows,...(this.spine?[this.spine]:[])].map(joint=>joint.bone.quaternion.clone());
+    return blocked;
+  }
+  setFishingClock(time:number|null){this.fishingClock=time}
   get hasAnimations(){return this.playback!==null}
-  get castDuration(){return this.playback?.duration('fish_cast')??1.35}
+  get castDuration(){return 1.35}
   workDuration(kind:'wood'|'stone'){return this.playback?.duration(kind)??1/1.7}
   dispose(){this.playback?.dispose()}
-  /** Position existing tools at the actual imported hand, preserving their swing. */
-  grip(tool:T.Group,offset=0,both=false,tilt=0){
-    const hand=this.hands[0];if(!hand||!tool.parent)return;
-    hand.getWorldPosition(this.point);
-    if(both&&this.hands[1])this.point.add(this.hands[1].getWorldPosition(new T.Vector3())).multiplyScalar(.5);
-    tool.parent.worldToLocal(this.point);
-    if(this.playback){
-      this.parentInverse.copy(tool.parent.getWorldQuaternion(this.parentInverse)).invert();
-      hand.getWorldQuaternion(this.toolRotation);
-      this.toolRotation.multiply(this.handNeutralInverse).multiply(sideRotation.setFromAxisAngle(new T.Vector3(1,0,0),tilt));
-      tool.quaternion.copy(this.parentInverse).multiply(this.toolRotation);
+  /** A palm socket on the anatomical right hand, in the imported rig's units. */
+  grip(tool:T.Group,kind:'axe'|'pickaxe'|'rod'){
+    const hand=this.hands[0];if(!hand)return;
+    if(tool.parent!==hand)hand.add(tool);
+    tool.position.copy(this.palm);tool.scale.setScalar(1/this.modelScale);tool.quaternion.copy(this.socketRotation);
+    if(kind==='rod'){
+      const t=this.fishingClock??2,wind=T.MathUtils.smoothstep(t,0,.45),release=T.MathUtils.smoothstep(t,.45,.95),settle=T.MathUtils.smoothstep(t,.95,1.35);
+      const reel=T.MathUtils.smoothstep(t,5.8,7.2);
+      tool.quaternion.multiply(sideRotation.setFromAxisAngle(new T.Vector3(1,0,0),-.25+.5*wind-.8*release+.8*settle-.3*reel));
     }
-    // The old tools were authored below a shoulder pivot; offset to their handle.
-    tool.position.copy(this.point);
-    this.toolOffset.set(0,offset,0).applyQuaternion(tool.quaternion);tool.position.add(this.toolOffset);
   }
 }
-
-

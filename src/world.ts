@@ -177,7 +177,7 @@ export class World {
   private workPoint(id:number,index:number){
     const p=position(id),g=this.buildings.get(id),tree=g?.children.find(t=>t.userData.treeIndex===index);
     if(tree){tree.updateWorldMatrix(true,false);const v=tree.getWorldPosition(new T.Vector3());const stone=this.board.get(id)==='stone';return new T.Vector3(v.x+.05,LAND_Y,v.z+(stone?.38:.26))}
-    const yaw=g?.rotation.y??0,x=['farm','berry'].includes(this.board.get(id)??'')?(index%2?-.18:.18):0,z=.62;
+    const kind=this.board.get(id),yaw=g?.rotation.y??0,x=kind==='farm'?(index%2?-.13:.13):kind==='berry'?(index%2?-.18:.18):0,z=kind==='farm'?.10:.62;
     return new T.Vector3(p.x+x*Math.cos(yaw)+z*Math.sin(yaw),LAND_Y,p.z-x*Math.sin(yaw)+z*Math.cos(yaw));
   }
   private obstacles(id:number){

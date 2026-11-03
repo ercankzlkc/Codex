@@ -26,7 +26,8 @@ export class Walkways {
       // The centre tower projects behind the main house.
       if(id===CENTER&&rect(-.60,-.1,-.48,.04))return false;
     }else if(kind==='fisher'){if(rect(-.34,.34,-.57,.16))return false}
-    else if(kind==='berry'||kind==='farm'){if(rect(-.50,.50,-.57,.40,.75))return false}
+    else if(kind==='berry'){if(rect(-.50,.50,-.57,.40,.75))return false}
+    else if(kind==='farm'){if(lx<-.31&&lx>-.45&&lz>-.5&&lz<.42)return false}
     else if(kind==='garden'){if(Math.hypot(lx,lz)<.44)return false}
     else if(kind==='forest'||kind==='stone')for(const o of this.obstacles(id))if(Math.hypot(x-o.x,z-o.z)<o.r)return false;
     return true;

@@ -57,11 +57,11 @@ export class Villagers {
     const arms=[-1,1].map(sign=>{const g=new T.Group();g.position.set(sign*.083,.125,0);body.add(g);box(g,0xdfb28b,0,-.065,0,.035,.13,.035);return g});
     const legs=[-1,1].map(sign=>{const g=new T.Group();g.position.set(sign*.035,.155,0);root.add(g);box(g,0x59655d,0,-.065,0,.044,.13,.045);box(g,0x665647,0,-.13,.018,.05,.035,.075);return g});
     const bundle=new T.Group();bundle.position.set(0,.235,.12);bundle.visible=false;root.add(bundle);
-    const axe=new T.Group();box(axe,0x8b6947,0,-.13,.04,.022,.19,.022);box(axe,0x9faeaa,.025,-.19,.04,.09,.045,.025);arms[0].add(axe);axe.visible=false;
+    const axe=new T.Group();box(axe,0x8b6947,0,.075,0,.022,.24,.022);box(axe,0x9faeaa,.025,.19,0,.09,.045,.025);arms[0].add(axe);axe.visible=false;
     const pickaxe=new T.Group();pickaxe.position.set(0,.125,.015);body.add(pickaxe);
-    box(pickaxe,0x8b6947,0,-.095,0,.023,.29,.023);
-    const head=box(pickaxe,0xaeb7b2,0,-.25,0,.028,.035,.16);
-    for(const sign of [-1,1]){const tip=new T.Mesh(new T.ConeGeometry(.023,.095,4),head.material);tip.position.set(0,-.25,sign*.112);tip.rotation.x=sign*Math.PI/2;pickaxe.add(tip)}
+    box(pickaxe,0x8b6947,0,.075,0,.023,.27,.023);
+    const head=box(pickaxe,0xaeb7b2,0,.20,0,.028,.035,.16);
+    for(const sign of [-1,1]){const tip=new T.Mesh(new T.ConeGeometry(.023,.095,4),head.material);tip.position.set(0,.20,sign*.112);tip.rotation.x=sign*Math.PI/2;pickaxe.add(tip)}
     pickaxe.visible=false;
     const rod=new T.Group();rod.position.set(0,-.12,0);box(rod,0x84684b,0,.28,0,.013,.58,.013);rod.rotation.x=1.0;arms[0].add(rod);rod.visible=false;
     const line=new T.Line(new T.BufferGeometry().setAttribute('position',new T.BufferAttribute(new Float32Array(36),3)),new T.LineBasicMaterial({color:0xe2e5d1,transparent:true,opacity:.8}));line.frustumCulled=false;line.visible=false;
@@ -90,27 +90,25 @@ export class Villagers {
   }
   private updateVisual(c:Citizen){
     if(!c.visual)return;
+    c.visual.setFishingClock(c.stage==='working'&&c.job?.category==='fish'?c.clock:null);
     c.visual.update(c.body,c.arms,c.legs,c.bundle.visible);
     c.root.updateMatrixWorld(true);
-    c.visual.grip(c.axe,.12);c.visual.grip(c.rod,0,false,.75);c.visual.grip(c.pickaxe,.11,true);
+    c.visual.grip(c.axe,'axe');c.visual.grip(c.rod,'rod');c.visual.grip(c.pickaxe,'pickaxe');
+    c.root.updateMatrixWorld(true);
   }
   private motionFor(c:Citizen):PersonMotion{
     if(c.path.length)return c.bundle.visible?'carry':'walk';
     if(c.stage==='picking')return 'pick';
     if(c.stage==='working'&&c.job){
-      if(c.job.category==='fish')return c.clock<(c.visual?.castDuration??1.35)?'fish_cast':'fish_idle';
+      if(c.job.category==='fish')return 'fish_idle';
       if(c.job.resource==='wood')return 'wood';
       if(c.job.resource==='stone')return 'stone';
       return c.job.category==='farm'?'farm':'berry';
     }
     return 'idle';
   }
-  private fishTiming(c:Citizen){
-    const cast=c.visual?.castDuration??1.35,animated=c.visual?.hasAnimations??false;
-    const launch=animated?cast*.55:.7,land=animated?cast*.65:1.35;
-    const pull=cast+4.45,total=pull+1.7;
-    return {cast,launch,land,pull,total};
-  }
+  private fishTiming(){return {launch:.7,land:1.35,pull:5.8,total:7.5}}
+
   private findJob(c:Citizen){
     const g=this.game!,here=fromWorld(c.root.position.x,c.root.position.z),targets=g.workTargets(),counts=this.assignedCounts();
     const options=[...g.board.keys()].map(source=>({source,recipe:g.productAt(source),category:g.categoryFor(source)}))
@@ -200,7 +198,7 @@ export class Villagers {
     const spot=this.hooks.fishingSpot(c.job!.source);if(!spot)return;
     const t=c.clock,previous=t-dt,water=spot.water;
     c.root.rotation.y=Math.atan2(water.x-c.root.position.x,water.z-c.root.position.z);c.rod.visible=true;
-    const timing=this.fishTiming(c),cast=T.MathUtils.smoothstep(t,timing.launch,timing.land),pull=T.MathUtils.smoothstep(t,timing.pull,timing.total-.3);
+    const timing=this.fishTiming(),cast=T.MathUtils.smoothstep(t,timing.launch,timing.land),pull=T.MathUtils.smoothstep(t,timing.pull,timing.total-.3);
     c.arms[0].rotation.x=t<.7?-.8-t*.5:t<1.35?-.95+cast*.9:t>5.8?-.1-pull*.9:-.1;
     c.arms[1].rotation.x=-.35;c.rod.rotation.x=.75;
     this.updateVisual(c);c.root.updateMatrixWorld(true);const tip=c.rod.localToWorld(new T.Vector3(0,.58,0)),hand=c.root.localToWorld(new T.Vector3(0,.24,.15));
@@ -232,7 +230,7 @@ export class Villagers {
       }
       if(c.job&&!g.board.has(c.job.source))this.releaseJob(c);
       c.retry-=dt;
-      if(c.eatUntil>this.time){c.visual?.animate(dt,'eat',0);c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.body.rotation.x=.06;c.arms[0].rotation.x=-1.9+Math.sin(this.time*7)*.12;c.arms[1].rotation.x=c.bundle.visible?-.8:-.2;c.legs.forEach(leg=>leg.rotation.x=0);this.updateVisual(c);continue}
+      if(c.eatUntil>this.time){c.visual?.animate(dt,'eat',0);c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=c.stage==='working'&&c.job?.category==='fish';c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.body.rotation.x=.06;c.arms[0].rotation.x=-1.9+Math.sin(this.time*7)*.12;c.arms[1].rotation.x=c.bundle.visible?-.8:-.2;c.legs.forEach(leg=>leg.rotation.x=0);this.updateVisual(c);continue}
       if(c.stage==='idle'&&c.retry<=0){
         c.retry=1.5+(c.id%3)*.2;
         if(!this.findJob(c)&&!c.path.length&&this.time>=c.restUntil){
@@ -266,9 +264,9 @@ export class Villagers {
         c.clock+=dt;
         const impactRate=c.visual?.hasAnimations?1/c.visual.workDuration(c.job.resource==='stone'?'stone':'wood'):1.7;
         if(wood&&c.clock>.3&&Math.floor(c.clock*impactRate-.72)!==Math.floor((c.clock-dt)*impactRate-.72))this.hooks.impact(c.job.source,c.job.tree);
-        const duration=fishing?this.fishTiming(c).total:wood?(c.job.resource==='stone'?6.8:6):2.4;
+        const duration=fishing?this.fishTiming().total:wood?(c.job.resource==='stone'?6.8:6):2.4;
         if(fishing){c.body.rotation.x=.05;this.fishing(c,dt)}
-        else{const p=this.hooks.workPoint(c.job.source,c.job.tree);c.root.rotation.y=Math.atan2(p.x-.12-c.root.position.x,p.z-.15-c.root.position.z);this.hooks.harvestProgress(c.job.source,c.id,Math.min(1,c.clock/duration))}
+        else{const p=this.hooks.workPoint(c.job.source,c.job.tree);c.root.rotation.y=c.job.category==='farm'?this.hooks.yaw(c.job.source)+Math.PI:Math.atan2(p.x-.12-c.root.position.x,p.z-.15-c.root.position.z);this.hooks.harvestProgress(c.job.source,c.id,Math.min(1,c.clock/duration))}
         if(c.clock>=duration){
           if(this.hooks.harvest(c.job.source,c.job.resource,c.job.tree,c.id)){
             if(c.job.resource==='wood'){
