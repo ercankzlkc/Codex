@@ -18,13 +18,12 @@ const icon=(id:string)=>`<svg aria-hidden="true" viewBox="0 0 24 24" fill="none"
 const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
- <div class="crest"><span>${icon('crest')}</span><div>Living Kingdom<small>YELKEN KOYU</small></div></div>
  <div id="stats" aria-label="Krallığın kaynakları"></div>
  <div class="run"><div id="turn"></div><small>10 nüfus · 50 refah</small></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
- <div id="influence"></div><dialog></dialog>`;
+ <dialog></dialog>`;
 const get=<E extends HTMLElement=HTMLElement>(selector:string)=>app.querySelector<E>(selector)!;
 const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=get<HTMLDialogElement>('dialog');
 const world=new World(get('#world'));
@@ -99,7 +98,6 @@ function render() {
     ['people','Nüfus',game.people,`${p.used}/${game.people} işçi`],['happy','Refah',game.happy,`+${p.happy}/tur`],
   ].map(([id,name,v,rate])=>`<div class="resource" data-resource="${id}" title="${name} · ${rate}">${icon(String(id))}<div><small>${name}</small><b>${v}</b></div><em>${rate}</em></div>`).join('');
   get('#turn').innerHTML=`<small>TUR</small> <b>${String(game.turn).padStart(2,'0')}</b><span> / 15</span>`;
-  get('#influence').textContent=game.influence;get('#influence').title=game.influence;
   hand.innerHTML=game.hand.map((c,i)=>`<button class="card tone-${c.id}" data-card="${i}" aria-pressed="false" ${game.over||!affordable(c)?'disabled':''}>
     <span class="cost" title="${c.cost} odun">${icon('wood')}${c.cost}</span><span class="type">${c.event?'ANLIK':c.workers?`${c.workers} İŞÇİ`:'YERLEŞİM'}</span>
     <img src="${thumbs[c.id]}" alt="" draggable="false"><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>

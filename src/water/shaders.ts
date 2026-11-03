@@ -22,18 +22,28 @@ Lens lightNet(vec2 p,vec2 flow) {
   return Lens(core*visibility,halo*halo*visibility,field.g*field.g*core);
 }
 `;
+// Height and analytic derivatives share exactly the same wave phases.
+const waves = /* glsl */ `
+vec3 seaWave(vec2 p) {
+  vec2 a=vec2(.88,1.31), b=vec2(1.93,-.62), c=vec2(-2.7,3.8), d=vec2(5.2,2.1);
+  float pa=dot(p,a)-uTime*1.05, pb=dot(p,b)+uTime*.81;
+  float pc=dot(p,c)-uTime*1.47, pd=dot(p,d)+uTime*1.92;
+  float height=.027*sin(pa)+.016*sin(pb)+.007*sin(pc)+.003*sin(pd);
+  vec2 gradient=.027*cos(pa)*a+.016*cos(pb)*b+.007*cos(pc)*c+.003*cos(pd)*d;
+  return vec3(height,gradient);
+}
+`;
 export const waterVertex = /* glsl */ `
 uniform float uTime;
+` + waves + /* glsl */ `
 varying vec3 vWorld;
 void main() {
   vWorld=(modelMatrix*vec4(position,1.)).xyz;
   vec2 p=vWorld.xz;
-  vWorld.y+=.014*sin(dot(p,vec2(.88,1.31))+uTime*.64)
-    +.009*sin(dot(p,vec2(1.93,-.62))-uTime*.47)
-    +.005*sin(dot(p,vec2(-1.13,2.51))+uTime*.39);
+  vWorld.y+=seaWave(p).x;
   gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.);
 }`;
-export const waterFragment = optics + /* glsl */ `
+export const waterFragment = optics + waves + /* glsl */ `
 uniform sampler2D uCoast;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
@@ -41,15 +51,17 @@ uniform vec3 uLanding;
 varying vec3 vWorld;
 void main() {
   vec2 p=vWorld.xz;
-  vec2 uv=clamp((p-uRegion.xy)/uRegion.zw,vec2(0.),vec2(1.));
+  vec2 atlasUV=(p-uRegion.xy)/uRegion.zw;
+  vec2 uv=clamp(atlasUV,vec2(0.),vec2(1.));
   vec4 mask=texture2D(uCoast,uv);
   float shore=dot(mask.rg,vec2(65280.,255.))/65535.*8.-1.;
-  float depth=mask.b*3.8;
+  float border=min(min(atlasUV.x,atlasUV.y),min(1.-atlasUV.x,1.-atlasUV.y));
+  float depth=mix(3.8,mask.b*3.8,smoothstep(0.,.10,border));
   vec2 flow=current(p);
   vec4 weather=texture2D(uLight,turn*p*.038+flow*.053+vec2(.29,.51));
   float shelf=1.-smoothstep(.45,2.65,depth);
   float bank=.62*weather.b+.38*weather.a;
-  float channel=smoothstep(.20,.84,bank);
+  float channel=.40+.60*smoothstep(.20,.84,bank);
   vec3 offshore=mix(uLagoon,uDeep,channel);
   vec3 pigment=mix(uMint,uTurquoise,smoothstep(.20,1.04,depth));
   pigment=mix(pigment,offshore,smoothstep(.88,3.15,depth));
@@ -68,14 +80,18 @@ void main() {
   float sunlight=.48+.44*weather.a;
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
-  pigment+=mix(vec3(.09,.24,.22),vec3(.30,.45,.31),shelf)*focus*(.46+.23*shelf);
-  vec2 slope=vec2(.022*cos(dot(p,vec2(.88,1.31))+uTime*.64),.021*cos(dot(p,vec2(1.93,-.62))-uTime*.47))+flow*.13;
+  pigment+=vec3(.19,.32,.24)*focus*shelf*.40;
+  vec2 slope=seaWave(p).yz+flow*.025;
   vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
-  vec3 eye=normalize(vec3(viewMatrix[0][2],viewMatrix[1][2],viewMatrix[2][2]));
-  float fresnel=pow(1.-max(dot(normal,eye),0.),3.);
-  pigment=mix(pigment,vec3(.49,.77,.84),fresnel*.27);
-  float fleck=lens.knot*pow(smoothstep(.46,.83,weather.b),3.)*smoothstep(-.04,.04,slope.x-slope.y);
-  pigment+=vec3(.11,.105,.065)*fleck;
+  vec3 eye=normalize(cameraPosition-vWorld);
+  float fresnel=.025+.975*pow(1.-max(dot(normal,eye),0.),5.);
+  vec3 sky=mix(vec3(.12,.29,.46),vec3(.46,.69,.80),max(eye.y,0.));
+  pigment=mix(pigment,sky,fresnel*.60);
+  vec3 halfway=normalize(normalize(vec3(-.5,1.,.4))+eye);
+  float glint=pow(max(dot(normal,halfway),0.),150.);
+  pigment+=vec3(.85,.87,.76)*glint*.48;
+  float ripples=pow(max(0.,sin(dot(p,vec2(4.7,2.6))-uTime*1.8+sin(dot(p,vec2(-1.8,2.1))+uTime*.43)*1.1+flow.x*5.)),14.);
+  pigment+=vec3(.018,.035,.045)*ripples*smoothstep(.35,.75,weather.a);
   // The beach crosses sea level at roughly .16 units beyond an exposed hex edge.
   float gate=smoothstep(-.07,.065,shore);
   float drift=.5+.5*sin(uTime*.79+flow.y*7.+dot(p,vec2(.49,.71)));

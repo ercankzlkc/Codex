@@ -15,7 +15,7 @@ export class TropicalWater {
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
     uMint:{value:new T.Color('#87efd4')},uTurquoise:{value:new T.Color('#20d0c6')},
-    uLagoon:{value:new T.Color('#17b9bd')},uDeep:{value:new T.Color('#2584b2')},
+    uLagoon:{value:new T.Color('#1389a2')},uDeep:{value:new T.Color('#124675')},
   };
   private readonly sandGeometry=new T.PlaneGeometry(1,1,SAND_STEPS,SAND_STEPS).rotateX(-Math.PI/2);
   private readonly sandTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
@@ -35,7 +35,7 @@ export class TropicalWater {
   }
 
   private receiver(sand:boolean){
-    const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand});
+    const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,depthWrite:!sand});
     mat.onBeforeCompile=shader=>{
       shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
       shader.vertexShader='varying vec3 vReceiver;\n'+shader.vertexShader;
@@ -47,7 +47,7 @@ export class TropicalWater {
         vReceiver=(modelMatrix*receiverLocal).xyz;
         #include <project_vertex>`);
       shader.fragmentShader='varying vec3 vReceiver;\n'+optics+'\n'+shader.fragmentShader;
-      shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'+receiverLight);
+      shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'+receiverLight+(sand?'\ndiffuseColor.a *= 1. - smoothstep(.65, 1.65, max(0., -.18-vReceiver.y));':'' ));
     };
     mat.customProgramCacheKey=()=> 'lagoon-receiver-v1';
     return mat;
