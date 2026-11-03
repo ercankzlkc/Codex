@@ -33,11 +33,11 @@ export class TableSound {
       const master=this.ctx.createGain();master.connect(this.ctx.destination);
       this.buses.master=master;
       for(const bus of ['sfx','ambience'] as const){const node=this.ctx.createGain();node.connect(master);this.buses[bus]=node}
-      const wave=new Audio('/audio/shore.mp3');wave.preload='none';wave.loop=true;this.wave=wave;
+      const wave=new Audio(new URL('audio/shore.mp3',document.baseURI).href);wave.preload='none';wave.loop=true;this.wave=wave;
       this.ctx.createMediaElementSource(wave).connect(this.buses.ambience!);
       const names=new Set(Object.values(cues).flatMap(([files])=>[...files]));
       for(const name of names){
-        void fetch('/audio/'+name+'.ogg').then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
+        void fetch(new URL('audio/'+name+'.ogg',document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
           .then(b=>this.ctx!.decodeAudioData(b)).then(b=>this.clips.set(name,b)).catch(()=>{});
       }
       this.apply();
