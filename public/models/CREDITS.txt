@@ -6,6 +6,15 @@ Kullanıcı tarafından sağlanan özgün GLB ve ArmatureAction animasyonu.
 Free Medieval 3D People Low Poly Pack — CraftPix / Free Game Assets
 Kullanıcının sağladığı people_unity FBX modelleri ve people_texture_map.png dokusu.
 14 karakter Blender ile GLB'ye dönüştürüldü; doku gömüldü, taşıma için gzip sıkıştırması kullanıldı.
-Hazır animasyon klibi içermeyen riglere oyunun görev hareketleri çalışma anında uygulanır.
+Karakter riglerine kullanıcının sağladığı Seed Animasyonlar klipleri eşleştirilir; klip yükleme hatasında yedek hareketler kullanılır.
 Lisans: https://craftpix.net/file-licenses/ (Freebie Products)
 Dosyalar yalnızca oyun içi karakterler için kullanılır; ayrı bir varlık indirme arayüzü sunulmaz.
+
+Seed Animasyonlar — kullanıcı tarafından sağlanan FBX hareketleri
+13 klip: Ağaç Kesmek, Breathing Idle, Buğday Toplamak, Çilek Toplamak 1/2,
+Olta Atmak, Olta İdle, Oturmak ve Dinlenmek, Otururken Ayağa Kalkmak,
+Taş Kırmak, Yürümek 1/2/3.
+Kaynak FBX eylem adı: Armature|mixamo.com|Layer0.
+Farklı kaynak iskeleti karakter rigine eşleştirildi; yatay kök hareketi kaldırıldı,
+dikey kalça hareketi ve eklem dönüşleri korundu. Sıkıştırılmış ortak GLB paketidir.
+Oturma geçişi, sağlanan ayağa kalkma hareketinin ters oynatılmasıyla yapılır.
