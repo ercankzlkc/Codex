@@ -68,6 +68,8 @@ vec3 seaWave(vec2 p) {
 }
 `;
 export const waterVertex = /* glsl */ `
+#include <common>
+#include <shadowmap_pars_vertex>
 uniform float uTime;
 ` + waves + /* glsl */ `
 varying vec3 vWorld;
@@ -76,13 +78,28 @@ void main() {
   vec2 p=vWorld.xz;
   vWorld.y+=seaWave(p).x;
   gl_Position=projectionMatrix*viewMatrix*vec4(vWorld,1.);
+  vec4 worldPosition=vec4(vWorld,1.);
+  vec3 transformedNormal=normalize(normalMatrix*normal);
+  #include <shadowmap_vertex>
 }`;
-export const waterFragment = optics + waves + /* glsl */ `
+export const waterFragment = /* glsl */ `
+#include <common>
+#include <packing>
+uniform bool receiveShadow;
+#include <shadowmap_pars_fragment>
+#include <shadowmask_pars_fragment>
+` + optics + waves + /* glsl */ `
 uniform sampler2D uCoast,uPreviousCoast;
 uniform float uCoastMix;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
-uniform vec3 uSunDirection;
+uniform vec3 uSunDirection,uReflectionEye;
+// Smooth, nonperiodic roughness. No high-frequency sine bars or screen-space streaks.
+float waterHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float waterNoise(vec2 p){
+  vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  return mix(mix(waterHash(i),waterHash(i+vec2(1.,0.)),f.x),mix(waterHash(i+vec2(0.,1.)),waterHash(i+vec2(1.)),f.x),f.y);
+}
 varying vec3 vWorld;
 void main() {
   vec2 p=vWorld.xz;
@@ -128,26 +145,30 @@ void main() {
   distorted+=.055*ring*(p-uLanding.xy)/max(radius,.01);
   disturbance*=seaGate;
   Lens lens=lightNet(distorted,flow,disturbance);
-  float sunlight=.48+.44*weather.a;
+  float sunVisibility=getShadowMask();
+  float sunlight=(.48+.44*weather.a)*sunVisibility;
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
-  pigment+=vec3(.16,.30,.27)*focus*(.30+.35*shelf);
-  vec2 microRipples=vec2(cos(dot(p,vec2(18.,7.))-uTime*2.1),sin(dot(p,vec2(-9.,22.))+uTime*1.7))*.016;
-  vec2 slope=seaWave(p).yz+flow*.025+wakeSlope+microRipples;
+  pigment+=vec3(.16,.30,.27)*focus*(.18+.22*shelf);
+  pigment*=mix(vec3(.61,.72,.76),vec3(1.),sunVisibility);
+  vec2 rippleUV=p*2.7+uTime*vec2(-.065,.04);
+  vec2 microRipples=(vec2(waterNoise(rippleUV),waterNoise(rippleUV+vec2(19.7,5.2)))-.5)*.038;
+  vec2 slope=seaWave(p).yz*.65+flow*.018+wakeSlope+microRipples;
   vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
-  vec3 eye=normalize(cameraPosition-vWorld);
+  // The orthographic camera may move back to keep its near plane above water.
+  // A fixed-distance reflection eye avoids scaling a giant glare patch with that move.
+  vec3 eye=normalize(uReflectionEye-vWorld);
   float fresnel=.025+.975*pow(1.-max(dot(normal,eye),0.),5.);
   vec3 sky=mix(vec3(.22,.48,.65),vec3(.53,.79,.87),max(eye.y,0.));
-  pigment=mix(pigment,sky,fresnel*.60);
-  // One sun direction shared with the buildings: a soft golden path breaks
-  // into fine moving sparkles as the small wave normals catch the light.
+  pigment=mix(pigment,sky,fresnel*.45);
   vec3 halfway=normalize(uSunDirection+eye);
   float sunDot=max(dot(normal,halfway),0.);
-  float softSun=pow(sunDot,32.);
-  float sparkle=pow(sunDot,220.);
-  float flicker=.65+.35*sin(dot(p,vec2(31.,-17.))+uTime*2.3);
-  float reflection=(softSun*.075+sparkle*flicker*.64)*smoothstep(.08,.65,depth)*seaGate;
-  pigment+=vec3(1.,.86,.58)*reflection;
+  float footprint=max(fwidth(sunDot),.00001);
+  float fineSun=pow(sunDot,720.)/(1.+footprint*900.);
+  float halo=pow(sunDot,180.);
+  float breakup=smoothstep(.38,.78,waterNoise(p*4.3+flow*.45+uTime*vec2(.045,-.025)));
+  float reflection=(fineSun*breakup*.21+halo*.012)*smoothstep(.18,.9,depth)*seaGate*sunVisibility;
+  pigment=mix(pigment,vec3(1.,.96,.83),clamp(reflection,0.,.23));
   // The beach crosses sea level at roughly .16 units beyond an exposed hex edge.
   float gate=smoothstep(-.07,.065,shore);
   float drift=.5+.5*sin(uTime*1.25+flow.y*7.+dot(p,vec2(.49,.71)));
@@ -163,7 +184,7 @@ void main() {
   float tornEdge=abs(shore-retreat-.048*sin(dot(p,vec2(3.1,-2.2))+flow.x*4.));
   float backwash=(1.-smoothstep(.003,.021+aa,tornEdge))*smoothstep(.48,.82,weather.a+flow.x*.56)*drift;
   float foam=gate*clamp(rim*(.32+.63*gaps)+fringe*gaps*.42+backwash*.49,0.,1.);
-  pigment=mix(pigment,vec3(.88,.96,.83),foam);
+  pigment=mix(pigment,vec3(.86,.93,.87)*mix(.75,1.,sunVisibility),foam*.72);
   pigment+=max(ring,0.)*vec3(.21,.32,.29);
   pigment=mix(pigment,vec3(.73,.93,.88),clamp(arrivalFoam*gate,0.,.5));
   pigment+=max(wake,0.)*vec3(.10,.17,.16);

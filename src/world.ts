@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {icon} from './icons';
+import {SUN} from './lighting';
 import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld,corner,RADIUS,adjacent} from './hex';
@@ -87,7 +88,7 @@ export class World {
   private readonly seaPoint=new T.Vector3();
   private lastSea:{x:number;z:number;time:number}|null=null;
   private board:ReadonlyMap<number,Kind>=new Map();
-  private sun=new T.DirectionalLight(0xffe0ac,2.6);
+  private sun=new T.DirectionalLight(SUN.color,SUN.intensity);
   private ghostPalette:{mat:T.MeshStandardMaterial;base:T.Color}[]=[];
   private readonly ghostTarget=new T.Vector3();
   private readonly contact=contactMaterial();
@@ -120,11 +121,11 @@ export class World {
     this.renderer.toneMappingExposure=1.03;
     el.append(this.renderer.domElement);
     this.cameraControl=new CameraController(this.renderer.domElement);
-    this.scene.add(new T.HemisphereLight(0xe9f1dc,0x82916d,1.4),this.root);
+    this.scene.add(new T.HemisphereLight(0xddeaf1,0x8c957b,1.0),this.root);
     const sun=this.sun;
-    sun.position.set(-5,9,-6);sun.castShadow=true;
+    sun.position.copy(SUN.offset);sun.castShadow=true;
     Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:1,far:31});
-    sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00012;sun.shadow.normalBias=.015;
+    sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00006;sun.shadow.normalBias=.006;
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
     this.villagers=new Villagers(this.scene,{
@@ -449,7 +450,7 @@ export class World {
       const x=(Math.max(...centers.map(p=>p.x))+Math.min(...centers.map(p=>p.x)))/2;
       const z=(Math.max(...centers.map(p=>p.z))+Math.min(...centers.map(p=>p.z)))/2;
       const radius=Math.max(3,...centers.map(p=>Math.hypot(p.x-x,p.z-z)+2));
-      this.sun.target.position.set(x,0,z);this.sun.position.set(x-5,9,z-6);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
+      this.sun.target.position.set(x,0,z);this.sun.position.copy(this.sun.target.position).add(SUN.offset);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
       Object.assign(this.sun.shadow.camera,{left:-radius,right:radius,top:radius,bottom:-radius,far:35+radius});
       this.sun.shadow.camera.updateProjectionMatrix();
     }
@@ -502,7 +503,7 @@ export class World {
   }
   private frame=(now:number)=>{
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
-    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds);
+    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds);
     if(this.ghost?.visible){
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-32*dt));
       if(this.ghostModel){

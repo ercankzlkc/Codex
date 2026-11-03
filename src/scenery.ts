@@ -101,6 +101,6 @@ export function meadow(id:number,blocked:(x:number,z:number)=>boolean=()=>false)
     float bend=sin(grassTime*1.8+phase)*0.18+sin(grassTime*2.7+phase*1.7)*0.09;
     transformed.x+=bend*position.y*(.7+windForce);transformed.z+=cos(grassTime*1.6+phase)*position.y*0.12*(.7+windForce);`)};
   mat.customProgramCacheKey=()=>'meadow-wind';
-  group.add(new T.Mesh(geom,mat));return group;
+  const blades=new T.Mesh(geom,mat);blades.receiveShadow=true;group.add(blades);return group;
 }
 

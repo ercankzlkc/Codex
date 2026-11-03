@@ -2,6 +2,7 @@ import * as T from 'three';
 import { coast, position, type ShoreEdge } from '../hex';
 import {LAND_START,LAND_END,SINK_START,SINK_END,easeBetween} from '../emergence';
 import { SEA_Y } from '../scenery';
+import {SUN} from '../lighting';
 import { LagoonField, lightField } from './field';
 import { optics, receiverLight, waterFragment, waterVertex } from './shaders';
 
@@ -21,7 +22,8 @@ export class TropicalWater {
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
     uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},
     uCoastMix:{value:1},uPreviousCoast:{value:this.previousField.texture},
-    uSunDirection:{value:new T.Vector3(-5,9,-6).normalize()},
+    uSunDirection:{value:SUN.offset.clone().normalize()},
+    uReflectionEye:{value:new T.Vector3(7,9,7)},
     uTime:{value:0},uLight:{value:lightField()},uCoast:{value:this.field.texture},
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
@@ -31,8 +33,9 @@ export class TropicalWater {
   private readonly viewCorner=new T.Vector3();
   private readonly viewDirection=new T.Vector3();
   /** Cover all four sea intersections, including wide, low orthographic views. */
-  fitView(camera:T.OrthographicCamera){
+  fitView(camera:T.OrthographicCamera,focus:T.Vector3){
     camera.getWorldDirection(this.viewDirection);
+    this.uniforms.uReflectionEye.value.copy(focus).addScaledVector(this.viewDirection,-14);
     if(this.viewDirection.y>=-.01)return;
     let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
     for(const x of [-1,1])for(const y of [-1,1]){
@@ -53,10 +56,10 @@ export class TropicalWater {
   private readonly silhouettes=new T.IcosahedronGeometry(1,0);
   constructor(){
     const surface=new T.Mesh(new T.PlaneGeometry(160,160,180,180),new T.ShaderMaterial({
-      uniforms:this.uniforms,vertexShader:waterVertex,fragmentShader:waterFragment,
+      uniforms:{...T.UniformsUtils.clone(T.UniformsLib.lights),...this.uniforms},vertexShader:waterVertex,fragmentShader:waterFragment,lights:true,
       transparent:true,depthWrite:false,toneMapped:false,
     }));
-    this.surface=surface;
+    this.surface=surface;surface.receiveShadow=true;
     surface.rotation.x=-Math.PI/2;surface.position.y=SEA_Y;surface.renderOrder=2;
     this.sandGeometry.setAttribute('color',this.sandTint);
     this.sandGeometry.setAttribute('aBedStart',this.sandStart);
