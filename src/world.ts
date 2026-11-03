@@ -254,7 +254,6 @@ export class World {
   }
   private fieldState(id:number){if(!this.fields.has(id)){const max=this.board.get(id)==='farm'?4:3;this.fields.set(id,{stock:max,max,age:0})}return this.fields.get(id)!}
   private resourceReady(id:number){
-    if(this.game?.maturing.has(id))return false;
     const kind=this.board.get(id);
     return (kind==='forest'||kind==='stone')?this.pickTree(id,0)>=0:kind==='berry'||kind==='farm'||kind==='garden'?this.fieldState(id).stock>0:kind==='fisher'?!!this.fishingSpot(id):true;
   }
@@ -339,14 +338,17 @@ export class World {
     const group=this.buildings.get(id);if(!group)return;
     this.editTile(-1);this.rotationTargets.delete(id);this.board=board;
     this.grid.rebuild(board);this.grid.showAvailable(false,this.valid);
-    this.demolitions.push({id,group,time:0});
+    this.environment.demolish(board,id);this.demolitions.push({id,group,time:0});
   }
 
   point(x:number,y:number) {
     if(this.placementQueued)return this.hover;
     // Pointer capture delivers the gesture even over HUD. Only the visible sea/land is playable.
     const hit=document.elementFromPoint(x,y);
-    const i=hit===this.renderer.domElement?this.grid.pick(x,y,this.cameraControl.camera,this.el):-1;
+    let i=hit===this.renderer.domElement?this.grid.pick(x,y,this.cameraControl.camera,this.el):-1;
+    if(hit===this.renderer.domElement&&this.selected&&!this.selected.event&&!this.valid(i)){
+      const nearby=this.grid.nearestAvailable(x,y,this.cameraControl.camera,this.el,this.valid);if(nearby>=0)i=nearby;
+    }
     this.setHover(i);return i;
   }
   private stirSea(event:PointerEvent){
@@ -440,17 +442,9 @@ export class World {
     board.forEach((kind,i)=>{
       const old=this.buildings.get(i);
       if(!kind){if(old){this.root.remove(old);this.buildings.delete(i)}return}
-      if(old&&old.userData.kind===kind)return;
-      if(old){
-        this.root.remove(old);this.buildings.delete(i);this.fields.delete(i);this.storageDecor.delete(i);
-        for(const [key,cycle] of this.treeCycles)if(cycle.id===i){this.woodHits.delete(cycle.tree);this.treeCycles.delete(key)}
-        for(const [key,loader] of this.loaders)if(loader.id===i){loader.el.remove();this.loaders.delete(key)}
-        for(const [key,drop] of this.drops)if(key.startsWith(`${i}:`)){this.scene.remove(drop.group);this.drops.delete(key)}
-      }
+      if(old)return;
       const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
-      g.userData.kind=kind;
-      g.children.forEach(child=>{if(child.userData.treeIndex!==undefined)child.userData.originalScale=child.scale.clone()});
-      if(kind!=='empty'){const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow)}
+      const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.scale.setScalar(['house','manor','store','lumber','fisher'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
       if(i===placed){if(kind==='fisher'&&this.placedManualCell===i)g.userData.manualCoast=true;g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
@@ -458,30 +452,6 @@ export class World {
     this.alignFisheries();
     this.cameraControl.setClearance(Math.max(1.7,...[...this.buildings.values()].map(g=>new T.Box3().setFromObject(g).max.y)));
     if(opening||refresh)for(const id of board.keys())this.refreshMeadow(id);else if(placed>=0)this.refreshMeadow(placed);
-  }
-  markVillageStage(stage:number){
-    const center=this.buildings.get(CENTER);if(!center)return;
-    let decor=center.children.find(c=>c.userData.villageStage) as T.Group|undefined;
-    if(!decor){decor=new T.Group();decor.userData.villageStage=true;center.add(decor)}decor.clear();
-    const count=stage>=16?4:stage>=10?3:stage>=6?2:1;
-    for(let i=0;i<count;i++){
-      const x=-.26+i*.17;box(decor,0x846345,x,.14,.5,.024,.28,.024);
-      part(decor,new T.OctahedronGeometry(.055),stage>=10?0xe8bd65:0x6a9d91,x,.33,.5);
-    }
-    this.burst(CENTER);
-  }
-  upgradeBuilding(id:number){
-    const group=this.buildings.get(id);if(!group||!this.game)return;
-    if(this.game.storageStocks.has(id)){this.upgradeStorage(id);return}
-    let decor=group.children.find(c=>c.userData.improvement) as T.Group|undefined;
-    if(!decor){decor=new T.Group();decor.userData.improvement=true;group.add(decor)}decor.clear();
-    const level=this.game.level(id);
-    for(let i=0;i<level;i++){
-      const x=-.16+i*.16;box(decor,0x8a6945,x,.13,.46,.026,.26,.026);
-      const pennant=part(decor,new T.ConeGeometry(.075,.12,3),i%2?0xe3bc6e:0x5e8e89,x,.28,.46);pennant.rotation.z=Math.PI;
-    }
-    this.burst(id);this.refreshMeadow(id);
-    const el=document.createElement('div');el.className='float bonus';el.textContent=`Seviye ${level} · ${this.game.upgradeEffect(id)}`;this.el.append(el);this.labels.push({el,position:cellPosition(id,1),life:2.5,delay:0});
   }
   private pulse(i:number,color:number) {
     const material=new T.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false});
@@ -569,16 +539,6 @@ export class World {
       if(b.time>=BUILD_END){this.villagers.refreshNavigation();this.cameraControl.setClearance(Math.max(1.7,...[...this.buildings.values()].map(g=>new T.Box3().setFromObject(g).max.y)))}
       return b.time<BUILD_END;
     });
-    for(const [id,left] of this.game?.maturing??[]){
-      const group=this.buildings.get(id);if(!group)continue;
-      if(!this.loaders.has(`grow:${id}`)){const p=position(id);this.makeLoader(`grow:${id}`,id,new T.Vector3(p.x,LAND_Y+.6,p.z),35)}
-      this.updateLoader(`grow:${id}`,35-left);
-    }
-    for(const [id,group] of this.buildings)if(this.board.get(id)==='forest'){
-      const left=this.game?.maturing.get(id)??0;
-      group.children.forEach(child=>{if(child.userData.originalScale&&!this.treeCycles.has(`${id}:${child.userData.treeIndex}`))child.scale.copy(child.userData.originalScale).multiplyScalar(.12+.88*easeBetween(35-left,0,35))});
-      if(!left)this.updateLoader(`grow:${id}`,35);
-    }
     for(const [key,drop] of this.drops){
       const id=Number(key.split(':')[0]);if(!this.board.has(id)){this.scene.remove(drop.group);this.drops.delete(key);continue}
       const before=drop.age;drop.age+=dt;drop.group.visible=drop.age>.72;

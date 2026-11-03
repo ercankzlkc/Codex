@@ -1,6 +1,5 @@
 import './style.css';
 import {CENTER} from './hex';
-import {cargoNames,type Cargo} from './trade';
 import {Game,cards,WORK_CATEGORIES,type WorkCategory,type Resource,type Card} from './game';
 import {World} from './world';
 import {CardDrag} from './drag';
@@ -11,13 +10,10 @@ const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
- <div id="village-pulse" aria-label="Köyün yiyecek dengesi"><span id="pantry-state"></span><span id="pantry-rate"></span><button id="relief-food" hidden></button></div>
- <details id="trade-panel" open><summary><span>${icon('trade')} Kıyı ticareti</span><b id="trade-count"></b></summary><div id="trade-content"></div></details>
- <section id="village-panel" aria-label="Köyün gelişimi"><small>KÖYÜN HİKÂYESİ</small><h3 id="village-title"></h3><p id="village-stage"></p><div id="land-budget"></div><button id="expand-land"></button><div class="arrival-heading"><b id="arrival-capacity"></b><span id="arrival-time"></span></div><progress id="arrival-progress" max="55" value="0" aria-label="Yeni sakin gelişi"></progress><p id="arrival-note"></p><small id="upgrade-budget"></small></section>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
- <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div><button id="plans-refresh">Yeni planlar</button></div>
+ <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
- <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><div id="development-upgrade" hidden><p id="development-effect"></p><button id="improve-building"></button><small id="development-note"></small></div><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
+ <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <button id="population-toggle" aria-expanded="false" aria-controls="work-panel">${icon('people')}<span>Görevler</span><b id="population-badge">1</b></button>
  <section id="work-panel" hidden aria-label="Nüfus görev dağılımı"><header><strong>İş öncelikleri</strong><button data-work-balance>Dengele</button><button data-work-close aria-label="Kapat">×</button></header><p id="work-summary"></p><div id="work-rows"></div></section>
  <aside id="food-details" hidden role="tooltip"></aside>
@@ -32,14 +28,8 @@ let game=new Game();
 let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
 let editedTile=-1;
-const landPlan:Card={id:'empty',name:'Yeni arsa',cost:0,workers:0,desc:'Kıyıdan bir altıgen aç',bonus:''};
-function costMarkup(c:{cost:number;stoneCost?:number;foodCost?:number}){
-  return `<span>${icon('wood')} ${c.cost}</span>${c.stoneCost?` <span>${icon('stone')} ${c.stoneCost}</span>`:''}${c.foodCost?` <span>${icon('food')} ${c.foodCost}</span>`:''}`;
-}
-function costLabel(c:Card){return `${c.cost} odun${c.stoneCost?` · ${c.stoneCost} taş`:''}${c.foodCost?` · ${c.foodCost} yiyecek`:''}`}
 
-
-function affordable(c:Card) { return !game.cardReason(c); }
+function affordable(c:Card) { return c.cost<=game.wood&&(c.id!=='festival'||game.food>=3); }
 function select(c:Card|null,carrying=false) {
   if(!c)pendingPlacement=null;
   selected=c;get('#event-target').hidden=!c?.event;world.setSelection(c,carrying);
@@ -48,23 +38,21 @@ function select(c:Card|null,carrying=false) {
     const active=!!c&&game.hand[Number(b.dataset.card)]===c;
     b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));
   });
-  get('.hand-label span').textContent=c?(c.id==='empty'?'Kıyıdan yeni bir arsa seç · Esc ile vazgeç':c.event?'Adanın üzerine bırak':'Boş arsaya bırak · Tekerlek / R ile döndür'):'Bir kartı adaya sürükle';
+  get('.hand-label span').textContent=c?(c.event?'Adanın üzerine bırak':'Kıyıya bırak · Tekerlek / R ile döndür'):'Bir kartı adaya sürükle';
 }
 function label(text:string) {
   placement.textContent=text;placement.hidden=!text;
 }
-world.valid=i=>!!selected&&i>=0&&(selected.id==='empty'?game.canExpand(i):game.valid(selected,i));
+world.valid=i=>!!selected&&i>=0&&game.valid(selected,i);
 world.onHover=i=>{
   if(!selected||i<0){label('');return}
-  if(selected.id==='empty'){label(game.canExpand(i)?'Bir genişleme hakkı · +1 boş arsa':game.wouldSealFishery(i)?'Balıkçının son kıyısını kapatma':'Yeni arsayı kıyıdaki boş denizden seç');placement.dataset.valid=String(game.canExpand(i));return}
-  if(!world.valid(i)){label(game.cardReason(selected)||(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Balıkçının son kıyısı açık kalmalı':'Yapıyı mevcut boş arsaya bırak'));placement.dataset.valid='false';return}
+  if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Balıkçının son kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}
   const p=game.preview(selected,i)!;
-  const effects=[p.stone&&`+${p.stone} taş / teslimat`,p.wood&&`+${p.wood} odun / teslimat`,p.food&&`+${p.food} yiyecek / teslimat`,p.happy&&`+${p.happy} refah / teslimat`,p.beds&&`+${p.beds} yatak · sakinler 65 refah ve erzakla zamanla gelir`].filter(Boolean);
-  const adjacentBonus=p.localBonus;
-  const distance=game.storageFor(i)[0],haul=distance===undefined?0:game.haulInfo(i).distance;
-  label((adjacentBonus?'Komşuluk · ':'')+(effects.join('  ·  ')||'Yerleşime uygun')+(p.food||p.wood||p.stone?` · ${haul<=1?'Depo yakın':haul<=2?'Orta taşıma yolu':'Depo uzak · yakına depo kur'}`:''));
+  const effects=[p.stone&&`+${p.stone} taş / teslimat`,p.wood&&`+${p.wood} odun / teslimat`,p.food&&`+${p.food} yiyecek / teslimat`,p.happy&&`+${p.happy} refah / teslimat`,p.people&&`+${p.people} nüfus`].filter(Boolean);
+  const adjacentBonus=p.localBonus||p.neighbors.length>0;
+  label((adjacentBonus?'Komşuluk · ':'')+(effects.join('  ·  ')||'Yerleşime uygun'));
 };
 function toast(text:string) {
   clearTimeout(toastTimer);log.textContent=text;log.classList.add('visible');
@@ -73,10 +61,6 @@ function toast(text:string) {
 function commit(i:number) {
   if(!selected||i<0||!world.valid(i))return false;
   if(locked){pendingPlacement=i;world.holdSelection();label('Ada hazırlanıyor…');return true}
-  if(selected.id==='empty'){
-    if(!game.expand(i))return false;locked=true;select(null);world.sync(game.board,i);sound.play('earth');render();toast('Yeni arsa açıldı · ne kuracağına karar ver');
-    clearTimeout(settleTimer);settleTimer=window.setTimeout(settle,2000);return true;
-  }
   const rotation=world.placementRotation;
   const card=selected,preview=game.preview(card,i)!;
   const production=game.play(card,i);
@@ -97,30 +81,25 @@ function settle(){
 world.onTileSelect=i=>{
   editedTile=i;const editor=get('#tile-editor');editor.hidden=i<0;
   if(i<0){get('#storage-upgrade').hidden=true;return}
-  get('#tile-editor strong').textContent=game.board.get(i)==='empty'?'Boş arsa':i===CENTER?'Krallık merkezi':cards.find(c=>c.id===game.board.get(i))?.name??'Yerleşim';
-  get('#tile-editor small').textContent=game.board.get(i)==='empty'?'Elindeki yapı kartını bu arsaya bırak':i===CENTER?'Merkez korunur · R / tekerlek ile döndür':'Yapıyı kaldırınca arsa kalır · kaynak iadesi yok';
-  const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER||game.board.get(i)==='empty';
-  remove.title=i===CENTER?'Krallık merkezi silinemez':'Yapı kaldırılır; arsa korunur';renderStorage();
+  get('#tile-editor strong').textContent=i===CENTER?'Krallık merkezi':cards.find(c=>c.id===game.board.get(i))?.name??'Yerleşim';
+  get('#tile-editor small').textContent=i===CENTER?'Merkez korunur · R / tekerlek ile döndür':'R / tekerlek · Silmede kaynak iadesi yok';
+  const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER;
+  remove.title=i===CENTER?'Krallık merkezi silinemez':'Yapı ve toprak denize çöker';renderStorage();
 };
 function renderStorage(){
-  const id=editedTile,kind=game.board.get(id),development=get('#development-upgrade');development.hidden=!kind||kind==='empty';
-  if(!development.hidden){
-    const price=game.upgradePrice(id),reason=game.upgradeReason(id),button=get<HTMLButtonElement>('#improve-building');
-    get('#development-effect').textContent=`Seviye ${game.level(id)}${game.level(id)<3?` → ${game.level(id)+1} · ${game.upgradeEffect(id)}`:' · Ustalık seviyesi'}`;
-    button.innerHTML=`Yükselt · ${costMarkup({cost:price.wood,stoneCost:price.stone})} · 1 hak`;button.disabled=!!reason||world.placing;get('#development-note').textContent=reason||'Aynı arsa · daha güçlü bir yapı';
-  }
-  const panel=get('#storage-upgrade');panel.hidden=!game.storageStocks.has(id);if(panel.hidden)return;
-  const used=game.storageUsed(id),max=game.storageCapacity(id);get('#storage-meter').textContent=`Depo seviye ${game.storageLevels.get(id)} · ${used} / ${max} dolu`;
+  const panel=get('#storage-upgrade'),id=editedTile;panel.hidden=!game.storageStocks.has(id);if(panel.hidden)return;
+  const used=game.storageUsed(id),max=game.storageCapacity(id),cost=game.upgradeCost(id);
+  get('#storage-meter').textContent=`Seviye ${game.storageLevels.get(id)} · ${used} / ${max} dolu`;
   const progress=get<HTMLProgressElement>('#storage-progress');progress.max=max;progress.value=used;
-  get('#upgrade-store').hidden=true;
+  const button=get<HTMLButtonElement>('#upgrade-store');button.innerHTML=`${icon('carry')} ${max} → ${max+(id===CENTER?80:60)} kapasite <span>${icon('wood')} ${cost} · Yükselt</span>`;button.disabled=game.wood<cost;button.title=`Kapasite +${id===CENTER?80:60}`;
 }
-get('#improve-building').onclick=()=>{if(!world.placing&&game.upgradeBuilding(editedTile)){world.upgradeBuilding(editedTile);renderHud();sound.play('build');toast(`Seviye ${game.level(editedTile)} · ${game.upgradeEffect(editedTile)}`)}};
+get('#upgrade-store').onclick=()=>{if(game.upgradeStore(editedTile)){world.upgradeStorage(editedTile);renderHud();renderStorage();sound.play('build');toast(`Depo yükseltildi · Seviye ${game.storageLevels.get(editedTile)} · ${game.storageCapacity(editedTile)} kapasite`)}};
 get('[data-tile-left]').onclick=()=>world.rotateSelection(-1);
 get('[data-tile-right]').onclick=()=>world.rotateSelection(1);
 get('[data-tile-close]').onclick=()=>world.editTile(-1);
 get('[data-tile-delete]').onclick=()=>{
   const id=editedTile;if(world.placing||!game.remove(id))return;
-  locked=true;drag.cancel();select(null);world.demolish(game.board,id);render();toast('Yapı kaldırıldı · arsa yeniden kullanılabilir');
+  locked=true;drag.cancel();select(null);world.demolish(game.board,id);render();toast('Yerleşim kaldırıldı · kaynak iadesi yok');
   clearTimeout(settleTimer);settleTimer=window.setTimeout(settle,1500);
 };
 
@@ -147,7 +126,7 @@ const workIcons:Record<WorkCategory,string>={stone:'stone',wood:'wood',berry:'be
 get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<label class="work-row" data-work="${category}"><span>${icon(workIcons[category])}<b>${workNames[category]}</b><small></small><em></em></span><input type="range" min="0" max="100" value="${game.priorities[category]}" aria-label="${workNames[category]} iş önceliği" data-priority="${category}"></label>`).join('');
 function renderWork(){
   const counts=world.villagers.assignedCounts(),targets=game.workTargets();
-  get('#population-badge').textContent=String(game.people);get('#work-summary').textContent=`${world.villagers.working} çalışıyor · ${Math.max(0,game.people-world.villagers.working)} boşta${game.reserveSeconds<60?' · Sofra az: yiyeceğe öncelik':''}`;
+  get('#population-badge').textContent=String(game.people);get('#work-summary').textContent=`${world.villagers.working} çalışıyor · ${Math.max(0,game.people-world.villagers.working)} boşta`;
   for(const category of WORK_CATEGORIES){
     const row=get(`[data-work="${category}"]`),input=row.querySelector<HTMLInputElement>('input')!;
     if(document.activeElement!==input)input.value=String(game.priorities[category]);
@@ -162,7 +141,7 @@ get('[data-work-close]').onclick=()=>{get('#work-panel').hidden=true;get('#popul
 get('[data-work-balance]').onclick=()=>{game.priorities={wood:20,stone:20,berry:20,farm:20,fish:20};world.villagers.rebalance();renderWork()};
 app.querySelectorAll<HTMLInputElement>('[data-priority]').forEach(input=>input.oninput=()=>{game.setPriority(input.dataset.priority as WorkCategory,Number(input.value));world.villagers.rebalance();renderWork()});
 function renderFood(){
-  const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${icon(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>Her sakin 2 / dk tüketir · Stok ${formatTime(game.reserveSeconds)} yeter</em><em>${game.elapsed<30?'Teslimatlar ölçülüyor':`Son dakika: +${Math.round(game.foodIncome)} üretim / −${game.foodPerMinute} tüketim`}</em>`;
+  const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${icon(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>−${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
 }
 function showFood(){
   const panel=get('#food-details'),rect=get('[data-resource="food"]').getBoundingClientRect();renderFood();panel.hidden=false;
@@ -178,50 +157,6 @@ function animateCounter(id:string,target:number){
   const tick=(now:number)=>{const t=Math.min(1,(now-start)/550);state.value=from+(target-from)*(1-(1-t)**3);el.textContent=String(Math.round(state.value));if(t<1)state.frame=requestAnimationFrame(tick);else{el.textContent=String(target);window.setTimeout(()=>{if(state.target===target)delete el.dataset.change},500)}};
   state.frame=requestAnimationFrame(tick);
 }
-function formatTime(seconds:number){return seconds<60?`${seconds} sn`:`${Math.floor(seconds/60)} dk ${seconds%60} sn`}
-let tradeRenderKey='',lastStageAt=0;
-function renderEconomy(){
-  const hunger=Math.round((1-game.workPace)*100),pulse=get('#village-pulse');pulse.dataset.state=game.foodState;
-  get('#pantry-state').textContent=game.food===0?'Sofra boş · yiyecek üretimine öncelik ver':`Sofra ${game.foodState==='low'||game.foodState==='watch'?'azalıyor':'hazır'} · ${formatTime(game.reserveSeconds)} erzak`;
-  get('#pantry-rate').textContent=hunger>0?`Açlık: çalışma %${100-hunger} · yiyecekle toparlanır`:game.elapsed<30?'Her sakin 2 yiyecek / dk tüketir':`+${Math.round(game.foodIncome)} üretim / −${game.foodPerMinute} tüketim · Denge ${game.foodNet>=0?'+':''}${Math.round(game.foodNet)} / dk`;
-  const relief=get<HTMLButtonElement>('#relief-food'),reliefCard=cards.find(c=>c.id==='harvest')!;
-  relief.hidden=game.reserveSeconds>=60;relief.disabled=!!game.cardReason(reliefCard);relief.title=game.cardReason(reliefCard)||'Bir defada en fazla 12 yiyecek; 5 refah harcar. 90 saniyede yenilenir.';
-  relief.textContent=game.elapsed<game.reliefReadyAt?`Acil hasat · ${Math.ceil(game.reliefReadyAt-game.elapsed)} sn`:'Acil hasat +12 · −5 refah';
-  get('#trade-count').textContent=`${game.tradeCompleted} sefer`;
-  const order=game.order,needs=Object.entries(order.needs) as [Cargo,number][];
-  const key=JSON.stringify([game.tradeCompleted,game.tradeRewardPending,needs.map(([c,n])=>Math.min(n,game.cargoAmount(c))),game.tradeReason]);
-  if(key===tradeRenderKey)return;tradeRenderKey=key;
-  const content=get('#trade-content');
-  if(game.tradeRewardPending){
-    content.innerHTML=`<small class="trade-eyebrow">SEFER TAMAMLANDI · +4 REFAH</small><h3>Büyümenin yönünü seç</h3><p>Yeni bir yer mi açacaksın, elindekini mi güçlendireceksin?</p><div class="development-choices"><button data-development="land">${icon('land')}<strong>Yeni arsa</strong><span>Kıyıdan 1 boş altıgen aç</span></button><button data-development="upgrade">${icon('upgrade')}<strong>Ustalık hakkı</strong><span>Bir yapıyı yükselt · kaynak bedeli var</span></button></div>`;
-    return;
-  }
-  content.innerHTML=`<small class="trade-eyebrow">SİPARİŞ ${game.tradeCompleted+1} · SÜRE SINIRI YOK</small><h3>${order.title}</h3><p>${order.message}</p><div class="trade-cargo">${needs.map(([cargo,amount])=>{const have=game.cargoAmount(cargo);return `<div class="cargo-row ${have>=amount?'ready':''}"><span>${icon(cargo)} ${cargoNames[cargo]}</span><b>${Math.min(have,amount)} / ${amount}</b><progress value="${Math.min(have,amount)}" max="${amount}" aria-label="${cargoNames[cargo]} sipariş ilerlemesi"></progress></div>`}).join('')}</div><button id="ship-order" ${game.tradeReason?'disabled':''}>${icon('trade')} Ürünleri gönder</button><small class="trade-note">${game.tradeReason||'Hazır · gönderim stoğundan düşer'}</small><div class="trade-prize">${icon('crest')} Ödül: yeni arsa veya yükseltme hakkı</div>`;
-}
-get('#relief-food').onclick=()=>{const amount=game.emergencyHarvest();if(amount){world.burst(CENTER);sound.play('reward');toast(`Acil hasat · +${amount} yiyecek · −5 refah`);renderHud()}};
-get('#trade-content').onclick=event=>{
-  const button=(event.target as Element).closest<HTMLButtonElement>('button');if(!button||button.disabled||locked||dialog.open)return;
-  if(button.id==='ship-order'&&game.shipTrade()){
-    drag.cancel();select(null);world.burst(CENTER);sound.play('bonus');toast('Sefer tamamlandı · yeni arsa veya yükseltme seç');render();
-  }else if((button.dataset.development==='land'||button.dataset.development==='upgrade')&&game.chooseDevelopment(button.dataset.development)){
-    drag.cancel();select(null);sound.play('lift');toast(button.dataset.development==='land'?'Genişleme hakkı kazandın · Yeni arsa aç düğmesine bas':'Ustalık hakkı kazandın · yükseltmek için bir yapıya tıkla');render();
-  }
-};
-function renderVillage(){
-  get('#village-title').textContent=game.stage.name;
-  if(game.stage.at!==lastStageAt){lastStageAt=game.stage.at;get('#village-panel').animate([{boxShadow:'0 0 0 0 #ead9a5aa'},{boxShadow:'0 0 0 12px #ead9a500'}],{duration:1200});world.markVillageStage(game.stage.at)}
-  const next=game.nextStage;get('#village-stage').textContent=next?`${next.name} · ${game.tradeCompleted} / ${next.at} sefer · ${next.perk}`:'Koy gelişiyor · yeni seferler ve planlar';
-  get('#land-budget').textContent=`${game.emptyLand} boş arsa · ${game.board.size} toplam toprak`;
-  const expand=get<HTMLButtonElement>('#expand-land');expand.innerHTML=`${icon('land')} ${game.tradeCompleted===0&&game.landPermits?'Başlangıç arsası aç':'Yeni arsa aç'} · ${game.landPermits} hak`;expand.disabled=game.landPermits<1||locked;expand.title=game.landPermits?'Kıyıdaki bir altıgeni seç':'Ticaret ödülünde yeni arsa seç';
-  get('#arrival-capacity').textContent=`${game.people} sakin / ${game.housingCapacity} yatak`;
-  get('#arrival-time').textContent=game.arrivalReason?'Göç bekliyor':`${Math.ceil(55-game.arrivalProgress)} sn`;
-  get<HTMLProgressElement>('#arrival-progress').value=game.arrivalProgress;
-  get('#arrival-note').textContent=game.arrivalReason||'Sofra hazır, refah iyi · yeni bir sakin yolda';
-  get('#upgrade-budget').textContent=`${game.upgradePermits} ustalık hakkı · yükseltmek için yapıya tıkla`;
-  const refresh=get<HTMLButtonElement>('#plans-refresh');refresh.disabled=locked||game.elapsed<game.planReadyAt;refresh.textContent=game.elapsed<game.planReadyAt?`Yeni planlar · ${Math.ceil(game.planReadyAt-game.elapsed)} sn`:'Yeni planlar ↻';
-}
-get('#expand-land').onclick=()=>{if(!locked&&game.landPermits>0){drag.cancel();select(landPlan);toast('Kıyıdaki işaretli bir altıgeni seç')}};
-get('#plans-refresh').onclick=()=>{if(!locked&&game.refreshPlans()){drag.cancel();select(null);sound.play('turn');render();toast('Yeni yapı planları hazır')}};
 function renderHud(){
   const stats=get('#stats');
   if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
@@ -230,15 +165,15 @@ function renderHud(){
   get('[data-resource="people"]').onclick=toggleWork;
   for(const id of ['wood','stone','food','people','happy'] as const){
     animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
-    get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?(game.happy<65?'Göç için 65 gerekli':'Göçe uygun'):id==='food'?`${game.reserveSeconds<60?'Stok az · ':''}−${game.foodPerMinute}/dk`:'Depoda';
+    get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':id==='food'?`−${game.foodPerMinute}/dk`:'Depoda';
   }
-  hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c);b.title=c?game.cardReason(c):''});
-  renderWork();renderStorage();renderEconomy();renderVillage();const events=game.takeTownEvents();if(events.length){toast(events[events.length-1]);sound.play('reward')}if(!get('#food-details').hidden)renderFood();
+  hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
+  renderWork();renderStorage();if(!get('#food-details').hidden)renderFood();
 }
 function render(){
   renderHud();
   hand.innerHTML=game.hand.map((c,i)=>`<button class="card tone-${c.id}" data-card="${i}" aria-pressed="false" ${!affordable(c)?'disabled':''}>
-    <span class="cost" title="${costLabel(c)}">${costMarkup(c)}</span><span class="type">${c.event?'ANLIK':c.workers?'ÜRETİM':'YERLEŞİM'}</span>
+    <span class="cost" title="${c.cost} odun">${icon('wood')}${c.cost}</span><span class="type">${c.event?'ANLIK':c.workers?'ÜRETİM':'YERLEŞİM'}</span>
     <img src="${thumbs[c.id]}" alt="" draggable="false"><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>
   </button>`).join('');
 }
@@ -258,16 +193,14 @@ world.onInspect=(id,x,y,bounds)=>{
   if(id<0||!bounds||selected||dialog.open){tooltip.hidden=true;return}
   const kind=game.board.get(id),card=cards.find(c=>c.id===kind),product=game.productAt(id);
   const lines:string[]=[];
-  if(id===CENTER)lines.push(`${game.people} sakin · ${game.housingCapacity} toplam yatak`,'Merkez deposu',`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`);
-  else if(kind==='empty')lines.push('Mevcut toprağın · buraya yapı kartı bırak','Yeni yapı toprağı büyütmez');
-  else if(game.maturing.has(id))lines.push(`Fidanlar büyüyor · ${Math.ceil(game.maturing.get(id)!)} sn`,'Büyüyünce oduncular çalışır');
+  if(id===CENTER)lines.push('Merkez deposu',`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`);
   else if(kind==='store')lines.push(`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapasiteyi yükselt');
-  else if(product){const haul=game.haulInfo(id);lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,`${haul.label}${haul.stats?` · yüklü yürüyüş ${Math.max(1,Math.round(haul.stats.walk))} sn`:''}`,haul.stats?`Bir teslimat ortalama ${Math.round(haul.stats.seconds)} sn`:'İlk teslimatta süre ölçülür',haul.distance>1?'Yakın depo, yürüyüşü kısaltır':'Kısa yol · daha sık teslimat');}
-  else if(kind==='house'||kind==='manor'){const count=game.residents.filter(r=>r.home===id).length;lines.push(`${count} / ${game.bedsAt(id)} yatak dolu`,`Tüketim: ${count*2} yiyecek / dk`,'Yeni sakin: 65 refah + 90 sn erzak');}
+  else if(product){lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,'Ürünler depoya taşınır');}
+  else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
-  const graphic=id===CENTER?'crest':({empty:'land',forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
-  tooltip.querySelector('strong')!.innerHTML=`${icon(graphic)}<span>${kind==='empty'?'Boş arsa':id===CENTER?'Krallık merkezi':card?.name??'Yerleşim'}</span>`;
+  const graphic=id===CENTER?'crest':({forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
+  tooltip.querySelector('strong')!.innerHTML=`${icon(graphic)}<span>${id===CENTER?'Krallık merkezi':card?.name??'Yerleşim'}</span>`;
   tooltip.querySelector('div')!.innerHTML=lines.map(line=>`<span>${line}</span>`).join('');tooltip.hidden=false;
   const width=tooltip.offsetWidth,height=tooltip.offsetHeight,pad=14;
   let left=x+26,top=y+22;
@@ -292,16 +225,15 @@ function modal(html:string) {
 function reset(){
   clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
   document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());get('#food-details').hidden=true;get('#work-panel').hidden=true;get('#population-toggle').setAttribute('aria-expanded','false');
-  drag.cancel();sound.cancel();sound.resetAmbience();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();tradeRenderKey='';lastStageAt=0;get<HTMLDetailsElement>('#trade-panel').open=true;selected=null;locked=false;
+  drag.cancel();sound.cancel();sound.resetAmbience();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();selected=null;locked=false;
   world.reset();world.sync(game.board);world.bindGame(game);select(null);render();
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
-get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Küçük yerden yaşayan köye</h1>
- <p><b>Kur → üret → ticaret yap → genişlet veya yükselt.</b> Tek merkez altıgeni ve bir sakinle başlarsın. İlk üç arsayı başlangıç genişleme haklarınla kıyıdan sen açarsın. Yapı kartları sadece mevcut boş arsaya yerleşir; toprak bedava büyümez. İlk işin orman, çilek ve taş üretimini kurmak.</p>
- <p>Odun temel malzemedir; evler, depolar ve gelişmiş yapılar taş da ister. Ev hazırlığı yiyecek harcar. Ücretsiz fidanlar 35 saniyede büyür. Elin uygun değilse Yeni planlar düğmesi 20 saniyede bir yeni seçenekler getirir.</p>
- <p>Evler yatak açar; anında çalışan vermez. En az 65 refah, 90 saniyelik erzak ve boş yatak varsa yaklaşık 55 saniyede bir yeni sakin gelir. Yetersiz koşullarda geliş durur. Sofra, yiyecek çeşitliliği ve bahçeler refahı destekler; açlık ve barınma eksikliği düşürür.</p>
- <p>Siparişlerin süre sınırı yoktur. Gönderilen ürünler stoktan düşer, köyün son 30 saniyelik yiyeceği gönderilemez. Her seferde yeni arsa veya ustalık hakkı seçersin. Yeni arsa hakkını kıyıda kullan; ustalık hakkıyla bir yapıya tıklayıp kaynak ödeyerek yükselt. Yapılar en fazla seviye 3 olur; son seviye 6 seferde Ticaret Limanı aşamasında açılır. 10 seferde merkez deposuna +80 kapasite gelir. Tarlalar aynı arsada daha fazla ürün, evler yeni yatak, depolar daha fazla kapasite sağlar.</p>
- <p>Her sakin 2 yiyecek / dk tüketir. Yüklü taşıma daha yavaştır; üretime yakın depo kur. Açlık çalışmayı en fazla %25 yavaşlatır; erzak gelince toparlanılır. Acil hasat 90 saniyede bir en fazla 12 yiyecek sağlar, 5 refah harcar. Bir yapıyı kaldırmak toprağı silmez; aynı arsayı yeniden kullanabilirsin.</p>
+get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
+ <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
+ <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
+ <p>Sağ alttaki Görevler panelinden odun, taş, çilek, buğday ve balık işlerinin önceliğini değiştirebilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
+ <p>Depoyu seçerek kapasitesini görebilir, odunla yükseltebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
  <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · ortala<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){drag.cancel();select(null)}});
 reset();

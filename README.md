@@ -6,47 +6,42 @@ Three.js, TypeScript ve Vite ile geliştirilmiş, gerçek zamanlı küçük ada 
 
 Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build -- --base=/Codex/`.
 
-## Kısıtlı topraktan yaşayan köye
+## Serbest oyun
 
-**Kur → üret → ticaret yap → yeni arsa aç veya elindekini yükselt.** Başlangıçta yalnızca bir merkez altıgeni ve bir sakin bulunur. İlk üretimlerin kurulabilmesi için üç ücretsiz genişleme hakkı verilir; arsalar adaya otomatik eklenmez, sağdaki Başlangıç arsası aç düğmesiyle kıyıdan seçilir. Yapı kartı sadece mevcut boş arsaya yerleşir, yeni toprak vermez. Orman, çilek ve taş üretimi başlangıç ekonomisini oluşturur. Bir yapı kaldırılınca arsa kalır; kaynak iadesi olmaz. Uygun kart gelmezse Yeni planlar düğmesi 20 saniyede bir eli yeniler. Eksik temel üretim kartları çekilişte korunur.
+Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Her ev iki, büyük ev dört yeni sakin getirir. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini uygun depoya taşır. Kaynaklar sadece teslimatta eklenir. Her sakin dakikada 2 yiyecek tüketir. Çilek, buğday ve balık ayrı stoklanır; toplam ve tüketim HUD’da, döküm ise yiyeceğin üzerine gelince görünür. Yiyecek yoksa refah yavaşça azalır; oyun sona ermez.
 
-Odun, taş ve yiyecek farklı amaçlara sahiptir. Orman ücretsizdir ama fidanlar 35 saniye büyümeden çalışılamaz. Ev 8 odun, 2 taş ve 4 hazırlık yiyeceği; depo 8 odun ve 4 taş ister. Çiftlik, balıkçı, oduncu kulübesi, bahçe ve büyük ev de taş gerektirir. Bedeller kartın üzerinde ayrı ikonlarla gösterilir.
+Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebilir. Merkez deposu 80, yeni depolar 60 ürün alır; depo panelinden odunla yükseltmek kapasiteyi aynı miktarda artırır. Dolu depoya giden sakin başka uygun depo arar; dolu deponun üzerinde hareketli bir uyarı görünür. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Ağaçlar, taş damarları, çilekler, buğday ve çiçekler 30 saniyede yenilenir; küçük halkalar kalan süreyi gösterir. Hasatta ürünler kademeli azalır. Balıkçı iskelesi açık denize yönelir; son su komşusu yapı ile kapatılamaz. Balıkçılar kıyıdaki iskelelerinden olta atar; yakalanan balık teslimatta stoğa eklenir.
 
-## Nüfus ve refah
+Taş Ocağı kartında köylüler kazmayla çalışır; vuruşlarda kaya sallanır, küçük kıvılcım ve taş parçaları çıkar. Ağaç kesimi 6, taş çıkarma 6,8 saniye sürer. Taş, odun ve yiyecekle birlikte HUD’da ve depolarda ayrı stoklanır. Kaynak sayaçları yumuşak geçişlerle değişir; artış yeşil, azalış kırmızı görünür.
 
-Ev anında çalışan vermez; iki yatak açar. Büyük ev dört, başlangıç merkezi üç yatak sağlar. Boş yatak, en az 65 refah ve 90 saniyelik yiyecek varsa 55 saniyede bir yeni sakin gelir. Koşullar bozulunca geliş ilerlemesi yavaşça azalır. Sağdaki gelişim paneli engeli veya kalan süreyi gösterir.
+Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction` animasyonuyla kıyıda uçar; model ve lisans bilgileri [model künyesinde](public/models/CREDITS.txt) bulunur. balıklar ara sıra sudan kavis çizerek atlar. Balıkçı iskelesi açık denize otomatik yönelir ve köylü iskelenin ucunda çalışır; R ile başka bir açık su yönü seçilebilir.
 
-Her sakin 2 yiyecek / dk tüketir. Erzak rezervi, yiyecek çeşitliliği ve bahçeler refahın sürdürülebilir seviyesini yükseltir; açlık ve barınma eksikliği düşürür. Refah para olarak harcanmaz. Açlık ayrıca çalışmayı ve yürüyüşü en fazla %25 yavaşlatır; erzak gelince toparlanılır. Sofra satırı stokun ne kadar yeteceğini ve son teslimatlardan hesaplanan üretim/tüketim temposunu gösterir. Stok bir dakikanın altındaysa bir çalışan yiyeceğe ayrılır; yiyecek önceliklerini tamamen sıfırlamak bu yardımı kapatır. Acil Hasat en fazla 12 yiyecek verir, 5 refah harcar ve kartla ortak 90 saniye bekleme süresine sahiptir; depo kapasitesini aşmaz.
+## İş öncelikleri
 
-## Ticaret, arsalar ve ustalık
-
-Siparişlerin süre sınırı yoktur. İlk sefer 24 odun ve 12 çilek ister; ardından buğday, taş ve balık devreye girer. Gönderilen ürünler toplamdan ve gerçek depolardan düşer. Köyün son 30 saniyelik yiyeceği gönderilemez. Her sefer +4 refah verir; oyuncu **bir yeni arsa hakkı** veya **bir ustalık hakkı** seçer. Genişleme hakkı sağdaki düğmeyle seçilen kıyı altıgeninde kullanılır. Balıkçının son açık kıyısı kapatılamaz.
-
-Bir yapıya tıklayıp ustalık hakkı ve malzeme harcayarak aynı arsayı geliştirebilirsin. Seviye 1 → 2, 6 odun ve 2 taş; seviye 2 → 3, 12 odun ve 4 taş ister. Seviye üst sınırı 3'tür; son seviye Ticaret Limanı aşamasında, 6 seferden sonra açılır. Üretim yapıları her seviyede teslimata +2 ürün, bahçeler +1 refah, oduncu kulübeleri komşu ormanlara +2 odun verir. Evler +1, büyük evler +2 yatak açar; depolar +60, merkez +80 kapasite kazanır. Yükseltmeler yapı üzerinde seviye işaretleriyle görünür.
-
-Çiftlik ve balıkçı ilk, büyük ev üçüncü seferden sonra kart havuzuna açılır; taş ocağı başlangıçtan itibaren vardır. Köy 3, 6, 10 ve 16 seferde Kıyı Köyü, Ticaret Limanı, Küçük Kasaba ve Canlı Koy aşamalarına geçer. Ticaret Limanı son yükseltme seviyesini açar; Küçük Kasaba merkeze +80 depo kapasitesi verir, Canlı Koy ustalık rozeti kazanır. Sonraki siparişlerin miktarları büyür; final veya beş dakikalık oyun sonu yoktur.
-
-## Üretim ve taşıma
-
-Kaynaklar yalnızca teslimatta eklenir. Çilek, buğday ve balık ayrı stoklanır. Depolarda kapsama yarıçapı yoktur; yüklü yürüyüş hızı normalin %78'idir, uzun yol gerçekten daha seyrek teslimat demektir. İş seçiminde kaynağa ve depoya mesafe dikkate alınır. Altıgenin bilgi paneli ölçülen yüklü yürüyüş ve toplam teslimat süresini gösterir. Yakına depo kurmak, yeni üretim yapısı eklemeye alternatif bir iyileştirmedir.
-
-Merkez deposu 80, yeni depo 60 ürünle başlar. Dolu depoya giden sakin başka uygun depo arar. Ağaçlar, taşlar ve ürünler 30 saniyede yenilenir. Kesilen ağaç devrilir; toz, sekme ve sürtünme ile yere oturan kütükleri çalışan eğilerek toplar. Elde taşınan kaynaklar ayrı modellerle görünür. Taşta iki elli dikey kazma, dökülen parçalar ve toz; buğdayda taneler ve kılçıklar bulunur. Çimler modellerden ve kıyıdan uzak, rastgele yerlerde bağımsız salınır.
+Sağ alttaki Görevler panelinde odun, taş, çilek, buğday ve balık ağırlıklarını ayarlayın. Yüzdeler mevcut işlere göre çalışan hedeflerine dönüşür; taşıma halindeki sakinler teslimatlarını bitirir. Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur. Takılan sakinler alternatif rota ve depo girişleri arar. Başlarının üzerindeki Font Awesome ikonları toplama, taşıma, yemek, dinlenme ve dolu depo durumlarını gösterir. Yürürken hedef işin ikonu görünür; kamera uzaklaştığında baloncuklar küçülerek kaybolur.
 
 ## Kontroller
 
-- Kartı mevcut boş arsaya sürükle veya seçip arsaya tıkla.
-- Yeni arsa aç düğmesinden kıyıda genişleme yap; Esc ile vazgeç.
-- Yapıya tıklayarak döndür, yükselt veya kaldır. Merkez kaldırılamaz.
-- Sağ fareyle döndür, orta fare veya Shift + sağ fareyle kaydır.
-- Tekerlekle yakınlaş, H ile ortala. Seçili kart/yapıda tekerlek veya R döndürür; Shift + R ters yöndür.
-- Görevler panelinden odun, taş, çilek, buğday ve balık önceliklerini ayarla.
+- Kartları kıyıdaki boş altıgenlere sürükleyin.
+- Seçili kartı veya yapıyı tekerlek / R ile döndürün; Shift + R ters yöndür.
+- Sağ fareyle 360° döndürün, orta fare veya Shift + sağ fareyle kaydırın.
+- Tekerlekle yakınlaşın, H ile adayı ortalayın, Esc ile seçimi bırakın.
+- Mevcut altıgene tıklayarak döndürün veya yıkın. Merkez korunur; yıkım kaynak vermez.
+- Depoyu seçerek kapasitesini görün veya odunla yükseltin.
+- Altıgen bilgileri, zemini kapatmayacak şekilde farenin yanında gösterilir.
 
-Derleme yayın için alınır; oyun, tarayıcı, otomatik testler ve oynanış dengesi denemeleri proje tercihine göre kullanıcı tarafından yapılır.
+Sesler yerel örneklerden çalınır. Kaynaklar ve lisanslar: [ses künyesi](public/audio/CREDITS.txt).
 
-## Kıyı sesleri
+Bu geliştirme aşamasında oyun ve cihaz denemeleri kullanıcı tarafından yapılır.
 
-Mevcut iki kanallı dalga kaydı korunur, hafif stereo genişletme uygulanır. Kullanıcının sağladığı üç martı kaydı sırayla, aynı anda tek ses olacak şekilde çalınır. Çağrılar en fazla 5,5 saniye sürer; bitince 22–38 saniye ara verilir. Ses gerçek martı modelinin konumunu izler; kamera yönüyle stereo konumu, yakınlaştırmayla duyulan mesafesi değişir. Uzakta ses kısılır ve yumuşar. Martılar ve dalgalar Kıyı ambiyansı ayarından kontrol edilir; sekme gizlenince ses durur.
+İkonlar: [Font Awesome Free](https://fontawesome.com/), CC BY 4.0 / MIT. Lisanslar: [ikonlar](public/licenses/fontawesome-icons.txt), [SVG çekirdeği](public/licenses/fontawesome-core.txt).
 
-## Kaynaklar
+Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele dağıtılmasıyla oluşur. Kesilen ağaç devrilir, toz bulutu çıkarır ve kütükler yerçekimi, sekme, sürtünme ve birbirleriyle temasla yere yerleşir. Çalışan kütüklere yürür, eğilerek alır ve depoya taşır. Elde taşınan balık, çilek, buğday, taş ve odun ayrı modellerle görünür. Çimenler kökleri sabit kalacak şekilde farklı fazlarda rüzgârda salınır. Taşların çarpışma alanları gerçek konumlarını izler; kazma iki elle baş üstünden savrulur ve parçalar yere düşüp seker. Depo yükseltmesi kapasite önizlemesi, seviye işaretleri, sandıklar ve bildirimle gösterilir.
 
-Sesler: [ses künyesi](public/audio/CREDITS.txt). Martı: kullanıcı tarafından sağlanan rigli GLB ve `ArmatureAction` animasyonu, [model künyesi](public/models/CREDITS.txt). İkonlar: [Font Awesome Free](https://fontawesome.com/), [ikon lisansı](public/licenses/fontawesome-icons.txt), [SVG çekirdeği](public/licenses/fontawesome-core.txt).
+Çimenlerde beyaz çiçek/taş süsleri bulunmaz; çimler altıgenin yeşil yüzeyine rastgele yayılır ve model sınırlarından uzak tutulur. Buğday başakları çift sıralı taneler, kılçıklar ve yapraklarla modellenir. Kazma başı dikey vuruş düzlemindedir; kırılma anında toz ve sekerek dökülen parçalar çıkar. Sağ tuşla kamera daha alçak ve daha yüksek açılara dönebilir; alt açı deniz ve model yüksekliğine göre sınırlandırılır.
+
+## Yerleştirme ve kıyı sesleri
+
+Tek merkez altıgeni ve bir sakinle başlanır. Ticaret siparişi, köy aşaması veya genişleme/yükseltme hakkı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
+
+Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).
