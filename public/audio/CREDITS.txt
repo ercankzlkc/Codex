@@ -1,0 +1,21 @@
+Living Kingdom — ses kaynakları
+
+Kenney Vleugels · Casino Audio 1.1
+https://kenney.nl/assets/casino-audio
+Orijinal Ogg dosyaları: card-slide-1/3, card-fan-1/2, card-place-1/3, card-shove-2, chip-lay-2, chips-stack-3.
+Lisans: Creative Commons Zero 1.0 (CC0). Paket beyanı: Kenney-Casino-License.txt.
+
+Kenney · Impact Sounds 1.0
+https://kenney.nl/assets/impact-sounds
+Orijinal Ogg dosyaları: footstep_grass_001/003, impactWood_light_000/003, impactSoft_medium_002.
+Lisans: Creative Commons Zero 1.0 (CC0). Paket beyanı: Kenney-Impact-License.txt.
+
+RandomMind · Sea and river wave sounds
+https://opengameart.org/content/sea-and-river-wave-sounds
+VistulaShort.mp3, yayıncının Vistül Nehri'nde kaydettiği dalga sesi. Bu pakette dosyanın adı shore.mp3 olarak değiştirildi.
+Kaynak dosya: https://opengameart.org/sites/default/files/VistulaShort.mp3
+Yayıncının eser sayfasındaki lisans: CC0.
+
+CC0 1.0, ticari amaçla kullanımı, düzenlemeyi ve dağıtımı kapsar.
+https://creativecommons.org/publicdomain/zero/1.0/
+Sesler oyuna yerel dosyalar olarak dahildir. Kısa efektlerde oynatma hızı ve seviye hafifçe değişir.
