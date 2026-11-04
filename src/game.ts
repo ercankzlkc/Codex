@@ -138,6 +138,12 @@ export class Game {
   private addFood(kind:FoodKind,amount:number){
     for(const [id,stock] of this.storageStocks){const take=Math.min(amount,this.storageFree(id));stock[kind]+=take;this.foods[kind]+=take;amount-=take;if(!amount)break}
   }
+  grantResources(amount=1000){
+    const stock=this.storageStocks.get(CENTER)!;
+    this.wood+=amount;this.stone+=amount;this.gold+=amount;stock.wood+=amount;stock.stone+=amount;
+    for(const food of ['berry','wheat','fish'] as const){this.foods[food]+=amount;stock[food]+=amount}
+    this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.ceil(this.storageUsed(CENTER)/80)));
+  }
   takeMeals(){const events=this.meals;this.meals=[];return events}
   wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>(kind==='fisher'||kind==='harbor')&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
   get food(){return this.foods.berry+this.foods.wheat+this.foods.fish}

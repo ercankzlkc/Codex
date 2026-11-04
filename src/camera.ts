@@ -204,7 +204,7 @@ export class CameraController {
   private onContextMenu = (event: MouseEvent): void => event.preventDefault();
   private onBlur = (): void => this.releasePointer();
   private onKeyDown = (event: KeyboardEvent): void => {
-    if (event.key.toLowerCase() !== 'h' || event.ctrlKey || event.altKey || event.metaKey || this.placement) return;
+    if (event.key.toLowerCase() !== 'home' || event.ctrlKey || event.altKey || event.metaKey || this.placement) return;
     if (document.querySelector('dialog[open]') || event.target instanceof HTMLElement && (event.target.isContentEditable || event.target.closest('input, textarea, select'))) return;
     this.reset();
   };

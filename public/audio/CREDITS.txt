@@ -9,6 +9,7 @@ Kenney · Impact Sounds 1.0
 https://kenney.nl/assets/impact-sounds
 Orijinal Ogg dosyaları: footstep_grass_001/003, impactWood_light_000/003, impactSoft_medium_002.
 Lisans: Creative Commons Zero 1.0 (CC0). Paket beyanı: Kenney-Impact-License.txt.
+Çit parçası kurulurken impactWood_light_000/003 kayıtları düşük seviyede ve hafif değişen oynatma hızıyla kullanılır; her parça için kısa, yumuşak ahşap vuruşu verir.
 
 RandomMind · Sea and river wave sounds
 https://opengameart.org/content/sea-and-river-wave-sounds

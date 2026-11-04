@@ -21,6 +21,8 @@ export class Environment {
   private atmosphere:Atmosphere;
   private wildlife:Wildlife;
   private last=0;
+  private nextFenceAt=0;
+  onFenceBuild:()=>void=()=>{};
   private sinking=new Map<number,number>();
   private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
@@ -88,8 +90,8 @@ export class Environment {
       tile.root.scale.set(.35+.65*progress,1,.35+.65*progress);
     }
     const fencesReady=this.sinking.size===0&&[...this.land.values()].every(tile=>tile.age>=BUILD_END);
-    let fenceOrder=0;
-    for(const tile of this.land.values()){const count=tile.fence.pendingCount;tile.fence.update(dt,fencesReady,fenceOrder*.12);fenceOrder+=count}
+    const scheduleFence=()=>{const start=Math.max(time,this.nextFenceAt);this.nextFenceAt=start+.5;return start-time};
+    for(const tile of this.land.values())tile.fence.update(dt,fencesReady,scheduleFence,()=>this.onFenceBuild());
     for(const [id,age] of this.sinking){
       const next=age+dt;this.sinking.set(id,next);
       const tile=this.land.get(id),progress=easeBetween(next,SINK_START,SINK_END);
@@ -109,5 +111,5 @@ export class Environment {
     }
   }
 
-  reset(){this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
+  reset(){this.nextFenceAt=0;this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
 }

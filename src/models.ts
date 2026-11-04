@@ -67,7 +67,6 @@ export function resourceModel(kind:string){
   resourceTemplates.set(kind,g);return g.clone();
 }
 
-function fence(p:T.Group,z:number){for(let x=-.45;x<=.46;x+=.3)box(p,0xbca57a,x,.17,z,.045,.34,.045);for(let y=.13;y<.3;y+=.13)box(p,0xcdb68c,0,y,z,.95,.035,.035)}
 function beam(p:T.Group,color:number,a:T.Vector3,b:T.Vector3,width=.025){
   const delta=b.clone().sub(a),m=box(p,color,(a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2,width,delta.length(),width);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());return m;
 }
@@ -128,7 +127,7 @@ function house(p:T.Group,big=false,lumber=false,store=false){
   else if(lumber){for(let j=0;j<5;j++){const log=resourceModel('wood');log.position.set(.36,.02+Math.floor(j/2)*.07,-.17+(j%2)*.13);log.scale.setScalar(.7);p.add(log)}}
   else{const planter=new T.Group();planter.position.set(-.26,0,.42);box(planter,0x92714e,0,.11,0,.19,.12,.095);for(let j=0;j<3;j++){const leaf=ball(planter,0x739458,(j-1)*.05,.195,0,.049);leaf.scale.y=.65;ball(planter,j%2?0xdab677:0xc98268,(j-1)*.05,.225,.006,.018)}p.add(planter)}
 }
-function createModel(kind:Kind){let p=new T.Group();if(kind==='forest'){tree(p,-.23,-.2,0,.88);tree(p,.23,-.03,1,.79);tree(p,-.08,.27,2,.7)}else if(kind==='house'||kind==='manor'||kind==='lumber'||kind==='store')house(p,kind==='manor',kind==='lumber',kind==='store');else if(kind==='berry'||kind==='farm'){for(let z of [-.3,0,.3]){box(p,0x816044,0,.035,z,.9,.065,.18);for(let x=-.34;x<.4;x+=.17){if(kind==='berry'){ball(p,0x5f894c,x,.15,z,.12);for(let k=0;k<2;k++)ball(p,0xc25b50,x+(k-.5)*.07,.24,z,.037)}else{for(let k=0;k<3;k++){let a=x+(k-1)*.035;box(p,0xb49d50,a,.2,z,.014,.35,.014);part(p,new T.ConeGeometry(.035,.14,4),0xe6c776,a,.4,z)}}}}fence(p,-.49);if(kind==='farm'){box(p,0xa28b52,.4,.2,.4,.12,.4,.1);box(p,0xd8c596,.4,.35,.4,.34,.12,.1)}}else if(kind==='garden'){part(p,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(p,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(p,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(p,0xced2b5,0,.42,0,.09);for(let j=0;j<8;j++){let a=j/8*Math.PI*2;ball(p,0x678952,Math.cos(a)*.4,.12,Math.sin(a)*.4,.13);ball(p,j%2?0xdfae86:0xe8d7aa,Math.cos(a)*.4,.24,Math.sin(a)*.4,.055)}}else if(kind==='festival'){for(let x of [-.35,.35])box(p,0x8b6748,x,.4,0,.04,.8,.04);box(p,0xd8ba70,0,.73,0,.75,.035,.035);for(let j=0;j<5;j++)part(p,new T.ConeGeometry(.08,.18,3),j%2?0xa86155:0xe4c77a,-.28+j*.14,.64,0)}else{for(let j=0;j<3;j++){ball(p,0xc6a76d,(j-1)*.2,.18,0,.2);box(p,0x7c8d51,(j-1)*.2,.36,0,.04,.15,.04)}}return p}
+function createModel(kind:Kind){let p=new T.Group();if(kind==='forest'){tree(p,-.23,-.2,0,.88);tree(p,.23,-.03,1,.79);tree(p,-.08,.27,2,.7)}else if(kind==='house'||kind==='manor'||kind==='lumber'||kind==='store')house(p,kind==='manor',kind==='lumber',kind==='store');else if(kind==='berry'||kind==='farm'){for(let z of [-.3,0,.3]){box(p,0x816044,0,.035,z,.9,.065,.18);for(let x=-.34;x<.4;x+=.17){if(kind==='berry'){ball(p,0x5f894c,x,.15,z,.12);for(let k=0;k<2;k++)ball(p,0xc25b50,x+(k-.5)*.07,.24,z,.037)}else{for(let k=0;k<3;k++){let a=x+(k-1)*.035;box(p,0xb49d50,a,.2,z,.014,.35,.014);part(p,new T.ConeGeometry(.035,.14,4),0xe6c776,a,.4,z)}}}}if(kind==='farm'){box(p,0xa28b52,.4,.2,.4,.12,.4,.1);box(p,0xd8c596,.4,.35,.4,.34,.12,.1)}}else if(kind==='garden'){part(p,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(p,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(p,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(p,0xced2b5,0,.42,0,.09);for(let j=0;j<8;j++){let a=j/8*Math.PI*2;ball(p,0x678952,Math.cos(a)*.4,.12,Math.sin(a)*.4,.13);ball(p,j%2?0xdfae86:0xe8d7aa,Math.cos(a)*.4,.24,Math.sin(a)*.4,.055)}}else if(kind==='festival'){for(let x of [-.35,.35])box(p,0x8b6748,x,.4,0,.04,.8,.04);box(p,0xd8ba70,0,.73,0,.75,.035,.035);for(let j=0;j<5;j++)part(p,new T.ConeGeometry(.08,.18,3),j%2?0xa86155:0xe4c77a,-.28+j*.14,.64,0)}else{for(let j=0;j<3;j++){ball(p,0xc6a76d,(j-1)*.2,.18,0,.2);box(p,0x7c8d51,(j-1)*.2,.36,0,.04,.15,.04)}}return p}
 
 
 // Bake a model once, merging meshes that share a material. Instances reuse GPU buffers.
@@ -145,7 +144,7 @@ function berryPlot(){
       plot.add(plant);
     }
   }
-  fence(plot,-.49);return plot;
+  return plot;
 }
 function wheatPlot(){
   const plot=new T.Group();let order=0;
@@ -157,7 +156,7 @@ function wheatPlot(){
       plot.add(plant);
     }
   }
-  fence(plot,-.49);return plot;
+  return plot;
 }
 function flowerGarden(){
   const g=new T.Group();part(g,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(g,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(g,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(g,0xced2b5,0,.42,0,.09);

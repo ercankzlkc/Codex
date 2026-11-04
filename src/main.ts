@@ -23,6 +23,7 @@ const world=new World(get('#world'));
 const thumbs=world.thumbnails();
 const sound=new TableSound();
 world.onSoundFrame=(camera,focus,birds)=>sound.updateSpatial(camera,focus,birds);
+world.onFenceBuild=()=>sound.play('fence');
 let game=new Game();
 let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
@@ -65,7 +66,7 @@ function commit(i:number) {
   const production=game.play(card,i);
   if(!production)return false;
   locked=true;
-  sound.sequence(card.id,preview.localBonus);select(null);world.sync(game.board,card.event?-1:i,rotation);
+  sound.play('hover',true);select(null);world.sync(game.board,card.event?-1:i,rotation);
   if(card.event)world.burst(i);
   render(true);
   toast(card.event?`${card.name} uygulandı`:`${card.name} · yerleşim hazırlanıyor`);
@@ -114,10 +115,10 @@ hand.addEventListener('pointerover',event=>{
 });
 const drag=new CardDrag(hand,{
   canStart:i=>!handBusy&&pendingPlacement===null&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
-  start:i=>{sound.play('lift');select(game.hand[i],true)},
+  start:i=>select(game.hand[i],true),
   move:(x,y)=>world.valid(dragPosition(x,y)),
   drop:(x,y)=>commit(dragPosition(x,y)),
-  cancel:()=>{sound.play('invalid');select(null)},
+  cancel:()=>select(null),
   tap:i=>{const c=game.hand[i];select(selected===c?null:c)},
 });
 const workNames:Record<WorkCategory,string>={stone:'Taş çıkarma',wood:'Odunculuk',berry:'Çilek toplama',farm:'Buğday hasadı',fish:'Balıkçılık',garden:'Bahçe bakımı'};
@@ -200,7 +201,7 @@ function cardFace(c:Card){
   return `<span class="card-top"><span class="costs">${costs.map(([key,n])=>`<span title="${n} ${resourceNames[key]}" aria-label="${n} ${resourceNames[key]}">${icon(key)}<b>${n}</b></span>`).join('')}</span><span class="type">${category}</span></span>
     <span class="card-art"><img src="${thumbs[c.id]}" alt="" draggable="false"></span><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>`;
 }
-function render(deal=false){
+function render(deal=false,withSound=false){
   renderHud();
   const key=game.hand.map(c=>c.id).join(',');
   if(!deal&&hand.dataset.cards===key)return;
@@ -209,27 +210,28 @@ function render(deal=false){
   if(!deal)return;
   const sequence=++handMotion;handBusy=true;hand.setAttribute('aria-busy','true');renderHud();
   const animations=Array.from(hand.querySelectorAll<HTMLElement>('.card')).map((card,i)=>{
+    if(withSound)window.setTimeout(()=>{if(sequence===handMotion)sound.play('hover',true)},i*200);
     const style=getComputedStyle(card),tilt=style.getPropertyValue('--tilt').trim()||'0deg',opacity=Number(style.opacity);
-    return card.animate([{opacity:0,transform:`translateY(65px) rotate(-6deg) scale(.92)`},{opacity,transform:`translateY(0) rotate(${tilt}) scale(1)`}],{duration:480,delay:i*85,easing:'cubic-bezier(.18,.8,.26,1)',fill:'backwards'}).finished.catch(()=>{});
+    return card.animate([{opacity:0,transform:`translateY(65px) rotate(-6deg) scale(.92)`},{opacity,transform:`translateY(0) rotate(${tilt}) scale(1)`}],{duration:480,delay:i*200,easing:'cubic-bezier(.18,.8,.26,1)',fill:'backwards'}).finished.catch(()=>{});
   });
   void Promise.all(animations).then(()=>{if(sequence===handMotion){handBusy=false;hand.setAttribute('aria-busy','false');renderHud()}});
 }
 async function refreshHand(){
   if(handBusy||dialog.open||locked||game.gold<REROLL_COST)return;
-  drag.cancel();select(null);const sequence=++handMotion;handBusy=true;hand.setAttribute('aria-busy','true');renderHud();sound.play('lift');
+  drag.cancel();select(null);const sequence=++handMotion;handBusy=true;hand.setAttribute('aria-busy','true');renderHud();
   await Promise.all(Array.from(hand.querySelectorAll<HTMLElement>('.card')).map((card,i)=>card.animate([{opacity:Number(getComputedStyle(card).opacity)},{opacity:0,transform:'translateY(30px) rotate(4deg) scale(.95)'}],{duration:180,delay:i*35,easing:'ease-in',fill:'forwards'}).finished.catch(()=>{})));
   if(sequence!==handMotion)return;
-  if(game.rerollHand())sound.play('reward');render(true);
+  if(game.rerollHand())render(true,true);else render(true);
 }
 
 function showMilestones(){
   if(dialog.open||!game.milestoneQueue.length)return;
   const m=game.milestoneQueue.shift()!;
   const unlocked=cards.filter(c=>c.unlock===m.population);
-  modal(`<small>YERLEŞİMİN GELİŞTİ · ${m.population} NÜFUS</small><h1>${m.name}</h1><p>${m.description}</p>
+  modal(`<div class="milestone-heading"><span class="milestone-seal">${icon('crest')}</span><small>YERLEŞİMİN GELİŞTİ · ${m.population} NÜFUS</small><h1>${m.name}</h1><p>${m.description}</p></div>
     <div class="milestone-reward">${icon('gold')} +${m.gold} altın <span>${m.population===60?'Liman kartı eline eklendi':'Hazinene eklendi'}</span></div>
-    ${unlocked.length?`<p class="unlock-caption">${m.population===60?'SANA HEDİYE':'KART HAVUZUNA EKLENDİ'}</p><div class="modal-cards">${unlocked.map(c=>`<article class="card tone-${c.id}">${cardFace(c)}</article>`).join('')}</div>`:'<p>Tüccar kapasitesi: ziyaret başına 40 ürün.</p>'}
-    <button data-close>Köye devam et</button>`,'milestone');
+    ${unlocked.length?`<p class="unlock-caption">${m.population===60?'SANA HEDİYE':'KART HAVUZUNA EKLENDİ'}</p><div class="modal-cards">${unlocked.map((c,i)=>`<article class="card tone-${c.id}" style="--unlock-delay:${180+i*180}ms">${cardFace(c)}</article>`).join('')}</div>`:'<p>Tüccar kapasitesi: ziyaret başına 40 ürün.</p>'}
+    <div class="milestone-actions"><button data-close>Devam Et</button></div>`,'milestone');
   sound.play('reward');
 }
 function openProgress(){
@@ -283,7 +285,17 @@ world.onInspect=(id,x,y,bounds)=>{
 };
 window.setInterval(()=>{renderHud();showMilestones()},200);
 dialog.addEventListener('close',()=>{game.paused=false;window.setTimeout(showMilestones,0)});
+let modalMotion=0;
+async function closeDialog(){
+  if(!dialog.open||dialog.classList.contains('closing'))return;
+  if(dialog.dataset.kind!=='milestone'){dialog.close();return}
+  const sequence=++modalMotion;dialog.classList.add('closing');
+  await dialog.animate([{opacity:1,transform:'translateY(0) scale(1)'},{opacity:0,transform:'translateY(18px) scale(.96)'}],{duration:260,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'}).finished.catch(()=>{});
+  if(sequence===modalMotion){dialog.close();dialog.classList.remove('closing');dialog.getAnimations().forEach(a=>a.cancel())}
+}
+dialog.addEventListener('cancel',e=>{if(dialog.dataset.kind==='milestone'){e.preventDefault();void closeDialog()}});
 function modal(html:string,kind='standard') {
+  modalMotion++;dialog.classList.remove('closing');dialog.getAnimations({subtree:true}).forEach(a=>a.cancel());
   closeWork();game.paused=true;dialog.dataset.kind=kind;
   drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
@@ -291,7 +303,7 @@ function modal(html:string,kind='standard') {
   dialog.querySelectorAll<HTMLInputElement>('input[data-level]').forEach(input=>{
     input.oninput=()=>sound.set(input.dataset.level as 'master'|'sfx'|'ambience',Number(input.value)/100);
   });
-  dialog.querySelector('[data-close]')?.addEventListener('click',()=>dialog.close());
+  dialog.querySelector('[data-close]')?.addEventListener('click',()=>{void closeDialog()});
   dialog.querySelector('[data-new]')?.addEventListener('click',()=>{dialog.close();reset()});
 }
 function reset(){
@@ -308,8 +320,10 @@ get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy<
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir. + bir köylüyü o işe geçirir, − boşta bırakır; boşta kimse yoksa + başka işten birini aktarır. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
  <p>Depoyu seçerek kapasitesini görebilir, odunla yükseltebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
- <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · ortala<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){closeWork();drag.cancel();select(null)}});
+ <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; Home · ortala &nbsp; H · kaynaklara +1.000<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
+document.addEventListener('keydown',e=>{
+  if(e.key.toLowerCase()==='h'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!dialog.open&&!(e.target instanceof Element&&e.target.closest('input,textarea,select,[contenteditable]'))){e.preventDefault();game.grantResources();renderHud();toast('Odun, taş, çilek, buğday, balık ve altın +1.000')}
+  if(e.key==='Escape'&&!dialog.open){closeWork();drag.cancel();select(null)}});
 reset();
 
 

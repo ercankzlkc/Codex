@@ -168,6 +168,7 @@ export class World {
     this.renderer.setAnimationLoop(this.frame);
   }
 
+  set onFenceBuild(callback:()=>void){this.environment.onFenceBuild=callback}
   bindGame(game:Game){this.game=game;this.villagers.reset(game)}
   private ready(id:number){return this.board.has(id)&&this.buildings.has(id)&&!this.builds.some(b=>b.id===id)&&!this.demolitions.some(d=>d.id===id)}
   private pickTree(id:number,preferred:number){

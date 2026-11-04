@@ -243,3 +243,31 @@ dialog[data-kind=milestone],dialog[data-kind=reroll],dialog[data-kind=progress],
 .card-exchange{position:static;transform:none;width:auto;min-width:180px;height:26px;padding:3px 14px;border:1px solid #aeb894;border-radius:999px;background:linear-gradient(#fff7df,#eae6c9);box-shadow:0 2px 5px #284e4426;filter:none}
 .card-exchange:hover:enabled{background:#fff8e4;border-color:#81996f;box-shadow:0 2px 7px #284e4433}
 .hand-label{min-height:26px;margin-bottom:9px}
+
+/* Milestones arrive as a quiet celebration, then leave through the same motion. */
+dialog[data-kind=milestone]{padding:27px 34px 24px;border:1px solid #c2b487;border-radius:18px;outline:3px solid #f8f0d4;box-shadow:0 24px 80px #23483f50;background:linear-gradient(145deg,#fcf6e5,#eee5ca)}
+dialog[open][data-kind=milestone]:not(.closing){animation:milestone-arrive .46s cubic-bezier(.18,.8,.23,1) both}
+dialog[data-kind=milestone]::backdrop{background:#233f425c;backdrop-filter:blur(5px);animation:milestone-backdrop-in .4s ease both}
+dialog[data-kind=milestone].closing::backdrop{animation:milestone-backdrop-out .26s ease forwards}
+.milestone-heading{text-align:center;padding:0 5px}
+.milestone-seal{display:grid;place-items:center;width:42px;height:42px;margin:0 auto 12px;border:1px solid #cebc86;border-radius:50%;background:#e9dbad55;color:#aa9159}
+.milestone-seal svg{width:22px;height:22px}
+.milestone-heading>small{font-size:9px;letter-spacing:1.4px;color:#8c8e72}
+.milestone-heading h1{font:500 30px/1.2 Georgia,serif;margin:10px 0;color:#395a43}
+.milestone-heading p{max-width:430px;margin:0 auto 18px;font-size:12px;color:#8a8b71}
+dialog[data-kind=milestone] .milestone-reward{padding:11px 14px;margin:0;border-color:#d9c590;background:#ead9a844;font-size:17px}
+dialog[data-kind=milestone] .modal-cards{padding-top:20px;padding-bottom:15px;gap:20px;perspective:900px}
+dialog[data-kind=milestone] .modal-cards .card{animation:milestone-card-arrive .65s cubic-bezier(.14,.85,.2,1) var(--unlock-delay,180ms) backwards;transform-origin:50% 90%}
+dialog[data-kind=milestone].closing .modal-cards .card{animation:milestone-card-leave .22s ease-in forwards}
+.milestone-actions{display:flex;justify-content:center;padding-top:8px}
+.milestone-actions button{min-width:148px;margin:0;padding:11px 25px;border:1px solid #79916a;border-radius:999px;background:#4c6a50;color:#fff5dd;font-size:13px;box-shadow:0 3px 8px #34503c1f;transition:background .15s,transform .15s}
+.milestone-actions button:hover{background:#3e5e44;transform:translateY(-1px)}
+@keyframes milestone-arrive{from{opacity:0;transform:translateY(28px) scale(.94)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes milestone-card-arrive{from{opacity:0;transform:translateY(45px) rotateX(20deg) rotate(-7deg) scale(.86)}to{opacity:1;transform:translateY(0) rotateX(0) rotate(0) scale(1)}}
+@keyframes milestone-card-leave{to{opacity:0;transform:translateY(14px) scale(.94)}}
+@keyframes milestone-backdrop-in{from{background:#233f4200;backdrop-filter:blur(0)}to{background:#233f425c;backdrop-filter:blur(5px)}}
+@keyframes milestone-backdrop-out{to{background:#233f4200;backdrop-filter:blur(0)}}
+dialog[data-kind=milestone] .milestone-seal{width:34px;height:34px;margin-bottom:8px}
+dialog[data-kind=milestone] .milestone-heading h1{font-size:28px;margin:8px 0}
+dialog[data-kind=milestone] .milestone-heading p{line-height:1.5;margin-bottom:14px}
+dialog[data-kind=milestone] .modal-cards .card{width:164px;height:232px}

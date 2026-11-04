@@ -5,6 +5,7 @@ import {LAND_Y} from './scenery';
 
 /** The same offset-line intersections as the land keep adjoining coast rails joined. */
 function fencePlan(id:number,board:ReadonlyMap<number,unknown>,openingYaw?:number){
+  if(board.get(id)==='berry'||board.get(id)==='farm')return [];
   const outer=adjacent(id).map(n=>!board.has(n)),apothem=RADIUS*Math.cos(Math.PI/6);
   const vertex=(k:number)=>{
     const a=((k+5)%6)*Math.PI/3,b=(k%6)*Math.PI/3;
@@ -68,19 +69,18 @@ export class ShoreFence {
     }
   }
   get pendingCount(){return this.pending.size}
-  update(dt:number,ready:boolean,baseDelay=0){
+  update(dt:number,ready:boolean,schedule:()=>number,onBuild:()=>void){
     if(ready){
-      let order=0;
       for(const [side,spec] of this.pending){
         if(this.retiring.some(panel=>panel.spec.side===side))continue;
         const mesh=new T.Mesh(spec.create(),timber);mesh.position.set(spec.midpoint.x,LAND_Y,spec.midpoint.z);mesh.visible=false;mesh.castShadow=true;mesh.receiveShadow=true;
-        const panel:Panel={mesh,spec,age:0,delay:baseDelay+order++*.12,removing:false,smoked:false,initialScale:1};this.root.add(mesh);this.panels.set(side,panel);this.pending.delete(side);
+        const panel:Panel={mesh,spec,age:0,delay:schedule(),removing:false,smoked:false,initialScale:1};this.root.add(mesh);this.panels.set(side,panel);this.pending.delete(side);
       }
     }
     for(const panel of [...this.panels.values(),...this.retiring]){
       panel.age+=dt;const age=panel.age-(panel.removing?0:panel.delay);
       if(age<0)continue;
-      if(!panel.smoked){this.dust(panel.spec);panel.smoked=true}
+      if(!panel.smoked){this.dust(panel.spec);panel.smoked=true;if(!panel.removing)onBuild()}
       const t=Math.min(1,age/(panel.removing ? .5 : .42));panel.mesh.visible=true;
       if(panel.removing){
         panel.mesh.rotation.x=Math.sin(panel.spec.side*Math.PI/3)*t*.55;panel.mesh.rotation.z=Math.cos(panel.spec.side*Math.PI/3)*t*.55;
