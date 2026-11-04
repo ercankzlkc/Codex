@@ -576,10 +576,10 @@ export class World {
     for(const [id,kind] of this.board)if(kind==='harbor'){
       const ship=this.buildings.get(id)?.getObjectByName('merchant');if(!ship||!this.game)continue;
       const t=this.game.tradeClock;
-      ship.visible=t<46;
-      const approach=t<6?1-t/6:t>40?(t-40)/6:0;
+      ship.visible=t<52;
+      const approach=t<6?1-t/6:t>46?(t-46)/6:0;
       ship.position.set(.68,(SEA_Y-LAND_Y)/BUILDING_SCALE+.025*Math.sin(this.time*1.5),1.14+approach*4);
-      ship.rotation.y=t>40?Math.PI:0;ship.rotation.z=Math.sin(this.time*1.2)*.035;
+      ship.rotation.y=t>46?Math.PI:0;ship.rotation.z=Math.sin(this.time*1.2)*.035;
     }
     this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}

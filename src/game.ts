@@ -82,9 +82,9 @@ export class Game {
   tradeClock=0;
   tradeSold=0;
   get harborId(){return [...this.board].find(([,kind])=>kind==='harbor')?.[0]}
-  get merchantPresent(){return this.harborId!==undefined&&this.tradeClock<40}
+  get merchantPresent(){return this.harborId!==undefined&&this.tradeClock>=6&&this.tradeClock<46}
   get tradeCapacity(){return this.reached.has(100)?40:20}
-  get merchantCountdown(){return Math.ceil(this.merchantPresent?40-this.tradeClock:120-this.tradeClock)}
+  get merchantCountdown(){return Math.ceil(this.merchantPresent?46-this.tradeClock:this.tradeClock<6?6-this.tradeClock:126-this.tradeClock)}
   get nextMilestone(){return MILESTONES.find(m=>!this.reached.has(m.population))}
   private unlockMilestones(){
     this.peakPopulation=Math.max(this.peakPopulation,this.people);
@@ -97,7 +97,8 @@ export class Game {
   canAfford(card:Card){return Object.entries(card.cost).every(([key,n])=>this[key as CostResource]>=n)}
   reroll(index:number){
     const old=this.hand[index];if(!old||old.id==='harbor'||this.gold<REROLL_COST)return false;
-    const pool=this.availableCards().filter(c=>c.id!==old.id&&!this.hand.includes(c));
+    const otherPlayable=this.hand.some((c,i)=>i!==index&&this.canAfford(c));
+    const pool=this.availableCards().filter(c=>c.id!==old.id&&!this.hand.includes(c)&&(otherPlayable||this.canAfford(c)));
     if(!pool.length)return false;this.gold-=REROLL_COST;this.hand[index]=pool[Math.floor(this.rng()*pool.length)];return true;
   }
   tradeStock(good:TradeGood){return good==='wood'||good==='stone'?this[good]:this.foods[good]}
