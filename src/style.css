@@ -297,3 +297,17 @@ dialog[data-kind=settings] .palette-option[aria-pressed=true]{border-color:var(-
 .palette-swatches i{width:14px;height:26px}
 .settings-section .settings-saved{font-size:11px;margin:12px 0 4px;color:var(--settings-accent)}
 .tools button:hover,.tools button:focus-visible{color:var(--settings-accent)}
+
+/* Palette colours cover the HUD and cards as well as the complete world canvas. */
+:root{--palette-accent:#355440;--palette-paper:#f3ecd6;--palette-image-filter:none}
+#stats,.kingdom-hud #stats,#work-panel,#tile-editor,#food-details,#tile-tooltip,dialog{
+  background:var(--palette-paper);color:var(--palette-accent);
+  border-color:color-mix(in srgb,var(--palette-accent) 35%,var(--palette-paper));
+}
+.card{background:linear-gradient(145deg,color-mix(in srgb,var(--palette-paper) 80%,white),var(--palette-paper));color:var(--palette-accent);border-color:var(--palette-accent)}
+.card:before{border-color:color-mix(in srgb,var(--palette-accent) 40%,transparent)}
+.card img{filter:var(--palette-image-filter) drop-shadow(0 3px 2px #74795924)}
+.tools button,.card-exchange{background:var(--palette-paper);color:var(--palette-accent)}
+.resource svg,.resource small,.resource em,.hand-label,.crest>div,.crest small,.run,#influence{color:var(--palette-accent)}
+#log,#placement,.crest>span,dialog button{background:var(--palette-accent);color:var(--palette-paper)}
+#work-panel header,#tile-editor strong,#work-panel strong,#tile-tooltip strong{color:var(--palette-accent)}
