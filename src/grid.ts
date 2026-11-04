@@ -21,13 +21,13 @@ export class PlacementGrid {
   private rimMat=new T.LineBasicMaterial({color:0xfcf6d8,transparent:true,opacity:.9,depthWrite:false});
   private fillGeo=new T.CircleGeometry(RADIUS*.94,6,Math.PI/2).rotateX(-Math.PI/2);
   private fillMat=new T.MeshBasicMaterial({color:0xc1e8bd,transparent:true,opacity:.16,depthWrite:false});
-  private hoverMat=new T.MeshBasicMaterial({color:0xb8e79b,transparent:true,opacity:.12,depthWrite:false});
+  private hoverMat=new T.MeshBasicMaterial({color:0xb8e79b,transparent:true,opacity:.48,depthWrite:false});
   private hover=new T.Mesh(this.fillGeo,this.hoverMat);
   constructor(scene:T.Scene){this.root.add(this.markers,this.hover);this.hover.visible=false;scene.add(this.root)}
   rebuild(board:ReadonlyMap<number,unknown>){
     this.occupied=new Set(board.keys());this.markers.clear();
     for(const id of frontier(board)){
-      const tile=new T.Group();tile.position.copy(cellPosition(id,LAND_Y+.008));tile.userData.id=id;
+      const tile=new T.Group();tile.position.copy(cellPosition(id,SEA_Y+.055));tile.userData.id=id;
       const fill=new T.Mesh(this.fillGeo,this.fillMat),line=new T.LineLoop(this.rim,this.rimMat);
       fill.renderOrder=4;line.renderOrder=5;tile.add(fill,line);this.markers.add(tile);
     }
@@ -38,7 +38,7 @@ export class PlacementGrid {
     this.plane.constant=-LAND_Y;
     if(!this.ray.ray.intersectPlane(this.plane,this.hit))return -1;
     const land=fromWorld(this.hit.x,this.hit.z);if(this.occupied.has(land))return land;
-    this.plane.constant=-(LAND_Y+.008);
+    this.plane.constant=-(SEA_Y+.055);
     return this.ray.ray.intersectPlane(this.plane,this.hit)?fromWorld(this.hit.x,this.hit.z):-1;
   }
   /** Snap near a free coast cell, using screen distance so low camera angles stay intuitive. */
@@ -59,7 +59,7 @@ export class PlacementGrid {
   }
   setHover(id:number,valid:boolean,selected:boolean){
     this.hover.visible=selected&&id>=0;if(!this.hover.visible)return;
-    this.hover.position.copy(cellPosition(id,this.occupied.has(id)?LAND_Y+.012:LAND_Y+.012));
+    this.hover.position.copy(cellPosition(id,this.occupied.has(id)?LAND_Y+.012:SEA_Y+.067));
     this.hover.renderOrder=6;this.hoverMat.color.setHex(valid?0xb3e995:0xdf9788);
   }
 }
