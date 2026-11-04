@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {PerformanceHud} from './performance-hud';
 import {SeasonCycle} from './seasons';
 import {icon} from './icons';
 import {SUN} from './lighting';
@@ -46,6 +47,7 @@ function villageHouse() {
 }
 
 export class World {
+  private readonly performanceHud=new PerformanceHud();
   readonly scene=new T.Scene();
   readonly renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
   readonly cameraControl:CameraController;
@@ -667,6 +669,7 @@ export class World {
       if(f.life<=0)f.el.remove();return f.life>0;
     });
     this.renderer.render(this.scene,this.cameraControl.camera);
+    this.performanceHud.update(this.renderer);
   };
   thumbnails() {
     const images:Record<string,string>={};

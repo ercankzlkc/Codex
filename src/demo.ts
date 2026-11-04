@@ -2,7 +2,7 @@ import {Game,MILESTONES,type Kind} from './game';
 import {CENTER,adjacent,frontier} from './hex';
 
 // Temporary crowd preview. Set to 0 to restore the normal single-tile start.
-export const DEMO_EXTRA_TILES=30;
+export const DEMO_EXTRA_TILES=100;
 export function createDemoGame(){
   const game=new Game();
   if(!DEMO_EXTRA_TILES)return game;
