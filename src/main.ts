@@ -24,6 +24,7 @@ const thumbs=world.thumbnails();
 const sound=new TableSound();
 world.onSoundFrame=(camera,focus,birds)=>sound.updateSpatial(camera,focus,birds);
 world.onFenceBuild=()=>sound.play('fence');
+world.onFenceBreak=()=>sound.play('fenceBreak');
 let game=new Game();
 let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;

@@ -27,3 +27,5 @@ Kullanıcı tarafından sağlanan martı kayıtları
 - seagull-2.mp3: u_up4clmd95a-seagull-sound-effect-272695.mp3
 - seagull-3.mp3: soundreality-seagull-city-372653.mp3
 Kaynak dosyalar aynen saklanır. Oyun, ses seviyesini dengeler ve kısa bölümleri uçan martının konumunda HRTF ile çalar. Bu kayıtlar için yüklemede ayrıca bir lisans belgesi sağlanmamıştır; yukarıdaki Kenney/RandomMind CC0 beyanları bu üç kayda ait değildir.
+
+Çit kırılması: aynı Kenney CC0 impactWood_light örnekleri düşük perdeyle ve kısa, kodla üretilmiş çatlama gürültüsüyle katmanlanır.

@@ -8,6 +8,7 @@ const cues={
   drop:[['card-place-1','card-place-3'],.45], earth:[['footstep_grass_001','footstep_grass_003'],.46],
   build:[['impactWood_light_000','impactWood_light_003'],.33], reward:[['chip-lay-2'],.22],
   fence:[['impactWood_light_000','impactWood_light_003'],.24],
+  fenceBreak:[['impactWood_light_000','impactWood_light_003'],.30],
   bonus:[['chips-stack-3'],.30], turn:[['card-shove-2'],.20], invalid:[['impactSoft_medium_002'],.27],
 } as const;
 type Cue=keyof typeof cues;
@@ -167,15 +168,16 @@ export class TableSound {
     this.stopBird();this.birdClipIndex=0;this.lastSpatial=-1;this.nextBirdAt=(this.ctx?.currentTime??0)+3;
   }
   play(cue:Cue,force=false){
-    if(this.muted||document.hidden||!this.ctx||this.ctx.state!=='running'||this.live.size>=(cue==='fence'||force?8:3))return;
+    if(this.muted||document.hidden||!this.ctx||this.ctx.state!=='running'||this.live.size>=(cue==='fence'||cue==='fenceBreak'||force?8:3))return;
     if(cue==='hover'){if(!force&&performance.now()-this.lastHover<160)return;this.lastHover=performance.now()}
     const [files,volume]=cues[cue],buffer=this.clips.get(files[Math.floor(Math.random()*files.length)]);
     if(!buffer)return;
     const player=this.ctx.createBufferSource();player.buffer=buffer;
-    player.playbackRate.value=cue==='fence'?.98+Math.random()*.16:.92+Math.random()*.10;
+    player.playbackRate.value=cue==='fenceBreak'?.68+Math.random()*.12:cue==='fence'?.98+Math.random()*.16:.92+Math.random()*.10;
     const gain=this.ctx.createGain();gain.gain.value=volume*(.9+Math.random()*.13);
     player.connect(gain).connect(this.buses.sfx!);player.onended=()=>{this.live.delete(player);player.disconnect();gain.disconnect()};
     this.live.add(player);player.start();
+    if(cue==='fenceBreak')this.rustle(850,.045,.17,.02);
   }
   /** Every placed material has a short, soft voice on the existing effects bus. */
   private canVoice(){

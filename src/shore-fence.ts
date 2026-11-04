@@ -1,11 +1,11 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {adjacent,RADIUS} from './hex';
+import {adjacent,position,RADIUS} from './hex';
 import {LAND_Y} from './scenery';
 
 /** The same offset-line intersections as the land keep adjoining coast rails joined. */
 function fencePlan(id:number,board:ReadonlyMap<number,unknown>,openingYaw?:number){
-  if(board.get(id)==='berry'||board.get(id)==='farm')return [];
+  if(!board.has(id))return [];
   const outer=adjacent(id).map(n=>!board.has(n)),apothem=RADIUS*Math.cos(Math.PI/6);
   const vertex=(k:number)=>{
     const a=((k+5)%6)*Math.PI/3,b=(k%6)*Math.PI/3;
@@ -16,7 +16,7 @@ function fencePlan(id:number,board:ReadonlyMap<number,unknown>,openingYaw?:numbe
   const segments=outer.map((open,i)=>open&&i!==gap?i:-1).filter(i=>i>=0);
   return segments.map(side=>{
     const a=vertex(side),b=vertex(side+1),midpoint=a.clone().lerp(b,.5);
-    return {side,midpoint,signature:[a.x,a.z,b.x,b.z].map(n=>n.toFixed(4)).join(','),create:()=>fencePanel(a,b,midpoint)};
+    return {side,a,b,midpoint,signature:[a.x,a.z,b.x,b.z].map(n=>n.toFixed(4)).join(','),create:()=>fencePanel(a,b,midpoint)};
   });
 }
 function fencePanel(a:T.Vector3,b:T.Vector3,center:T.Vector3){
@@ -39,6 +39,7 @@ function fencePanel(a:T.Vector3,b:T.Vector3,center:T.Vector3){
 }
 
 
+export type FenceEdge={side:number;a:T.Vector3;b:T.Vector3};
 type Spec=ReturnType<typeof fencePlan>[number];
 type Panel={mesh:T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;spec:Spec;age:number;delay:number;removing:boolean;smoked:boolean;initialScale:number};
 type Puff={mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;velocity:T.Vector3;age:number};
@@ -53,7 +54,16 @@ export class ShoreFence {
   private puffs:Puff[]=[];
   plan(id:number,board:ReadonlyMap<number,unknown>,opening?:number){
     const desired=new Map(fencePlan(id,board,opening).map(spec=>[spec.side,spec]));
-    for(const [side,panel] of this.panels)if(desired.get(side)?.signature!==panel.spec.signature){
+    for(const [side,panel] of this.panels){
+      const spec=desired.get(side);
+      if(spec){
+        // The same outer edge survives. Adjust its join without demolishing it.
+        if(spec.signature!==panel.spec.signature){
+          const geometry=panel.mesh.geometry;panel.mesh.geometry=spec.create();geometry.dispose();
+          panel.mesh.position.x=spec.midpoint.x;panel.mesh.position.z=spec.midpoint.z;panel.spec=spec;
+        }
+        continue;
+      }
       if(panel.mesh.visible){panel.initialScale=panel.mesh.scale.y;panel.removing=true;panel.age=0;panel.smoked=false;this.retiring.push(panel)}
       else{this.root.remove(panel.mesh);panel.mesh.geometry.dispose()}
       this.panels.delete(side);
@@ -68,19 +78,23 @@ export class ShoreFence {
       this.puffs.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.16,.16+Math.random()*.1,(Math.random()-.5)*.16),age:0});
     }
   }
-  get pendingCount(){return this.pending.size}
-  update(dt:number,ready:boolean,schedule:()=>number,onBuild:()=>void){
-    if(ready){
-      for(const [side,spec] of this.pending){
-        if(this.retiring.some(panel=>panel.spec.side===side))continue;
-        const mesh=new T.Mesh(spec.create(),timber);mesh.position.set(spec.midpoint.x,LAND_Y,spec.midpoint.z);mesh.visible=false;mesh.castShadow=true;mesh.receiveShadow=true;
-        const panel:Panel={mesh,spec,age:0,delay:schedule(),removing:false,smoked:false,initialScale:1};this.root.add(mesh);this.panels.set(side,panel);this.pending.delete(side);
-      }
-    }
+  private edge(spec:Spec,id:number):FenceEdge{
+    const p=position(id),offset=new T.Vector3(p.x,0,p.z);
+    return {side:spec.side,a:spec.a.clone().add(offset),b:spec.b.clone().add(offset)};
+  }
+  get hasPending(){return this.pending.size>0}
+  waitingEdges(id:number){return [...this.pending.values()].filter(spec=>!this.retiring.some(panel=>panel.spec.side===spec.side)).map(spec=>this.edge(spec,id))}
+  existingEdges(id:number){return [...this.panels.values()].map(panel=>this.edge(panel.spec,id))}
+  enqueue(side:number,delay:number){
+    const spec=this.pending.get(side);if(!spec)return;
+    const mesh=new T.Mesh(spec.create(),timber);mesh.position.set(spec.midpoint.x,LAND_Y,spec.midpoint.z);mesh.visible=false;mesh.castShadow=true;mesh.receiveShadow=true;
+    const panel:Panel={mesh,spec,age:0,delay,removing:false,smoked:false,initialScale:1};this.root.add(mesh);this.panels.set(side,panel);this.pending.delete(side);
+  }
+  update(dt:number,onBuild:()=>void,onBreak:()=>void){
     for(const panel of [...this.panels.values(),...this.retiring]){
       panel.age+=dt;const age=panel.age-(panel.removing?0:panel.delay);
       if(age<0)continue;
-      if(!panel.smoked){this.dust(panel.spec);panel.smoked=true;if(!panel.removing)onBuild()}
+      if(!panel.smoked){this.dust(panel.spec);panel.smoked=true;if(panel.removing)onBreak();else onBuild()}
       const t=Math.min(1,age/(panel.removing ? .5 : .42));panel.mesh.visible=true;
       if(panel.removing){
         panel.mesh.rotation.x=Math.sin(panel.spec.side*Math.PI/3)*t*.55;panel.mesh.rotation.z=Math.cos(panel.spec.side*Math.PI/3)*t*.55;

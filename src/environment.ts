@@ -23,6 +23,7 @@ export class Environment {
   private last=0;
   private nextFenceAt=0;
   onFenceBuild:()=>void=()=>{};
+  onFenceBreak:()=>void=()=>{};
   private sinking=new Map<number,number>();
   private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
@@ -60,6 +61,26 @@ export class Environment {
       tile.fence.plan(id,board,this.shoreOpenings.get(id));
     }
   }
+  private enqueueFences(time:number){
+    const key=(p:T.Vector3)=>`${p.x.toFixed(3)},${p.z.toFixed(3)}`;
+    const anchors=new Set<string>();
+    const waiting:Array<{fence:ShoreFence;side:number;a:string;b:string}>=[];
+    for(const [id,tile] of this.land){
+      for(const edge of tile.fence.existingEdges(id)){anchors.add(key(edge.a));anchors.add(key(edge.b))}
+      for(const edge of tile.fence.waitingEdges(id))waiting.push({fence:tile.fence,side:edge.side,a:key(edge.a),b:key(edge.b)});
+    }
+    while(waiting.length){
+      // Start at existing timber, then follow the connected coastline to its next join.
+      let index=waiting.findIndex(edge=>anchors.has(edge.a)||anchors.has(edge.b));if(index<0)index=0;
+      let tip=anchors.has(waiting[index].b)?waiting[index].b:waiting[index].a;
+      while(index>=0){
+        const [edge]=waiting.splice(index,1),start=Math.max(time,this.nextFenceAt);
+        edge.fence.enqueue(edge.side,start-time);this.nextFenceAt=start+.12;
+        anchors.add(edge.a);anchors.add(edge.b);tip=edge.a===tip?edge.b:edge.a;
+        index=waiting.findIndex(next=>next.a===tip||next.b===tip);
+      }
+    }
+  }
   setMeadow(id:number,footprints:T.Box3[]){
     const tile=this.land.get(id);if(!tile)return;
     if(tile.grass){tile.root.remove(tile.grass);tile.grass.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();(o.material as T.Material).dispose()}})}
@@ -67,7 +88,7 @@ export class Environment {
     grass.position.set(0,LAND_Y,0);tile.root.add(grass);tile.grass=grass;
   }
   demolish(board:ReadonlyMap<number,unknown>,id:number){
-    this.pendingBoard=new Map(board);this.sinking.set(id,0);
+    this.pendingBoard=new Map(board);this.sinking.set(id,0);this.land.get(id)?.fence.plan(id,board);
     this.water.sync(board,coast(board),-1,id);
   }
   private removeLand(id:number){
@@ -90,8 +111,8 @@ export class Environment {
       tile.root.scale.set(.35+.65*progress,1,.35+.65*progress);
     }
     const fencesReady=this.sinking.size===0&&[...this.land.values()].every(tile=>tile.age>=BUILD_END);
-    const scheduleFence=()=>{const start=Math.max(time,this.nextFenceAt);this.nextFenceAt=start+.5;return start-time};
-    for(const tile of this.land.values())tile.fence.update(dt,fencesReady,scheduleFence,()=>this.onFenceBuild());
+    if(fencesReady&&[...this.land.values()].some(tile=>tile.fence.hasPending))this.enqueueFences(time);
+    for(const tile of this.land.values())tile.fence.update(dt,()=>this.onFenceBuild(),()=>this.onFenceBreak());
     for(const [id,age] of this.sinking){
       const next=age+dt;this.sinking.set(id,next);
       const tile=this.land.get(id),progress=easeBetween(next,SINK_START,SINK_END);
