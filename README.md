@@ -36,6 +36,12 @@ Liman 24 odun ve 16 taşla kıyıya kurulur; köyde yalnızca bir liman bulunur 
 
 Yayın GitHub `main` üzerinden Cloudflare Pages tarafından otomatik derlenir; kaynak ve yayın için ayrı dal kullanılmaz.
 
+### Ücretsiz Workers adresi
+
+`pages.dev` adresine erişilemeyen ağlarda alternatif olarak aynı depo Cloudflare Workers Static Assets ile de yayınlanabilir. `wrangler.worker.jsonc` bu ek yayın için hazırdır; yalnızca statik dosya sunar.
+
+Cloudflare Workers & Pages → Create application → GitHub deposu `ercankzlkc/Codex` seçilir. Worker adı `yelken-koyu`, üretim dalı `main`, build command `npm run build`, deploy command `npx wrangler deploy --config wrangler.worker.jsonc`, root directory depo kökü ve `NODE_VERSION=24` kullanılır. Free plan seçilir. Cloudflare hesabında oluşturulduktan sonra verilen `workers.dev` adresi kullanılır. Bu alan adına ağdan erişim ayrıca denenmelidir.
+
 ## İş öncelikleri
 
 Sağ alttaki Görevler panelinde odun, taş, çilek, buğday ve balık ağırlıklarını ayarlayın. Yüzdeler mevcut işlere göre çalışan hedeflerine dönüşür; taşıma halindeki sakinler teslimatlarını bitirir. Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur. Takılan sakinler alternatif rota ve depo girişleri arar. Başlarının üzerindeki Font Awesome ikonları toplama, taşıma, yemek, dinlenme ve dolu depo durumlarını gösterir. Yürürken hedef işin ikonu görünür; kamera uzaklaştığında baloncuklar küçülerek kaybolur.
