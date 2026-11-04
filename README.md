@@ -18,7 +18,7 @@ Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction`
 
 ## Altın, gelişim ve ticaret
 
-HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kartların yanındaki Kart değiştir menüsünde 5 altın karşılığı eldeki tek bir kart seçilir ve açılmış havuzdan farklı, rastgele bir kartla değiştirilir; diğer kartlar korunur.
+HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kartların yanındaki Eli yenile düğmesi modal açmadan, toplam 5 altın karşılığında üç kartı birden yeniler. Önceki elin dışında kalan kartlar yeterliyse onlardan çekilir; liman ödülü kullanılana kadar korunur. Eski el çekilerek ayrılır; yeni kartlar kısa aralıklarla sırayla yükselerek gelir. Yerleştirme sonrasındaki yeni el de aynı animasyonla dağıtılır.
 
 | Nüfus | Aşama | Açılan kartlar / özellik | Altın ödülü |
 | --- | --- | --- | --- |
@@ -30,7 +30,7 @@ HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. 
 
 Her eşik bir kez ödüllendirilir. Modal yeni kartları eldeki kartlarla aynı görsellerle gösterir; açılanlar sonraki çekilişlere girer. HUD’daki nüfus göstergesi sonraki ödül eşiğini gösterir. Nüfusa tıklayarak görev paneli ve yerleşim gelişimi açılır. Pencereler açıkken köylüler, tüketim ve ticaret saati durur.
 
-Orman ve çilek alanı ücretsizdir. Yapılarda odun/taş, bahçede taş/yiyecek, şenlikte yiyecek/altın kullanılır. Tüm maliyetler kartta gösterilir; harcamalar gerçek depo stoklarından düşer.
+Ücretsiz oynanan kart yoktur: orman 2 odun, çilek bahçesi 3 odun, acil hasat 2 odun ister. İlk orman kurulana kadar başka kartlar için 2 odun rezervi korunur; yeniden orman kuracak kaynak yokken son orman yıkılamaz. Yapılarda odun/taş, bahçede taş/yiyecek, şenlikte yiyecek/altın kullanılır. Tüm maliyetler kartta gösterilir; harcamalar gerçek depo stoklarından düşer.
 
 Liman 24 odun ve 16 taşla kıyıya kurulur; köyde yalnızca bir liman bulunur ve son su komşusu kapatılamaz. Ödül kartı kullanılana kadar elde ayrı tutulur, rastgele çekilişte kaybolmaz ve altınla değiştirilemez. Yıkılırsa tekrar inşa için geri gelir. İlk tüccar kurulumla gelir; sonraki ziyaretler 120 saniyede bir gerçekleşir. Geminin ticaret penceresi 40 saniye, alış kapasitesi ilk etapta 20 üründür. Liman altıgeni seçilerek açılan ticaret panelinde en fazla 5'er adet satılır: odun/çilek 1, taş/buğday 2, balık 3 altın. Satış hem toplam stoktan hem depolardan düşer.
 
@@ -44,7 +44,7 @@ Cloudflare Workers & Pages → Create application → GitHub deposu `ercankzlkc/
 
 ## Köylü görevleri
 
-Üstteki nüfus göstergesine tıklayarak Köylüler panelini açın. İşler yüzde yerine tam kişi sayılarıyla gösterilir; bir köylü tek göreve ayrılır. Varsayılan otomatik dağılım, mevcut alanların kapasitesini aşmadan köylüleri işlere yerleştirir. − ile görevden çıkarıp + ile başka göreve eklemek elle dağılıma geçirir; yeni gelenler bu modda ayrılabilir olarak bekler. Otomatik dağıt düğmesi otomatik yönetime döner. Çalışma alanı kurulmamış satırlar ve ayrılabilir kişi kalmadığında + düğmeleri kapalıdır. Bahçe çalışanları da aynı toplam içinde sayılır. Taşıma halindeki sakinler görev değiştirirken teslimatlarını bitirir.
+Üstteki nüfus göstergesine tıklayarak Köylüler panelini açın. İşler yüzde yerine tam kişi sayılarıyla gösterilir; bir köylü tek göreve ayrılır. Varsayılan otomatik dağılım, mevcut alanların kapasitesini aşmadan köylüleri işlere yerleştirir. + tek tıkla bir köylü atar; boşta kimse yoksa en kalabalık diğer görevden birini aktarır. − bir köylüyü boşta bırakır. Atamayı değiştirmek elle dağılıma geçirir; yeni gelenler bu modda ayrılabilir olarak bekler. Otomatik dağıt düğmesi otomatik yönetime döner. Çalışma alanı kurulmamış satırlar gizlenir; kapasite dolduğunda + kapanır. Bahçe çalışanları da aynı toplam içinde sayılır. Taşıma halindeki sakinler görev değiştirirken teslimatlarını bitirir.
 
 Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur. Takılan sakinler alternatif rota ve depo girişleri arar. Başlarının üzerindeki Font Awesome ikonları toplama, taşıma, yemek, dinlenme ve dolu depo durumlarını gösterir. Yürürken hedef işin ikonu görünür; kamera uzaklaştığında baloncuklar küçülerek kaybolur.
 
@@ -79,3 +79,5 @@ Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Ku
 Ev, büyük ev, depo, oduncu ve balıkçı yapıları ortak taş temel, yumuşak ahşap kenarlar, kiremit sıraları, kepenkler ve pencere çerçeveleriyle modellenir. İskelede bağlantı çivileri, depoda sandık ve varil, balıkçıda ağ ve halat detayları bulunur. Ağaçlar, çilekler, çiçekler ve taşlar buğdayın daha ince işlenmiş stiline yaklaşır. Sabit yapı detayları malzemeye göre birleştirilir ve şablon geometrileri paylaşılır.
 
 Güneşin konumu, rengi ve şiddeti tek bir ayardan gelir; yapı gölgeleri ve su yansıması aynı yönü kullanır. Deniz yüzeyi gerçek gölge haritasını alır, çimenler yapı gölgelerini kabul eder. Yansıma dar ve düşük şiddettedir; periyodik parlak çizgiler yerine yumuşak, düzensiz su pürüzleri kullanılır. Gölgedeki suda güneş parıltısı kesilir. Yakınlaştırma sırasında kameranın güvenlik mesafesi değişse de yansıma lekesi büyümez. Ara sıra beliren üç ince rüzgâr izi birkaç saniyede kaybolur; çimenlerin salınımı aynı esintiyle hafifçe güçlenir. Ağaç vuruşları yaprak savurur; yapraklar dönerek düşer, zeminde veya suda kısa süre kalıp kaybolur. Parçacık sayısı sınırlıdır, yeni oyunda temizlenir.
+
+Zeminler kullanımına göre renklenir: ormanda serin yeşil, çilek ve bahçelerde canlı yeşil, tarlada sıcak toprak, taşta gri-adaçayı, ev ve depoda çimenle karışan açık toprak. Renkler dünya koordinatlarında yakın karolar arasında yumuşak ağırlıklarla harmanlanır; aynı sınır noktası aynı rengi alır. İç yüzey örnekleri artırılır ve komşuluk değişince çevre zeminleri güncellenir. Kart maliyeti ve türü aynı başlık satırındadır; açıklamalar kartın içine sığar. HUD alt bilgileri üretimde çalışanları, yiyecek tüketimini, yeni el ücretini, sonraki ödülü ve köyün ruh halini gösterir.

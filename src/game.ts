@@ -20,8 +20,8 @@ export const cards: Card[] = [
   {id:'harbor',name:'Liman',cost:{wood:24,stone:16},unlock:60,workers:0,desc:'Tüccar gemisi · ürün satışı',bonus:'Köyde yalnızca bir liman · ilk gemi hemen gelir'},
   {id:'stone',name:'Taş Ocağı',cost:{wood:3},workers:2,desc:'+3 taş / teslimat',bonus:'Kazmayla çıkarılır · yeniden oluşur'},
   { id:'fisher',name:'Balıkçı Kulübesi',cost:{wood:7,stone:2},workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
-  { id: 'forest', name: 'Orman', cost: {}, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
-  { id: 'berry', name: 'Çilek Bahçesi', cost: {}, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
+  { id: 'forest', name: 'Orman', cost: {wood:2}, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
+  { id: 'berry', name: 'Çilek Bahçesi', cost: {wood:3}, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
   { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'lumber',unlock:10, name: 'Oduncu Kulübesi', cost: {wood:6,stone:2}, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
   { id: 'farm',unlock:24, name: 'Çiftlik', cost: {wood:7,stone:3}, workers: 2, desc: '+4 yiyecek / teslimat', bonus: 'Komşu depo: +2 yiyecek' },
@@ -29,7 +29,7 @@ export const cards: Card[] = [
   { id: 'garden',unlock:24, name: 'Bahçe', cost: {stone:4,food:2}, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
   { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'festival',unlock:40, name: 'Şenlik', cost: {food:6,gold:2}, workers: 0, desc: '+16 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
-  { id: 'harvest', name: 'Acil Hasat', cost: {}, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
+  { id: 'harvest', name: 'Acil Hasat', cost: {wood:2}, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
 ];
 
 export const MILESTONES=[
@@ -94,12 +94,15 @@ export class Game {
     }
   }
   availableCards(){return cards.filter(c=>c.id!=='harbor'&&(!c.unlock||this.reached.has(c.unlock)))}
-  canAfford(card:Card){return Object.entries(card.cost).every(([key,n])=>this[key as CostResource]>=n)}
-  reroll(index:number){
-    const old=this.hand[index];if(!old||old.id==='harbor'||this.gold<REROLL_COST)return false;
-    const otherPlayable=this.hand.some((c,i)=>i!==index&&this.canAfford(c));
-    const pool=this.availableCards().filter(c=>c.id!==old.id&&!this.hand.includes(c)&&(otherPlayable||this.canAfford(c)));
-    if(!pool.length)return false;this.gold-=REROLL_COST;this.hand[index]=pool[Math.floor(this.rng()*pool.length)];return true;
+  canAfford(card:Card){
+    if(!Object.entries(card.cost).every(([key,n])=>this[key as CostResource]>=n))return false;
+    // Keep enough wood to establish the first renewable wood source.
+    return card.id==='forest'||[...this.board.values()].includes('forest')||this.wood-(card.cost.wood??0)>=2;
+  }
+  rerollHand(){
+    if(this.gold<REROLL_COST)return false;
+    const old=this.hand.filter(c=>c.id!=='harbor');
+    this.gold-=REROLL_COST;this.draw(old);return true;
   }
   tradeStock(good:TradeGood){return good==='wood'||good==='stone'?this[good]:this.foods[good]}
   sell(good:TradeGood,amount=5){
@@ -185,7 +188,11 @@ export class Game {
   }
   changeWorkers(category:WorkCategory,delta:-1|1){
     const targets=this.workTargets(),used=Object.values(targets).reduce((a,b)=>a+b,0);
-    if(delta<0&&targets[category]===0||delta>0&&(used>=this.people||targets[category]>=this.workCapacity(category)))return false;
+    if(delta<0&&targets[category]===0||delta>0&&targets[category]>=this.workCapacity(category))return false;
+    if(delta>0&&used>=this.people){
+      const donor=WORK_CATEGORIES.filter(c=>c!==category&&targets[c]>0).sort((a,b)=>targets[b]-targets[a])[0];
+      if(!donor)return false;targets[donor]--;
+    }
     this.assignments={...targets,[category]:targets[category]+delta};this.autoWorkers=false;return true;
   }
   residents:{id:number;home:number}[]=[{id:0,home:CENTER}];
@@ -194,11 +201,16 @@ export class Game {
   rng:()=>number;
   constructor(rng=Math.random){this.rng=rng;this.hand=['forest','berry','house'].map(id=>cards.find(c=>c.id===id)!)}
   neighbors(i:number){return adjacent(i)}
-  draw(){
-    const pool=this.availableCards();
+  draw(previous:Card[]=[]){
+    const available=this.availableCards(),fresh=available.filter(c=>!previous.includes(c));
+    const pool=fresh.length>=3?fresh:available;
     this.hand=[];
     while(this.hand.length<3)this.hand.push(pool.splice(Math.floor(this.rng()*pool.length),1)[0]);
-    if(!this.hand.some(c=>this.canAfford(c)))this.hand[0]=cards.find(c=>c.id==='forest')!;
+    if(!this.hand.some(c=>this.canAfford(c))){
+      const affordable=available.filter(c=>this.canAfford(c));
+      if(affordable.length)this.hand[0]=affordable[Math.floor(this.rng()*affordable.length)];
+      else if(![...this.board.values()].includes('forest'))this.hand[0]=cards.find(c=>c.id==='forest')!;
+    }
     if(this.harborReward&&this.harborId===undefined)this.hand.push(cards.find(c=>c.id==='harbor')!);
   }
 
@@ -290,6 +302,7 @@ export class Game {
   }
   remove(i:number){
     if(i===CENTER||!this.board.has(i))return false;
+    if(this.board.get(i)==='forest'&&this.wood<2&&[...this.board.values()].filter(k=>k==='forest').length===1)return false;
     const stock=this.storageStocks.get(i);
     if(stock){this.wood-=stock.wood;this.stone-=stock.stone;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
     if(this.board.get(i)==='harbor')this.harborReward=true;

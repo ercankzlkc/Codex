@@ -3,10 +3,30 @@ import {windForce} from './atmosphere';
 import {adjacent,position,RADIUS} from './hex';
 
 export const LAND_Y=.13, SEA_Y=-.18;
-const clover=new T.Color('#80ac71'), sunnyGrass=new T.Color('#b8c982');
-function grassAt(x:number,z:number,out:T.Color) {
-  const sun=.5+.23*Math.sin(x*.94+z*.47)+.16*Math.cos(z*1.27-x*.52)+.09*Math.sin(x*1.8-z*.98);
-  return out.copy(clover).lerp(sunnyGrass,T.MathUtils.smoothstep(sun,.10,.90));
+// Shared world-space sampling makes neighboring tiles agree on every seam.
+const groundPalette:Record<string,T.Color>=Object.fromEntries(Object.entries({
+  forest:'#769778',berry:'#a3b783',farm:'#c7b185',stone:'#a8afa3',
+  house:'#bbb99a',manor:'#c7bea0',lumber:'#a8aa82',store:'#bab295',
+  garden:'#8fae87',fisher:'#c4bc98',harbor:'#cabb9b',
+}).map(([kind,color])=>[kind,new T.Color(color)]));
+const grassBase=new T.Color('#a0b687');
+function nearby(id:number){return [...new Set([id,...adjacent(id),...adjacent(id).flatMap(adjacent)])]}
+export function terrainSignature(id:number,board:ReadonlyMap<number,unknown>){
+  return nearby(id).map(i=>`${i}:${board.get(i)??''}`).join('|');
+}
+function groundSampler(id:number,board:ReadonlyMap<number,unknown>){
+  const patches=nearby(id).filter(i=>board.has(i)).map(i=>({...position(i),tint:groundPalette[String(board.get(i))]??grassBase}));
+  // Sample a broad ecological blend, with a compact smooth kernel and no per-tile noise.
+  return (x:number,z:number,out:T.Color)=>{
+    out.setRGB(0,0,0);let total=0;
+    for(const p of patches){
+      const d=Math.hypot(x-p.x,z-p.z)/2.25;if(d>=1)continue;
+      const w=(1-d*d)**3;out.r+=p.tint.r*w;out.g+=p.tint.g*w;out.b+=p.tint.b*w;total+=w;
+    }
+    if(total)out.multiplyScalar(1/total);else out.copy(grassBase);
+    const variation=1+.025*Math.sin(x*.63+z*.34)+.018*Math.cos(z*.84-x*.47);
+    return out.multiplyScalar(variation);
+  };
 }
 
 const APOTHEM=RADIUS*Math.cos(Math.PI/6);
@@ -21,14 +41,16 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
     const det=Math.sin(b-a);
     return new T.Vector3((d1*Math.sin(b)-d2*Math.sin(a))/det,y,(Math.cos(a)*d2-Math.cos(b)*d1)/det);
   }
-  const origin=position(id);
+  const origin=position(id),sample=groundSampler(id,board),sampleCache=new Map<string,T.Color>();
   const pos:number[]=[],color:number[]=[];
   const tri=(a:T.Vector3,b:T.Vector3,c:T.Vector3,hex:number,brightness=1)=>{
     const shade=new T.Color(hex).multiplyScalar(brightness);
     for(const v of [a,b,c]){
       pos.push(v.x,v.y,v.z);
       if(hex===0xa4bb7f || hex===0x91ab6c){
-        grassAt(origin.x+v.x,origin.z+v.z,shade);
+        const key=`${v.x.toFixed(5)},${v.z.toFixed(5)}`;
+        let tint=sampleCache.get(key);if(!tint){tint=sample(origin.x+v.x,origin.z+v.z,new T.Color());sampleCache.set(key,tint)}
+        shade.copy(tint);
         if(v.y<LAND_Y)shade.multiplyScalar(.89);
       }
       color.push(shade.r,shade.g,shade.b);
@@ -49,7 +71,13 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
       });
     });
     for(let s=0;s<4;s++){
-      tri(new T.Vector3(0,LAND_Y,0),layers[0][s+1],layers[0][s],0xa4bb7f,1+.009*Math.sin(k+s+id));
+      // Extra interior samples keep colour transitions curved rather than broad triangle fans.
+      const a=new T.Vector3(0,LAND_Y,0),b=layers[0][s+1],c=layers[0][s],steps=4;
+      const point=(u:number,v:number)=>a.clone().addScaledVector(b.clone().sub(a),u/steps).addScaledVector(c.clone().sub(a),v/steps);
+      for(let u=0;u<steps;u++)for(let v=0;v<steps-u;v++){
+        tri(point(u,v),point(u+1,v),point(u,v+1),0xa4bb7f);
+        if(u+v<steps-1)tri(point(u+1,v),point(u+1,v+1),point(u,v+1),0xa4bb7f);
+      }
       if(!outer[k])continue;
       for(let l=0;l<levels.length-1;l++){
         const [a,b,c,d]=[layers[l][s],layers[l][s+1],layers[l+1][s],layers[l+1][s+1]];

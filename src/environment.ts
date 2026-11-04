@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
-import {terrainGeometry,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
+import {terrainGeometry,terrainSignature,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
 import {tree} from './models';
 import {Wildlife} from './wildlife';
 import {Atmosphere} from './atmosphere';
@@ -33,7 +33,7 @@ export class Environment {
     const edges=coast(board);
     this.water.sync(board,edges,placed);
     for(const id of board.keys()){
-      const signature=edges.filter(e=>e.id===id).map(e=>e.side).join(',');
+      const signature=terrainSignature(id,board);
       const old=this.land.get(id);
       if(old){if(placed<0&&old.signature!==signature){old.surface.geometry.dispose();old.surface.geometry=terrainGeometry(id,board);old.signature=signature}continue}
       const center=position(id),root=new T.Group();root.position.set(center.x,id===placed?-1.1:0,center.z);
@@ -87,7 +87,7 @@ export class Environment {
     if(this.pendingBoard&&this.sinking.size===0&&[...this.land.values()].every(tile=>tile.age>=LAND_END)){
       const board=this.pendingBoard,edges=coast(board);
       for(const [id,tile] of this.land){
-        const signature=edges.filter(e=>e.id===id).map(e=>e.side).join(',');
+        const signature=terrainSignature(id,board);
         if(tile.signature!==signature){tile.surface.geometry.dispose();tile.surface.geometry=terrainGeometry(id,board);tile.signature=signature}
       }
       this.pendingBoard=null;
