@@ -1,12 +1,15 @@
 import { CENTER, adjacent, canGrow,axial } from './hex.ts';
 export type Kind =
   | 'stone' | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
-  | 'fisher' | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
+  | 'harbor' | 'fisher' | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
 
+export type CostResource='wood'|'stone'|'food'|'gold';
+export const REROLL_COST=5;
 export interface Card {
   id: Kind;
   name: string;
-  cost: number;
+  cost: Partial<Record<CostResource,number>>;
+  unlock?: number;
   workers: number;
   desc: string;
   bonus: string;
@@ -14,19 +17,34 @@ export interface Card {
 }
 
 export const cards: Card[] = [
-  {id:'stone',name:'Taş Ocağı',cost:3,workers:2,desc:'+3 taş / teslimat',bonus:'Kazmayla çıkarılır · yeniden oluşur'},
-  { id:'fisher',name:'Balıkçı Kulübesi',cost:7,workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
-  { id: 'forest', name: 'Orman', cost: 0, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
-  { id: 'berry', name: 'Çilek Bahçesi', cost: 2, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
-  { id: 'house', name: 'Ev', cost: 5, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
-  { id: 'lumber', name: 'Oduncu Kulübesi', cost: 5, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
-  { id: 'farm', name: 'Çiftlik', cost: 7, workers: 2, desc: '+4 yiyecek / teslimat', bonus: 'Komşu depo: +2 yiyecek' },
-  { id: 'store', name: 'Depo', cost: 6, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
-  { id: 'garden', name: 'Bahçe', cost: 3, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
-  { id: 'manor', name: 'Büyük Ev', cost: 10, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
-  { id: 'festival', name: 'Şenlik', cost: 4, workers: 0, desc: '+16 refah · −3 yiyecek', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
-  { id: 'harvest', name: 'Acil Hasat', cost: 0, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
+  {id:'harbor',name:'Liman',cost:{wood:24,stone:16},unlock:60,workers:0,desc:'Tüccar gemisi · ürün satışı',bonus:'Köyde yalnızca bir liman · ilk gemi hemen gelir'},
+  {id:'stone',name:'Taş Ocağı',cost:{wood:3},workers:2,desc:'+3 taş / teslimat',bonus:'Kazmayla çıkarılır · yeniden oluşur'},
+  { id:'fisher',name:'Balıkçı Kulübesi',cost:{wood:7,stone:2},workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
+  { id: 'forest', name: 'Orman', cost: {}, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
+  { id: 'berry', name: 'Çilek Bahçesi', cost: {}, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
+  { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'lumber',unlock:10, name: 'Oduncu Kulübesi', cost: {wood:6,stone:2}, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
+  { id: 'farm',unlock:24, name: 'Çiftlik', cost: {wood:7,stone:3}, workers: 2, desc: '+4 yiyecek / teslimat', bonus: 'Komşu depo: +2 yiyecek' },
+  { id: 'store',unlock:10, name: 'Depo', cost: {wood:8,stone:4}, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
+  { id: 'garden',unlock:24, name: 'Bahçe', cost: {stone:4,food:2}, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
+  { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'festival',unlock:40, name: 'Şenlik', cost: {food:6,gold:2}, workers: 0, desc: '+16 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
+  { id: 'harvest', name: 'Acil Hasat', cost: {}, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
 ];
+
+export const MILESTONES=[
+  {population:10,name:'Küçük Yerleşim',gold:10,description:'Depoları büyüt, odun üretimini güçlendir.'},
+  {population:24,name:'Köy',gold:15,description:'Tarlalar ve bahçelerle köyünü besle.'},
+  {population:40,name:'Gelişen Köy',gold:20,description:'Büyük evlerle büyü, şenlikle refahı artır.'},
+  {population:60,name:'Kıyı Kasabası',gold:25,description:'Liman kartın hazır. Limanı kur, tüccarlara ürün sat.'},
+  {population:100,name:'Ticaret Kasabası',gold:40,description:'Tüccarların alış kapasitesi ziyaret başına 40 ürüne yükseldi.'},
+] as const;
+export type Milestone=typeof MILESTONES[number];
+export const TRADE_GOODS=[
+  {id:'wood',name:'Odun',price:1},{id:'stone',name:'Taş',price:2},
+  {id:'berry',name:'Çilek',price:1},{id:'wheat',name:'Buğday',price:2},{id:'fish',name:'Balık',price:3},
+] as const;
+export type TradeGood=typeof TRADE_GOODS[number]['id'];
 
 export interface Production {
   wood: number;
@@ -55,7 +73,44 @@ export function hexDistance(a:number,b:number){
 }
 export class Game {
   board=new Map<number,Kind>([[CENTER,'house']]);
-  wood=18;stone=0;happy=70;
+  wood=18;stone=0;happy=70;gold=10;
+  paused=false;
+  peakPopulation=1;
+  reached=new Set<number>();
+  milestoneQueue:Milestone[]=[];
+  harborReward=false;
+  tradeClock=0;
+  tradeSold=0;
+  get harborId(){return [...this.board].find(([,kind])=>kind==='harbor')?.[0]}
+  get merchantPresent(){return this.harborId!==undefined&&this.tradeClock<40}
+  get tradeCapacity(){return this.reached.has(100)?40:20}
+  get merchantCountdown(){return Math.ceil(this.merchantPresent?40-this.tradeClock:120-this.tradeClock)}
+  get nextMilestone(){return MILESTONES.find(m=>!this.reached.has(m.population))}
+  private unlockMilestones(){
+    this.peakPopulation=Math.max(this.peakPopulation,this.people);
+    for(const m of MILESTONES)if(this.peakPopulation>=m.population&&!this.reached.has(m.population)){
+      this.reached.add(m.population);this.gold+=m.gold;this.milestoneQueue.push(m);
+      if(m.population===60)this.harborReward=true;
+    }
+  }
+  availableCards(){return cards.filter(c=>c.id!=='harbor'&&(!c.unlock||this.reached.has(c.unlock)))}
+  canAfford(card:Card){return Object.entries(card.cost).every(([key,n])=>this[key as CostResource]>=n)}
+  reroll(index:number){
+    const old=this.hand[index];if(!old||old.id==='harbor'||this.gold<REROLL_COST)return false;
+    const pool=this.availableCards().filter(c=>c.id!==old.id&&!this.hand.includes(c));
+    if(!pool.length)return false;this.gold-=REROLL_COST;this.hand[index]=pool[Math.floor(this.rng()*pool.length)];return true;
+  }
+  tradeStock(good:TradeGood){return good==='wood'||good==='stone'?this[good]:this.foods[good]}
+  sell(good:TradeGood,amount=5){
+    if(!this.merchantPresent)return 0;
+    const item=TRADE_GOODS.find(g=>g.id===good);if(!item)return 0;
+    const count=Math.max(0,Math.min(Math.floor(amount),this.tradeStock(good),this.tradeCapacity-this.tradeSold));
+    if(!count)return 0;this.spendStock(good,count);this.tradeSold+=count;this.gold+=count*item.price;return count;
+  }
+  private spendStock(good:TradeGood,amount:number){
+    if(good==='wood'||good==='stone')this[good]-=amount;else this.foods[good]-=amount;
+    let left=amount;for(const stock of this.storageStocks.values()){const take=Math.min(left,stock[good]);stock[good]-=take;left-=take;if(!left)break}
+  }
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
   priorities:Record<WorkCategory,number>={wood:30,stone:15,berry:30,farm:15,fish:10};
   private meal=0;
@@ -73,14 +128,13 @@ export class Game {
     this.spendWood(this.upgradeCost(id));this.storageLevels.set(id,(this.storageLevels.get(id)??1)+1);return true;
   }
   private spendWood(amount:number){
-    this.wood-=amount;let left=amount;
-    for(const stock of this.storageStocks.values()){const take=Math.min(left,stock.wood);stock.wood-=take;left-=take;if(!left)break}
+    this.spendStock('wood',amount);
   }
   private addFood(kind:FoodKind,amount:number){
     for(const [id,stock] of this.storageStocks){const take=Math.min(amount,this.storageFree(id));stock[kind]+=take;this.foods[kind]+=take;amount-=take;if(!amount)break}
   }
   takeMeals(){const events=this.meals;this.meals=[];return events}
-  wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>kind==='fisher'&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
+  wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>(kind==='fisher'||kind==='harbor')&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
   get food(){return this.foods.berry+this.foods.wheat+this.foods.fish}
   get foodPerMinute(){return this.people*2}
   consumeFood(amount:number){
@@ -92,6 +146,8 @@ export class Game {
     return eaten;
   }
   tick(dt:number){
+    if(this.paused)return;
+    if(this.harborId!==undefined){const next=this.tradeClock+dt;if(next>=120)this.tradeSold=0;this.tradeClock=next%120}
     this.meal+=dt*this.people/30;
     const due=Math.floor(this.meal);if(!due)return;
     this.meal-=due;
@@ -126,12 +182,13 @@ export class Game {
   constructor(rng=Math.random){this.rng=rng;this.hand=['forest','berry','house'].map(id=>cards.find(c=>c.id===id)!)}
   neighbors(i:number){return adjacent(i)}
   draw(){
-    const pool=cards.filter(c=>!['farm','manor'].includes(c.id)||this.people>=3);
+    const pool=this.availableCards();
     this.hand=[];
     while(this.hand.length<3)this.hand.push(pool.splice(Math.floor(this.rng()*pool.length),1)[0]);
-    if(!this.hand.some(c=>c.cost<=this.wood))this.hand[0]=cards.find(c=>c.id==='forest')!;
-    if(this.people>=3&&![...this.board.values()].includes('fisher')&&!this.hand.some(c=>c.id==='fisher'))this.hand[2]=cards.find(c=>c.id==='fisher')!;
+    if(!this.hand.some(c=>this.canAfford(c)))this.hand[0]=cards.find(c=>c.id==='forest')!;
+    if(this.harborReward&&this.harborId===undefined)this.hand.push(cards.find(c=>c.id==='harbor')!);
   }
+
   production():Production{return this.calculateProduction(this.board,this.people)}
   /** Pure evaluation shared by the actual turn and placement previews. */
   private calculateProduction(board: ReadonlyMap<number, Kind>, people: number): Production {
@@ -193,8 +250,8 @@ export class Game {
   }
 
   valid(card:Card,i:number){
-    return this.hand.includes(card)&&card.cost<=this.wood&&(card.id!=='festival'||this.food>=3)
-      &&(card.event?this.board.has(i):canGrow(this.board,i)&&!this.wouldSealFishery(i))&&(card.id!=='fisher'||adjacent(i).some(n=>!this.board.has(n)));
+    return this.hand.includes(card)&&this.canAfford(card)&&(card.id!=='harbor'||this.harborId===undefined)
+      &&(card.event?this.board.has(i):canGrow(this.board,i)&&!this.wouldSealFishery(i))&&(!['fisher','harbor'].includes(card.id)||adjacent(i).some(n=>!this.board.has(n)));
   }
   preview(card:Card,i:number){
     if(!this.valid(card,i))return null;
@@ -207,20 +264,23 @@ export class Game {
   }
   play(card:Card,i=CENTER){
     if(!this.valid(card,i))return null;
-    this.spendWood(card.cost);
+    for(const [key,n] of Object.entries(card.cost)){if(key==='wood')this.spendWood(n);else if(key==='stone')this.spendStock('stone',n);else if(key==='food')this.consumeFood(n);else if(key==='gold')this.gold-=n}
+    if(card.id==='harbor'){this.harborReward=false;this.tradeClock=0;this.tradeSold=0}
     if(!card.event)this.board.set(i,card.id);
     if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,stone:0,berry:0,wheat:0,fish:0})}
     const count=card.id==='house'?2:card.id==='manor'?4:0;
     for(let j=0;j<count;j++)this.residents.push({id:this.residents.length,home:i});
-    if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);this.consumeFood(3)}
+    if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);}
     if(card.id==='harvest'){this.addFood('berry',12);this.happy=Math.max(0,this.happy-5)}
-    this.draw();return this.production();
+    this.unlockMilestones();this.draw();return this.production();
   }
   remove(i:number){
     if(i===CENTER||!this.board.has(i))return false;
     const stock=this.storageStocks.get(i);
     if(stock){this.wood-=stock.wood;this.stone-=stock.stone;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
+    if(this.board.get(i)==='harbor')this.harborReward=true;
     this.board.delete(i);for(const r of this.residents)if(r.home===i)r.home=CENTER;
+    if(this.harborReward&&!this.hand.some(c=>c.id==='harbor'))this.hand.push(cards.find(c=>c.id==='harbor')!);
     return true;
   }
   productAt(id:number):{resource:Resource;amount:number;capacity:number}|null{

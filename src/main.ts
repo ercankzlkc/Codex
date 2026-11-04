@@ -1,6 +1,6 @@
 import './style.css';
 import {CENTER} from './hex';
-import {Game,cards,WORK_CATEGORIES,type WorkCategory,type Resource,type Card} from './game';
+import {Game,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
 import {World} from './world';
 import {CardDrag} from './drag';
 import {TableSound} from './sound';
@@ -10,6 +10,8 @@ const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
+ <button id="milestone-progress" title="Yerleşim gelişimi"></button>
+ <div class="economy-tools"><button id="trade-toggle">${icon('harbor')} Ticaret</button><button id="reroll-toggle">${icon('gold')} Kart değiştir · ${REROLL_COST}</button></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
@@ -29,7 +31,7 @@ let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undef
 let pendingPlacement:number|null=null;
 let editedTile=-1;
 
-function affordable(c:Card) { return c.cost<=game.wood&&(c.id!=='festival'||game.food>=3); }
+function affordable(c:Card) { return game.canAfford(c); }
 function select(c:Card|null,carrying=false) {
   if(!c)pendingPlacement=null;
   selected=c;get('#event-target').hidden=!c?.event;world.setSelection(c,carrying);
@@ -46,7 +48,7 @@ function label(text:string) {
 world.valid=i=>!!selected&&i>=0&&game.valid(selected,i);
 world.onHover=i=>{
   if(!selected||i<0){label('');return}
-  if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Balıkçının son kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
+  if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Liman ve balıkçı kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}
   const p=game.preview(selected,i)!;
@@ -59,7 +61,7 @@ function toast(text:string) {
   toastTimer=window.setTimeout(()=>log.classList.remove('visible'),2400);
 }
 function commit(i:number) {
-  if(!selected||i<0||!world.valid(i))return false;
+  if(dialog.open||!selected||i<0||!world.valid(i))return false;
   if(locked){pendingPlacement=i;world.holdSelection();label('Ada hazırlanıyor…');return true}
   const rotation=world.placementRotation;
   const card=selected,preview=game.preview(card,i)!;
@@ -159,24 +161,63 @@ function animateCounter(id:string,target:number){
 }
 function renderHud(){
   const stats=get('#stats');
-  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
+  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['gold','Altın'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
   const foodStat=get('[data-resource="food"]');
   foodStat.onmouseenter=showFood;foodStat.onmouseleave=()=>get('#food-details').hidden=true;foodStat.onfocus=showFood;foodStat.onblur=()=>get('#food-details').hidden=true;foodStat.tabIndex=0;foodStat.setAttribute('aria-describedby','food-details');
   get('[data-resource="people"]').onclick=toggleWork;
-  for(const id of ['wood','stone','food','people','happy'] as const){
+  for(const id of ['wood','stone','food','gold','people','happy'] as const){
     animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
-    get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':id==='food'?`−${game.foodPerMinute}/dk`:'Depoda';
+    get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':id==='food'?`−${game.foodPerMinute}/dk`:id==='gold'?'Hazine':'Depoda';
   }
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
+  const next=game.nextMilestone,last=MILESTONES.filter(m=>game.reached.has(m.population)).at(-1);
+  get('#milestone-progress').innerHTML=`<span>${last?.name??'Yeni Yerleşim'}</span><b>${next?`${game.people} / ${next.population} nüfus`:'Ticaret Kasabası'}</b><progress max="${next?.population??100}" value="${next?game.people:100}"></progress>`;
+  get<HTMLButtonElement>('#reroll-toggle').disabled=game.gold<REROLL_COST;
+  get('#trade-toggle').innerHTML=`${icon('harbor')} ${game.harborId===undefined?'Liman · 60 nüfus':game.merchantPresent?'Tüccar limanda':`Gemi · ${game.merchantCountdown} sn`}`;
   renderWork();renderStorage();if(!get('#food-details').hidden)renderFood();
+}
+const resourceNames:Record<string,string>={wood:'odun',stone:'taş',food:'yiyecek',gold:'altın'};
+function cardFace(c:Card){
+  const costs=Object.entries(c.cost);
+  return `<span class="costs">${costs.length?costs.map(([key,n])=>`<span title="${n} ${resourceNames[key]}">${icon(key)}${n}</span>`).join(''):'<span>Ücretsiz</span>'}</span>
+    <span class="type">${c.id==='harbor'?'TEKİL':c.event?'ANLIK':c.workers?'ÜRETİM':'YERLEŞİM'}</span>
+    <img src="${thumbs[c.id]}" alt="" draggable="false"><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>`;
 }
 function render(){
   renderHud();
-  hand.innerHTML=game.hand.map((c,i)=>`<button class="card tone-${c.id}" data-card="${i}" aria-pressed="false" ${!affordable(c)?'disabled':''}>
-    <span class="cost" title="${c.cost} odun">${icon('wood')}${c.cost}</span><span class="type">${c.event?'ANLIK':c.workers?'ÜRETİM':'YERLEŞİM'}</span>
-    <img src="${thumbs[c.id]}" alt="" draggable="false"><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>
-  </button>`).join('');
+  hand.innerHTML=game.hand.map((c,i)=>`<button class="card tone-${c.id}" data-card="${i}" aria-pressed="false" ${!affordable(c)?'disabled':''}>${cardFace(c)}</button>`).join('');
 }
+function showMilestones(){
+  if(dialog.open||!game.milestoneQueue.length)return;
+  const m=game.milestoneQueue.shift()!;
+  const unlocked=cards.filter(c=>c.unlock===m.population);
+  modal(`<small>YERLEŞİMİN GELİŞTİ · ${m.population} NÜFUS</small><h1>${m.name}</h1><p>${m.description}</p>
+    <div class="milestone-reward">${icon('gold')} +${m.gold} altın <span>${m.population===60?'Liman kartı eline eklendi':'Hazinene eklendi'}</span></div>
+    ${unlocked.length?`<p class="unlock-caption">${m.population===60?'SANA HEDİYE':'KART HAVUZUNA EKLENDİ'}</p><div class="modal-cards">${unlocked.map(c=>`<article class="card tone-${c.id}">${cardFace(c)}</article>`).join('')}</div>`:'<p>Tüccar kapasitesi: ziyaret başına 40 ürün.</p>'}
+    <button data-close>Köye devam et</button>`,'milestone');
+  sound.play('reward');
+}
+function openProgress(){
+  modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>`<section class="${game.reached.has(m.population)?'reached':''}"><b>${m.population} nüfus · ${m.name}</b><span>${m.description}</span><small>${cards.filter(c=>c.unlock===m.population).map(c=>c.name).join(' · ')||'Gelişmiş ticaret'} · +${m.gold} altın</small></section>`).join('')}</div><button data-close>Oyuna dön</button>`,'progress');
+}
+function openReroll(){
+  modal(`<small>KART DEĞİŞİMİ</small><h1>Yeni bir ihtimal</h1><p>Değiştirmek istediğin kartı seç. Yalnızca o kart gider; yerine açılmış kartlar arasından farklı, rastgele bir kart gelir. Diğer kartların korunur.</p><p class="milestone-reward">${icon('gold')} ${game.gold} altın <span>Her değişim ${REROLL_COST} altın</span></p><div class="modal-cards">${game.hand.map((c,i)=>`<div class="card-offer"><article class="card tone-${c.id}">${cardFace(c)}</article><button data-reroll="${i}" ${c.id==='harbor'||game.gold<REROLL_COST?'disabled':''}>${c.id==='harbor'?'Tekil ödül korunur':`${REROLL_COST} altın · Değiştir`}</button></div>`).join('')}</div><button data-close>Oyuna dön</button>`,'reroll');
+  dialog.querySelectorAll<HTMLButtonElement>('[data-reroll]').forEach(button=>button.onclick=()=>{
+    const i=Number(button.dataset.reroll);if(!game.reroll(i))return;
+    render();sound.play('reward');openReroll();toast(`Yeni kart: ${game.hand[i].name}`);
+  });
+}
+function openTrade(){
+  if(game.harborId===undefined){
+    modal(`<small>DENİZ TİCARETİ</small><h1>Limanını kur</h1><p>60 nüfusta Liman kartı hediye edilir. Kıyıya ${icon('wood')} 24 odun ve ${icon('stone')} 16 taş karşılığında kurabilirsin.</p><div class="modal-cards"><article class="card tone-harbor">${cardFace(cards.find(c=>c.id==='harbor')!)}</article></div><p>Tüccar gemisi 2 dakikada bir gelir ve 40 saniye bekler. Fazla ürünlerini satarak altın kazanırsın.</p><button data-close>Oyuna dön</button>`,'trade');return;
+  }
+  modal(`<small>LİMAN · DENİZ TİCARETİ</small><h1>${game.merchantPresent?'Tüccar limanda':'Bir sonraki gemi yolda'}</h1><p>${game.merchantPresent?`Kalan süre ${game.merchantCountdown} saniye · ${game.tradeCapacity-game.tradeSold} ürün daha alabilir.`:`Gemi ${game.merchantCountdown} saniye sonra gelecek.`} Pencere açıkken oyun durur.</p><p class="milestone-reward">${icon('gold')} ${game.gold} altın</p><div class="trade-list">${TRADE_GOODS.map(item=>`<div>${icon(item.id)}<span><b>${item.name}</b><small>${game.tradeStock(item.id)} stok · tanesi ${item.price} altın</small></span><button data-sell="${item.id}" ${!game.merchantPresent||game.tradeStock(item.id)<1||game.tradeSold>=game.tradeCapacity?'disabled':''}>${Math.min(5,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold)} adet sat</button></div>`).join('')}</div><p>Satış stoklarından düşer. Köylülerin yiyeceğini ve inşaat malzemelerini ayırmayı unutma.</p><button data-close>Oyuna dön</button>`,'trade');
+  dialog.querySelectorAll<HTMLButtonElement>('[data-sell]').forEach(button=>button.onclick=()=>{if(game.sell(button.dataset.sell as TradeGood)){render();renderStorage();sound.play('reward');openTrade()}});
+}
+get('#milestone-progress').onclick=openProgress;
+get('#reroll-toggle').onclick=openReroll;
+get('#trade-toggle').onclick=openTrade;
+
 world.onDelivery=(source,store,resource,amount)=>{
   const accepted=game.deliver(source,store,resource,amount);if(!accepted)return 0;
   renderHud();sound.play('reward');
@@ -197,9 +238,10 @@ world.onInspect=(id,x,y,bounds)=>{
   else if(kind==='store')lines.push(`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapasiteyi yükselt');
   else if(product){lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,'Ürünler depoya taşınır');}
   else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
+  else if(kind==='harbor')lines.push(game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Ticaret düğmesiyle ürün sat');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
-  const graphic=id===CENTER?'crest':({forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
+  const graphic=id===CENTER?'crest':({harbor:'harbor',forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
   tooltip.querySelector('strong')!.innerHTML=`${icon(graphic)}<span>${id===CENTER?'Krallık merkezi':card?.name??'Yerleşim'}</span>`;
   tooltip.querySelector('div')!.innerHTML=lines.map(line=>`<span>${line}</span>`).join('');tooltip.hidden=false;
   const width=tooltip.offsetWidth,height=tooltip.offsetHeight,pad=14;
@@ -211,8 +253,10 @@ world.onInspect=(id,x,y,bounds)=>{
   tooltip.style.left=`${Math.max(pad,Math.min(innerWidth-width-pad,left))}px`;
   tooltip.style.top=`${Math.max(pad,Math.min(innerHeight-height-pad,top))}px`;
 };
-window.setInterval(renderHud,200);
-function modal(html:string) {
+window.setInterval(()=>{renderHud();showMilestones()},200);
+dialog.addEventListener('close',()=>{game.paused=false;window.setTimeout(showMilestones,0)});
+function modal(html:string,kind='standard') {
+  game.paused=true;dialog.dataset.kind=kind;
   drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
   if(audioButton)audioButton.onclick=()=>{sound.toggle();audioButton.textContent=sound.muted?'Ses kapalı':'Ses açık'};
@@ -230,6 +274,7 @@ function reset(){
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
+ <p>Altınla Kart değiştir menüsünden tek bir kartı yenileyebilirsin. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. 60 nüfusta Liman kartı hediye edilir; limanı kurup gelen tüccara ürün satarak altın kazanırsın. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
  <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Sağ alttaki Görevler panelinden odun, taş, çilek, buğday ve balık işlerinin önceliğini değiştirebilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>

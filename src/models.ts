@@ -177,7 +177,33 @@ function fishingHut(){
   for(let i=0;i<5;i++)for(const sign of [-1,1])beam(net,0x9caf9a,new T.Vector3(-.07+i*.025,0,0),new T.Vector3(-.02+i*.025,.14,sign*.025),.004);g.add(net);
   return g;
 }
+/** Timber quay and a merchant cutter, kept separate for the arrival animation. */
+function harbor(){
+  const g=new T.Group();
+  for(let i=0;i<13;i++)box(g,i%3?0xb19a75:0xc7b089,0,.015,.12+i*.095,.86,.07,.086);
+  for(const x of [-.37,.37])for(const z of [.2,.78,1.26]){
+    box(g,0x786049,x,-.18,z,.065,.47,.065);
+    part(g,new T.CylinderGeometry(.046,.046,.035,8),0xd1bb91,x,.075,z);
+  }
+  box(g,0xd4c5a0,-.25,.3,-.24,.48,.6,.44);
+  const roof=part(g,new T.ConeGeometry(.43,.27,4),0x608786,-.25,.7,-.24);roof.rotation.y=Math.PI/4;
+  crate(g,.28,.12);barrel(g,.3,-.22);
+  const sign=box(g,0x355f60,.38,.49,-.08,.3,.22,.04);
+  box(g,0xcbb17a,.38,.48,-.05,.04,.15,.02);sign.rotation.y=-.1;
+  const ship=new T.Group();ship.name='merchant';ship.position.set(.68,-.31,1.14);
+  const hull=part(ship,new T.SphereGeometry(.38,10,6),0x6b5140,0,.08,0);hull.scale.set(.66,.55,1.5);
+  box(ship,0xc8ac7e,0,.2,0,.42,.07,.86);
+  for(const x of [-.2,.2])box(ship,0x8e704e,x,.27,0,.045,.13,.83);
+  box(ship,0x755d44,0,.64,-.05,.035,.93,.035);
+  box(ship,0x755d44,0,.96,-.05,.58,.027,.03);
+  const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute([-.26,.94,-.04,.26,.94,-.04,.19,.43,.035,-.26,.94,-.04,.19,.43,.035,-.18,.43,.035],3));sail.computeVertexNormals();
+  const cloth=part(ship,sail,0xeee0b9);(cloth.material as T.MeshStandardMaterial).side=T.DoubleSide;
+  box(ship,0x658c8a,0,.68,.015,.10,.45,.02);
+  crate(ship,.09,.3);barrel(ship,-.08,-.27);
+  g.add(ship);return g;
+}
 export function model(kind: Kind): T.Group {
+  if(kind==='harbor'){if(!templates.has(kind))templates.set(kind,harbor());return templates.get(kind)!.clone()}
   if(kind==='stone'){if(!templates.has(kind)){const g=new T.Group();for(let i=0;i<3;i++){const rock=new T.Group();rock.userData.treeIndex=i;rock.position.set([-.27,.24,0][i],0,[-.18,-.1,.29][i]);const m=ball(rock,[0x8c9a99,0xa5afa5,0x7c8e8b][i],0,.13,0,.23);m.scale.set(1,.85,1.05);for(let j=0;j<3;j++){const x=-.09+j*.065;beam(rock,0xc7c7a7,new T.Vector3(x,.18+j*.012,.19),new T.Vector3(x+.055,.197+j*.012,.18),.012)}batchParts(rock);g.add(rock)}templates.set(kind,g)}return templates.get(kind)!.clone()}
   if(kind==='garden'){if(!templates.has(kind))templates.set(kind,flowerGarden());return templates.get(kind)!.clone()}
   if(kind==='fisher'||kind==='farm'){

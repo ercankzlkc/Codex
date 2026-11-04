@@ -4,7 +4,7 @@ Three.js, TypeScript ve Vite ile geliştirilmiş, gerçek zamanlı küçük ada 
 
 ## Çalıştırma
 
-Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build -- --base=/Codex/`.
+Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build`.
 
 ## Serbest oyun
 
@@ -15,6 +15,26 @@ Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebi
 Taş Ocağı kartında köylüler kazmayla çalışır; vuruşlarda kaya sallanır, küçük kıvılcım ve taş parçaları çıkar. Ağaç kesimi 6, taş çıkarma 6,8 saniye sürer. Taş, odun ve yiyecekle birlikte HUD’da ve depolarda ayrı stoklanır. Kaynak sayaçları yumuşak geçişlerle değişir; artış yeşil, azalış kırmızı görünür.
 
 Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction` animasyonuyla kıyıda uçar; model ve lisans bilgileri [model künyesinde](public/models/CREDITS.txt) bulunur. balıklar ara sıra sudan kavis çizerek atlar. Balıkçı iskelesi açık denize otomatik yönelir ve köylü iskelenin ucunda çalışır; R ile başka bir açık su yönü seçilebilir.
+
+## Altın, gelişim ve ticaret
+
+HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kart değiştir menüsünde 5 altın karşılığı eldeki tek bir kart seçilir ve açılmış havuzdan farklı, rastgele bir kartla değiştirilir; diğer kartlar korunur.
+
+| Nüfus | Aşama | Açılan kartlar / özellik | Altın ödülü |
+| --- | --- | --- | --- |
+| 10 | Küçük Yerleşim | Depo, Oduncu Kulübesi | 10 |
+| 24 | Köy | Çiftlik, Bahçe | 15 |
+| 40 | Gelişen Köy | Büyük Ev, Şenlik | 20 |
+| 60 | Kıyı Kasabası | Liman kartı doğrudan hediye | 25 |
+| 100 | Ticaret Kasabası | Tüccar ziyaretinde 40 ürün kapasitesi | 40 |
+
+Her eşik bir kez ödüllendirilir. Modal yeni kartları eldeki kartlarla aynı görsellerle gösterir; açılanlar sonraki çekilişlere girer. Sol üstteki gelişim düğmesi ilerlemeyi ve gelecek ödülleri gösterir. Pencereler açıkken köylüler, tüketim ve ticaret saati durur.
+
+Orman ve çilek alanı ücretsizdir. Yapılarda odun/taş, bahçede taş/yiyecek, şenlikte yiyecek/altın kullanılır. Tüm maliyetler kartta gösterilir; harcamalar gerçek depo stoklarından düşer.
+
+Liman 24 odun ve 16 taşla kıyıya kurulur; köyde yalnızca bir liman bulunur ve son su komşusu kapatılamaz. Ödül kartı kullanılana kadar elde ayrı tutulur, rastgele çekilişte kaybolmaz ve altınla değiştirilemez. Yıkılırsa tekrar inşa için geri gelir. İlk tüccar kurulumla gelir; sonraki ziyaretler 120 saniyede bir gerçekleşir. Geminin ticaret penceresi 40 saniye, alış kapasitesi ilk etapta 20 üründür. Ticaret panelinde en fazla 5'er adet satılır: odun/çilek 1, taş/buğday 2, balık 3 altın. Satış hem toplam stoktan hem depolardan düşer.
+
+Yayın GitHub `main` üzerinden Cloudflare Pages tarafından otomatik derlenir; kaynak ve yayın için ayrı dal kullanılmaz.
 
 ## İş öncelikleri
 
@@ -42,7 +62,7 @@ Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele da
 
 ## Yerleştirme ve kıyı sesleri
 
-Tek merkez altıgeni ve bir sakinle başlanır. Ticaret siparişi, köy aşaması veya genişleme/yükseltme hakkı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
+Tek merkez altıgeni ve bir sakinle başlanır. Kart yerleştirmede tur veya genişleme hakkı sınırı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
 
 Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).
 

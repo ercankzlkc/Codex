@@ -290,7 +290,7 @@ export class World {
     const angle=open.sort((a,b)=>score(b)-score(a)||Math.abs(delta(a,current))-Math.abs(delta(b,current)))[0];return current+delta(angle,current);
   }
   private alignFisheries(){
-    for(const [id,kind] of this.board)if(kind==='fisher'){
+    for(const [id,kind] of this.board)if(kind==='fisher'||kind==='harbor'){
       const g=this.buildings.get(id);if(!g)continue;
       const current=this.rotationTargets.get(id)??g.rotation.y;
       if(g.userData.manualCoast){const p=position(id);if(!this.board.has(fromWorld(p.x+Math.sin(current)*1.75,p.z+Math.cos(current)*1.75)))continue;g.userData.manualCoast=false}
@@ -339,9 +339,9 @@ export class World {
   get placementRotation(){this.placedManualCell=this.ghostManualCell;return this.desiredGhostYaw}
   rotateSelection(steps:number){
     this.lastRotationWake=this.time-.06;this.villagers.refreshNavigation();
-    if(this.selected&&!this.selected.event){if(this.selected.id==='fisher')this.ghostManualCell=this.hover;this.desiredGhostYaw=this.selected.id==='fisher'&&this.hover>=0?this.coastalYaw(this.hover,this.desiredGhostYaw,steps):this.desiredGhostYaw+steps*Math.PI/3}
+    if(this.selected&&!this.selected.event){if(['fisher','harbor'].includes(this.selected.id))this.ghostManualCell=this.hover;this.desiredGhostYaw=['fisher','harbor'].includes(this.selected.id)&&this.hover>=0?this.coastalYaw(this.hover,this.desiredGhostYaw,steps):this.desiredGhostYaw+steps*Math.PI/3}
     else if(this.editing>=0&&!this.placing){
-      const g=this.buildings.get(this.editing);if(g){if(this.board.get(this.editing)==='fisher')g.userData.manualCoast=true;const current=this.rotationTargets.get(this.editing)??g.rotation.y;this.rotationTargets.set(this.editing,this.board.get(this.editing)==='fisher'?this.coastalYaw(this.editing,current,steps):current+steps*Math.PI/3)}
+      const g=this.buildings.get(this.editing);if(g){if(['fisher','harbor'].includes(this.board.get(this.editing)!))g.userData.manualCoast=true;const current=this.rotationTargets.get(this.editing)??g.rotation.y;this.rotationTargets.set(this.editing,['fisher','harbor'].includes(this.board.get(this.editing)!)?this.coastalYaw(this.editing,current,steps):current+steps*Math.PI/3)}
     }
   }
   get placing(){return this.builds.length>0||this.demolitions.length>0}
@@ -389,7 +389,7 @@ export class World {
       const wasVisible=this.ghost.visible;
       this.ghost.visible=i>=0;
       if(i>=0){
-        if(this.selected?.id==='fisher'&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
+        if(this.selected&&['fisher','harbor'].includes(this.selected.id)&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
         this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.035:LAND_Y+.025));
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
         this.ghostPalette.forEach(({mat,base})=>{
@@ -431,7 +431,7 @@ export class World {
   private refreshMeadow(id:number){
     const group=this.buildings.get(id);if(!group)return;
     const scale=group.scale.clone(),y=group.position.y,kind=this.board.get(id)!;
-    group.scale.setScalar(['house','manor','store','lumber','fisher'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);group.position.y=LAND_Y;group.updateWorldMatrix(true,true);
+    group.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);group.position.y=LAND_Y;group.updateWorldMatrix(true,true);
     const center=position(id),boxes:T.Box3[]=[];
     group.traverse(o=>{if(o instanceof T.Mesh&&o.material!==this.contact){const b=new T.Box3().setFromObject(o);b.translate(new T.Vector3(-center.x,0,-center.z));boxes.push(b)}});
     this.environment.setMeadow(id,boxes);group.scale.copy(scale);group.position.y=y;group.updateWorldMatrix(true,true);
@@ -460,9 +460,9 @@ export class World {
       if(old)return;
       const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
-      g.scale.setScalar(['house','manor','store','lumber','fisher'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);
+      g.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){if(kind==='fisher'&&this.placedManualCell===i)g.userData.manualCoast=true;g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
+      if(i===placed){if(['fisher','harbor'].includes(kind)&&this.placedManualCell===i)g.userData.manualCoast=true;g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
     this.alignFisheries();
     this.cameraControl.setClearance(Math.max(1.7,...[...this.buildings.values()].map(g=>new T.Box3().setFromObject(g).max.y)));
@@ -543,7 +543,7 @@ export class World {
       if(previous<1.42&&b.time>=1.42)this.burst(b.id);
       const growth=easeBetween(b.time,BUILD_START,BUILD_END);
       const bump=Math.sin(Math.PI*growth)*.14;
-      const size=['house','manor','store','lumber','fisher'].includes(b.kind)?BUILDING_SCALE:['berry','farm'].includes(b.kind)?.75:1;
+      const size=['house','manor','store','lumber','fisher','harbor'].includes(b.kind)?BUILDING_SCALE:['berry','farm'].includes(b.kind)?.75:1;
       b.group.scale.set(Math.max(.01,(growth+bump)*size),Math.max(.01,(growth+bump*1.6)*size),Math.max(.01,(growth+bump)*size));
       b.group.position.y=LAND_Y-.24*(1-growth);
       if(b.kind==='berry') b.group.children.forEach(child=>{
@@ -572,7 +572,15 @@ export class World {
       for(const piece of drop.pieces){const wx=drop.group.position.x+piece.mesh.position.x*1.65-center.x,wz=drop.group.position.z+piece.mesh.position.z*1.65-center.z,r=Math.hypot(wx,wz);if(r>.63){piece.mesh.position.x=(center.x+wx/r*.63-drop.group.position.x)/1.65;piece.mesh.position.z=(center.z+wz/r*.63-drop.group.position.z)/1.65;piece.velocity.x*=-.2;piece.velocity.z*=-.2}}
     }
     for(const decor of this.storageDecor.values()){const t=this.time-(decor.userData.upgradedAt??-99);decor.scale.setScalar(1+(t<1?Math.sin(t*Math.PI)*.13:0))}
-    this.villagers.update(document.hidden?0:dt);
+    if(!this.game?.paused)this.villagers.update(document.hidden?0:dt);
+    for(const [id,kind] of this.board)if(kind==='harbor'){
+      const ship=this.buildings.get(id)?.getObjectByName('merchant');if(!ship||!this.game)continue;
+      const t=this.game.tradeClock;
+      ship.visible=t<46;
+      const approach=t<6?1-t/6:t>40?(t-40)/6:0;
+      ship.position.set(.68,(SEA_Y-LAND_Y)/BUILDING_SCALE+.025*Math.sin(this.time*1.5),1.14+approach*4);
+      ship.rotation.y=t>40?Math.PI:0;ship.rotation.z=Math.sin(this.time*1.2)*.035;
+    }
     this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}
     for(const [key,cycle] of this.treeCycles){
@@ -634,7 +642,7 @@ export class World {
     camera.position.set(2.9,2.25,3.7);camera.lookAt(0,.43,0);
     const renderer=new T.WebGLRenderer({alpha:true,antialias:true});renderer.setSize(280,220);renderer.toneMapping=T.ACESFilmicToneMapping;
     for(const card of cards){
-      const group=model(card.id);part(group,new T.CylinderGeometry(.72,.75,.068,6),0x9db77c,0,-.034,0);scene.add(group);
+      const group=model(card.id);if(card.id==='harbor'){group.scale.setScalar(.64);group.position.z=-.22}part(group,new T.CylinderGeometry(.72,.75,.068,6),0x9db77c,0,-.034,0);scene.add(group);
       renderer.render(scene,camera);images[card.id]=renderer.domElement.toDataURL();scene.remove(group);
     }
     renderer.dispose();renderer.forceContextLoss();return images;
