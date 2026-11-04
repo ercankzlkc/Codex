@@ -9,6 +9,9 @@ import {setupSettings} from './settings';
 
 import {icon} from './icons';
 const app=document.querySelector<HTMLElement>('#app')!;
+app.addEventListener('dragstart',event=>event.preventDefault());
+app.addEventListener('selectstart',event=>{if(!(event.target instanceof Element&&event.target.closest('input,textarea')))event.preventDefault()});
+app.addEventListener('contextmenu',event=>event.preventDefault());
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>

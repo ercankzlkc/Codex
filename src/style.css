@@ -313,3 +313,7 @@ dialog[data-kind=settings] .palette-option[aria-pressed=true]{border-color:var(-
 #work-panel header,#tile-editor strong,#work-panel strong,#tile-tooltip strong{color:var(--palette-accent)}
 
 .regrowth-loader[hidden]{display:none}
+
+/* The game surface owns pointer gestures; native browser selection has no role here. */
+html,body,#app,#app *,.drag-card,.drag-card *{user-select:none;-webkit-user-select:none;-webkit-user-drag:none}
+#app input,#app textarea{user-select:text;-webkit-user-select:text}

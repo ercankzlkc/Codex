@@ -37,16 +37,18 @@ export class Wildlife {
     }
     // Quiet underwater silhouettes, drawn through the transparent water surface.
     for(let i=0;i<10;i++){
-      const material=new T.MeshBasicMaterial({color:0x356a70,transparent:true,opacity:0,depthWrite:false});
+      const material=new T.MeshBasicMaterial({color:0x285b68,transparent:true,opacity:0,depthWrite:false});
       const root=new T.Group(),body=new T.Mesh(new T.SphereGeometry(.075,7,4),material);
       body.scale.set(.48,.35,1.5);body.renderOrder=3;root.add(body);
-      const tail=new T.Mesh(new T.ConeGeometry(.04,.075,3),material);tail.rotation.x=-Math.PI/2;tail.position.z=-.13;tail.renderOrder=3;root.add(tail);
+      const fin=new T.Mesh(new T.ConeGeometry(.035,.065,3),material);fin.rotation.z=Math.PI/2;fin.position.set(.025,0,-.01);fin.renderOrder=3;root.add(fin);
+      for(const side of [-1,1]){const eye=new T.Mesh(new T.SphereGeometry(.008,4,3),material);eye.position.set(side*.031,.012,.065);eye.renderOrder=3;root.add(eye)}
+      const tail=new T.Mesh(new T.ConeGeometry(.055,.08,3),material);tail.rotation.x=-Math.PI/2;tail.position.z=-.13;tail.renderOrder=3;root.add(tail);
       root.visible=false;this.root.add(root);this.swimmers.push({root,material,phase:i*2.37,edge:i*7});
     }
   }
   setView(camera:T.OrthographicCamera,height:number){
     const pixels=height/((camera.top-camera.bottom)/camera.zoom);
-    this.fishVisibility=T.MathUtils.smoothstep(pixels,65,140);
+    this.fishVisibility=T.MathUtils.smoothstep(pixels,55,120);
   }
   sync(board:ReadonlyMap<number,unknown>){
     this.board=board;this.shore=coast(board);const points=[...board.keys()].map(position);if(!points.length)return;
@@ -81,7 +83,8 @@ export class Wildlife {
       fish.root.position.set(px,SEA_Y-.09,pz);
       fish.root.rotation.y=Math.atan2(dx,dz)+(Math.cos(time*.24+fish.phase)<0?Math.PI:0);
       fish.root.rotation.y+=Math.sin(time*4+fish.phase)*.08;
-      fish.material.opacity=.20*this.fishVisibility;fish.root.visible=true;
+      fish.root.children[fish.root.children.length-1].rotation.y=Math.sin(time*7+fish.phase)*.3;
+      fish.material.opacity=.34*this.fishVisibility;fish.root.visible=true;
     }
     for(const f of this.fish){
       if(f.age<0){

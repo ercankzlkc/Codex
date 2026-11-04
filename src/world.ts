@@ -422,12 +422,12 @@ export class World {
         });
       }
     }
-    if(this.previewLand){this.ghost?.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
+    if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
     if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
       const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
       this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
-      this.previewLand.position.y=-LAND_Y-.025/.70;
-      this.previewLand.receiveShadow=true;this.ghost.add(this.previewLand);
+      this.previewLand.position.copy(this.ghost.position);this.previewLand.position.y=0;
+      this.previewLand.receiveShadow=true;this.scene.add(this.previewLand);
     }
     this.onHover(i);
   }
@@ -437,7 +437,7 @@ export class World {
     const same=!!card&&card===this.selected;
     const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
     this.cameraControl.setPlacement(carrying);
-    if(this.previewLand){this.previewLand.geometry.dispose();this.previewLand=null}
+    if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
     if(this.ghost){this.scene.remove(this.ghost);this.ghost=null}
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
     this.selected=card;this.fisherOffset=same?this.fisherOffset:0;this.placementQueued=false;this.ghostModel=null;this.desiredGhostYaw=targetYaw;this.wheelRotation=0;
@@ -529,7 +529,8 @@ export class World {
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
     this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     if(this.ghost?.visible){
-      this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-32*dt));
+      this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-16*dt));
+      if(this.previewLand){this.previewLand.position.x=this.ghost.position.x;this.previewLand.position.z=this.ghost.position.z;}
       if(this.ghostModel){
         const difference=this.desiredGhostYaw-this.ghostModel.rotation.y;
         this.ghostModel.rotation.y+=difference*(1-Math.exp(-16*dt));
