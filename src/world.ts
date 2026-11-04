@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {SeasonCycle} from './seasons';
 import {icon} from './icons';
 import {SUN} from './lighting';
 import { CameraController } from './camera';
@@ -105,6 +106,8 @@ export class World {
   private selected:Card|null=null;
   private previousTime=performance.now();
   private time=0;
+  private readonly ambient=new T.HemisphereLight(0xddeaf1,0x8c957b,1);
+  private readonly seasons:SeasonCycle;
   private detailTile=-1;
   private detailPointer:{x:number;y:number}|null=null;
   hover=-1;
@@ -122,6 +125,7 @@ export class World {
     (this.scene.background as T.Color).set(sky);
     this.sun.color.set(sun);
     this.environment.setPalette(colors);
+    this.seasons.setPalette(sky,sun);
     // Grade the complete rendered scene, including textures, vertex-coloured terrain,
     // villagers and objects created after the selection. No material mutation accumulates.
     this.renderer.domElement.style.filter=`hue-rotate(${grade.hue}deg) saturate(${grade.saturation}) brightness(${grade.brightness})`;
@@ -135,13 +139,14 @@ export class World {
     this.renderer.toneMappingExposure=1.03;
     el.append(this.renderer.domElement);
     this.cameraControl=new CameraController(this.renderer.domElement);
-    this.scene.add(new T.HemisphereLight(0xddeaf1,0x8c957b,1.0),this.root);
+    this.scene.add(this.ambient,this.root);
     const sun=this.sun;
     sun.position.copy(SUN.offset);sun.castShadow=true;
     Object.assign(sun.shadow.camera,{left:-8,right:8,top:8,bottom:-8,near:1,far:31});
     sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00006;sun.shadow.normalBias=.006;
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
+    this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);
     this.villagers=new Villagers(this.scene,{
       ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
@@ -516,6 +521,7 @@ export class World {
     });
   }
   reset(){
+    this.seasons.reset();
     for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
     this.detailTile=-1;this.detailPointer=null;this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
     this.loaders.forEach(l=>l.el.remove());this.loaders.clear();this.trailPoints=[];this.trailKeys.clear();this.trails.count=0;
@@ -528,6 +534,7 @@ export class World {
   private frame=(now:number)=>{
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
     this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
+    this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     if(this.ghost?.visible){
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-16*dt));
       if(this.previewLand){this.previewLand.position.x=this.ghost.position.x;this.previewLand.position.z=this.ghost.position.z;}
