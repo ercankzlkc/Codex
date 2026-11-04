@@ -78,7 +78,7 @@ export class Villagers {
     }
     floatGeometry.scale(.85,1.25,.85);floatGeometry.setAttribute('color',new T.Float32BufferAttribute(floatColors,3));
     const bobber=new T.Mesh(floatGeometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.55}));bobber.visible=false;
-    const fish=new T.Group(),belly=ball(fish,0x94babb,0,0,0,.055);belly.scale.set(.55,.7,1.6);const tail=partFishTail();fish.add(tail);fish.visible=false;
+    const fish=resourceUnitModel('fish');fish.visible=false;
     root.position.set(free.x,LAND_Y,free.z);root.rotation.y=yaw+Math.PI;
     const status=document.createElement('div');status.className='citizen-status';status.hidden=true;status.setAttribute('role','img');this.overlay.append(status);
     this.root.add(root,line,bobber,fish);this.spawned.add(id);
@@ -347,6 +347,5 @@ export class Villagers {
     }
   }
 }
-function partFishTail(){const mesh=new T.Mesh(new T.ConeGeometry(.05,.065,3),new T.MeshStandardMaterial({color:0x739b9c,roughness:.7}));mesh.position.z=-.09;mesh.rotation.x=Math.PI/2;return mesh}
 
 const statusNames:Record<string,string>={stone:'Taş çıkarıyor',wood:'Odun kesiyor',berry:'Çilek topluyor',farm:'Buğday biçiyor',fish:'Balık tutuyor',garden:'Çiçek topluyor',unload:'Depoya bırakıyor',carry:'Depoya taşıyor',full:'Depo dolu',rest:'Dinleniyor',eat:'Yemek yiyor',hungry:'Yiyecek yok',search:'Alternatif yol arıyor'};
