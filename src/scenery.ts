@@ -5,11 +5,11 @@ import {adjacent,position,RADIUS} from './hex';
 export const LAND_Y=.13, SEA_Y=-.18;
 // Shared world-space sampling makes neighboring tiles agree on every seam.
 const groundPalette:Record<string,T.Color>=Object.fromEntries(Object.entries({
-  forest:'#769778',berry:'#a3b783',farm:'#c7b185',stone:'#a8afa3',
-  house:'#bbb99a',manor:'#c7bea0',lumber:'#a8aa82',store:'#bab295',
-  garden:'#8fae87',fisher:'#c4bc98',harbor:'#cabb9b',
+  forest:'#759b77',berry:'#a2bd83',farm:'#a8bb80',stone:'#91aa86',
+  house:'#a4bb88',manor:'#adbf8c',lumber:'#90ab7c',store:'#9fb785',
+  garden:'#90b684',fisher:'#a8bc8c',harbor:'#a5b98a',
 }).map(([kind,color])=>[kind,new T.Color(color)]));
-const grassBase=new T.Color('#a0b687');
+const grassBase=new T.Color('#9fb982');
 function nearby(id:number){return [...new Set([id,...adjacent(id),...adjacent(id).flatMap(adjacent)])]}
 export function terrainSignature(id:number,board:ReadonlyMap<number,unknown>){
   return nearby(id).map(i=>`${i}:${board.get(i)??''}`).join('|');

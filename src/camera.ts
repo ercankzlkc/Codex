@@ -75,8 +75,9 @@ export class CameraController {
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
     const aspect = safeWidth / safeHeight;
-    const topReserved = safeWidth < 700 ? 100 : 85;
-    const bottomReserved = safeWidth < 700 ? 205 : safeHeight < 760 ? 190 : 225;
+    const topReserved = safeWidth < 700 ? 100 : 72;
+    const cardHeight = Math.min(212, Math.max(188, safeHeight * .22));
+    const bottomReserved = safeWidth < 700 ? 205 : cardHeight + 28;
     const availableHeight = Math.max(safeHeight * 0.43, safeHeight - topReserved - bottomReserved);
     this.viewportWidth=safeWidth;this.viewportHeight=safeHeight;
     this.desiredHalfHeight=Math.max(this.islandRadius/(aspect*.90),(this.islandRadius*.68+.61)*safeHeight/availableHeight);
