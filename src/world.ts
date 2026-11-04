@@ -3,13 +3,14 @@ import {icon} from './icons';
 import {SUN} from './lighting';
 import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
-import {CENTER, position, fromWorld,corner,RADIUS,adjacent} from './hex';
+import {CENTER, position, fromWorld,corner,RADIUS,adjacent,type ShoreEdge} from './hex';
 import {terrainGeometry} from './scenery';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, resourceModel, part, box } from './models';
 import {Game,BUILDING_SCALE,cards,type Resource,type Card,type Kind,type Production} from './game';
 import {Villagers} from './villagers';
+import type {HarvestCue} from './harvest-audio';
 import type {WalkPoint} from './navigation';
 
 type Build = { id:number; group:T.Group; time:number; kind:Kind };
@@ -109,7 +110,9 @@ export class World {
   onHover=(_i:number)=>{};
   onPick=(_i:number)=>{};
   onTileSelect=(_i:number)=>{};
-  onSoundFrame=(_camera:T.OrthographicCamera,_focus:T.Vector3,_birds:readonly T.Object3D[])=>{};
+  onSoundFrame=(_camera:T.OrthographicCamera,_focus:T.Vector3,_birds:readonly T.Object3D[],_shore:readonly ShoreEdge[],_land:ReadonlyMap<number,unknown>)=>{};
+  onWorkSound=(_cue:HarvestCue,_at:T.Vector3)=>{};
+  onPlacementSound=(_kind:Kind,_at:T.Vector3)=>{};
   onDelivery=(_source:number,_store:number,_resource:Resource,_amount:number)=>0;
   onInspect=(_id:number,_x:number,_y:number,_bounds:{left:number;right:number;top:number;bottom:number}|null)=>{};
 
@@ -217,6 +220,7 @@ export class World {
     if(resource==='wood'||resource==='stone'){
       const key=`${id}:${index}`,tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
       if(!tree||this.treeCycles.has(key))return false;
+      this.onWorkSound(resource==='stone'?'stoneBreak':'woodBreak',tree.getWorldPosition(new T.Vector3()));
       this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});this.villagers.refreshNavigation();
       if(resource==='stone'){
         const at=tree.getWorldPosition(new T.Vector3());this.dust(at,20);
@@ -235,7 +239,7 @@ export class World {
       tree.updateWorldMatrix(true,false);this.makeLoader(key,id,tree.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.5,0)),30);
     }else if(this.board.get(id)==='berry'||this.board.get(id)==='farm'||this.board.get(id)==='garden'){
       const field=this.fieldState(id);if(field.stock<=0)return false;field.stock--;
-      const p=this.workPoint(id,index);this.dust(p,6);if(this.board.get(id)==='berry'){
+      const p=this.workPoint(id,index);this.onWorkSound(this.board.get(id)==='farm'?'wheatHarvest':'berryPick',p);this.dust(p,6);if(this.board.get(id)==='berry'){
         const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined)??[];
         plants.slice(Math.floor(field.stock/field.max*plants.length),Math.ceil((field.stock+1)/field.max*plants.length)).forEach(plant=>plant.userData.hitAt=this.time);
       }
@@ -265,7 +269,7 @@ export class World {
   private woodImpact(id:number,index:number){
     const tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);if(!tree)return;
     this.woodHits.set(tree,.20);tree.updateWorldMatrix(true,false);const p=tree.getWorldPosition(new T.Vector3());
-    const stone=this.board.get(id)==='stone';
+    const stone=this.board.get(id)==='stone';this.onWorkSound(stone?'stoneHit':'woodHit',p);
     if(stone)this.dust(p.clone().add(new T.Vector3(0,.14,.17)),4);else this.fallLeaves(tree,4);
     for(let i=0;i<(stone?14:7);i++){const mesh=new T.Mesh(this.moteGeo,stone?(i<2?this.sparkMat:this.stoneChipMat):this.moteMats[0]);mesh.scale.setScalar(.85);mesh.position.copy(p).add(new T.Vector3(.02,.22,.16));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.9,.65+Math.random()*.55,.25+Math.random()*.65),life:stone?1.1:.7})}
   }
@@ -511,7 +515,7 @@ export class World {
   }
   private frame=(now:number)=>{
     const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
-    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds);
+    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     if(this.ghost?.visible){
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-32*dt));
       if(this.ghostModel){
@@ -548,7 +552,7 @@ export class World {
       b.time=Math.min(BUILD_END,b.time+dt);
       b.group.visible=b.time>=BUILD_START;
       if(b.time<BUILD_START)return true;
-      if(previous<1.42&&b.time>=1.42)this.burst(b.id);
+      if(previous<1.42&&b.time>=1.42){this.burst(b.id);this.onPlacementSound(b.kind,cellPosition(b.id,LAND_Y+.2))}
       const growth=easeBetween(b.time,BUILD_START,BUILD_END);
       const bump=Math.sin(Math.PI*growth)*.14;
       const size=['house','manor','store','lumber','fisher','harbor'].includes(b.kind)?BUILDING_SCALE:['berry','farm'].includes(b.kind)?.75:1;

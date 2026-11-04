@@ -58,7 +58,7 @@ Cloudflare Workers & Pages → Create application → GitHub deposu `ercankzlkc/
 - Depoyu seçerek kapasitesini görün veya odunla yükseltin.
 - Altıgen bilgileri, zemini kapatmayacak şekilde farenin yanında gösterilir.
 
-Sesler yerel örneklerden çalınır. Kaynaklar ve lisanslar: [ses künyesi](public/audio/CREDITS.txt).
+Sesler yerel örneklerden çalınır. Balta/kazma vuruşları, ağaç/taş kırılması, çilek toplama ve buğday biçme kısa CC0 kayıtlara bağlıdır. İş efektleri gerçek vuruş/hasat anında, karo yerleşimi ise görünür yapı çıkışında çalar. HRTF ile sağ-sol konumu ve uzaklık zayıflaması uygulanır; kalabalık üretimde eşzamanlı iş sesleri sınırlandırılır. Orman/çilek/bahçede yaprak, çiftlikte yumuşak ekin hışırtısı, taşta maden/çakıl, yapılarda ahşap ve iskelede gıcırtı kullanılır. Kartın hover sesi korunur. Kaynaklar ve lisanslar: [ses künyesi](public/audio/CREDITS.txt).
 
 Bu geliştirme aşamasında oyun ve cihaz denemeleri kullanıcı tarafından yapılır.
 
@@ -72,7 +72,7 @@ Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele da
 
 Tek merkez altıgeni ve bir sakinle başlanır. Kart yerleştirmede tur veya genişleme hakkı sınırı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
 
-Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).
+Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Ses kıyıya/denize yakınlaşınca artar; kara içinde kıyıdan uzaklaşınca ve kamera uzaklaşınca azalır. Kıyının kamera sağına/soluna dağılımı stereo yönünü etkiler; seviye, pan ve uzaklık filtresi yumuşakça değişir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).
 
 ## Ortak görsel stil ve hava
 

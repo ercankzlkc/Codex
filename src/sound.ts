@@ -1,5 +1,8 @@
 import * as T from 'three';
 import type { Kind } from './game';
+import {fromWorld,type ShoreEdge} from './hex';
+import {harvestAudio,type HarvestCue} from './harvest-audio';
+import {placementAudio} from './placement-audio';
 import { BUILD_START, BUILD_END, LAND_START } from './emergence';
 
 type Bus='master'|'sfx'|'ambience';
@@ -21,6 +24,12 @@ export class TableSound {
   private ctx:AudioContext|null=null;
   private buses:Partial<Record<Bus,GainNode>>={};
   private wave:HTMLAudioElement|null=null;
+  private seaGain:GainNode|null=null;
+  private seaPan:StereoPannerNode|null=null;
+  private seaFilter:BiquadFilterNode|null=null;
+  private workLive=new Set<AudioBufferSourceNode>();
+  private lastWork=new Map<string,number>();
+  private readonly audioRight=new T.Vector3();
   private clips=new Map<string,AudioBuffer>();
   private live=new Set<AudioScheduledSourceNode>();
   private noise:AudioBuffer|null=null;
@@ -54,13 +63,14 @@ export class TableSound {
       const wave=new Audio(new URL('audio/shore.mp3',document.baseURI).href);wave.preload='none';wave.loop=true;this.wave=wave;
       // Preserve the recording's stereo image and gently widen the side signal.
       // L'=1.1L-.1R, R'=1.1R-.1L. No duplicated mono or rapid autopanning.
-      const split=this.ctx.createChannelSplitter(2),merge=this.ctx.createChannelMerger(2),sea=this.ctx.createGain();sea.gain.value=.8;
+      const split=this.ctx.createChannelSplitter(2),merge=this.ctx.createChannelMerger(2),sea=this.ctx.createGain();sea.gain.value=0;
+      this.seaGain=sea;this.seaPan=this.ctx.createStereoPanner();this.seaFilter=this.ctx.createBiquadFilter();this.seaFilter.type='lowpass';this.seaFilter.frequency.value=5500;this.seaFilter.Q.value=.3;
       this.ctx.createMediaElementSource(wave).connect(split);
       for(const [input,output,level] of [[0,0,1.1],[1,1,1.1],[0,1,-.1],[1,0,-.1]]){
         const route=this.ctx.createGain();route.gain.value=level;split.connect(route,input);route.connect(merge,0,output);
       }
-      merge.connect(sea).connect(this.buses.ambience!);
-      const names=new Set(Object.values(cues).flatMap(([files])=>[...files]));
+      merge.connect(this.seaFilter).connect(this.seaPan).connect(sea).connect(this.buses.ambience!);
+      const names=new Set([...Object.values(cues).flatMap(([files])=>[...files]),...Object.values(harvestAudio).flatMap(c=>[...c.files]),...Object.values(placementAudio).flatMap(c=>[...c.files])]);
       for(const name of names){
         void fetch(new URL('audio/'+name+'.ogg',document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
           .then(b=>this.ctx!.decodeAudioData(b)).then(b=>this.clips.set(name,b)).catch(()=>{});
@@ -109,8 +119,8 @@ export class TableSound {
     for(let i=0;i<out.length;i++)out[i]*=level;
     return mono;
   }
-  updateSpatial(camera:T.OrthographicCamera,focus:T.Vector3,birds:readonly T.Object3D[]){
-    const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.ambience||!this.levels.master)return;
+  updateSpatial(camera:T.OrthographicCamera,focus:T.Vector3,birds:readonly T.Object3D[],shore:readonly ShoreEdge[],land:ReadonlyMap<number,unknown>){
+    const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.master)return;
     const now=ctx.currentTime;if(now-this.lastSpatial<1/30)return;this.lastSpatial=now;
     camera.getWorldDirection(this.forward);this.up.set(0,1,0).applyQuaternion(camera.quaternion);
     // Orthographic zoom changes apparent proximity without moving the real camera.
@@ -122,6 +132,8 @@ export class TableSound {
         [listener.forwardX,this.forward.x],[listener.forwardY,this.forward.y],[listener.forwardZ,this.forward.z],
         [listener.upX,this.up.x],[listener.upY,this.up.y],[listener.upZ,this.up.z]] as [AudioParam,number][])parameter.setTargetAtTime(value,now,.06);
     }else{listener.setPosition(this.ear.x,this.ear.y,this.ear.z);listener.setOrientation(this.forward.x,this.forward.y,this.forward.z,this.up.x,this.up.y,this.up.z)}
+    this.updateSea(camera,focus,shore,land,now);
+    if(!this.levels.ambience){this.stopBird();return}
     if(this.birdVoice&&now>this.birdVoice.endsAt+.5)this.stopBird();
     if(!this.birdVoice&&now>=this.nextBirdAt&&birds.length){
       let bird:T.Object3D|undefined,best=Infinity;
@@ -139,6 +151,46 @@ export class TableSound {
     }else voice.panner.setPosition(this.birdPosition.x,this.birdPosition.y,this.birdPosition.z);
     const distance=this.birdPosition.distanceTo(this.ear);
     voice.filter.frequency.setTargetAtTime(T.MathUtils.lerp(6500,1500,T.MathUtils.smoothstep(distance,3,20)),now,.12);
+  }
+  private updateSea(camera:T.OrthographicCamera,focus:T.Vector3,shore:readonly ShoreEdge[],land:ReadonlyMap<number,unknown>,now:number){
+    let distance=0,pan=0;
+    if(land.has(fromWorld(focus.x,focus.z))){
+      distance=Infinity;let weight=0,dx=0,dz=0;
+      for(const edge of shore){
+        const vx=edge.bx-edge.ax,vz=edge.bz-edge.az;
+        const t=T.MathUtils.clamp(((focus.x-edge.ax)*vx+(focus.z-edge.az)*vz)/Math.max(.0001,vx*vx+vz*vz),0,1);
+        const x=edge.ax+vx*t-focus.x,z=edge.az+vz*t-focus.z,d=Math.hypot(x,z),w=1/(1+d*d)**2;
+        distance=Math.min(distance,d);dx+=x*w;dz+=z*w;weight+=w;
+      }
+      if(weight){
+        this.audioRight.set(1,0,0).applyQuaternion(camera.quaternion);
+        pan=T.MathUtils.clamp((dx*this.audioRight.x+dz*this.audioRight.z)/weight/Math.max(2,distance),-.65,.65);
+      }
+    }
+    // Zoom is virtual proximity in the orthographic view; camera safety offsets must not change sound.
+    const proximity=distance+4.5/Math.max(.5,camera.zoom),level=Number.isFinite(proximity)?.9*Math.exp(-proximity*.13):0;
+    this.seaGain?.gain.setTargetAtTime(level,now,.25);this.seaPan?.pan.setTargetAtTime(pan,now,.3);
+    this.seaFilter?.frequency.setTargetAtTime(1100+7400*Math.exp(-proximity*.08),now,.3);
+  }
+  work(cue:HarvestCue,at:T.Vector3){
+    const now=this.ctx?.currentTime??0,key=`${cue}:${at.x.toFixed(1)},${at.z.toFixed(1)}`;
+    if(now-(this.lastWork.get(key)??-99)<.09)return;
+    if(this.spatialClip(harvestAudio[cue],at))this.lastWork.set(key,now);
+    if(this.lastWork.size>512)for(const [k,t] of this.lastWork)if(now-t>3)this.lastWork.delete(k);
+  }
+  placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}
+  private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number]},at:T.Vector3){
+    const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.sfx||this.workLive.size>=12)return false;
+    const buffer=this.clips.get(cue.files[Math.floor(Math.random()*cue.files.length)]);if(!buffer)return false;
+    const source=ctx.createBufferSource(),panner=ctx.createPanner(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
+    source.buffer=buffer;source.playbackRate.value=T.MathUtils.lerp(cue.rate[0],cue.rate[1],Math.random());
+    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=5;panner.rolloffFactor=1;panner.maxDistance=45;
+    panner.setPosition(at.x,at.y,at.z);filter.type='lowpass';filter.Q.value=.3;filter.frequency.value=T.MathUtils.lerp(7000,1500,T.MathUtils.smoothstep(at.distanceTo(this.ear),5,30));
+    const now=ctx.currentTime,duration=Math.min(2.5,buffer.duration/source.playbackRate.value);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(cue.volume,now+.008);gain.gain.setValueAtTime(cue.volume,now+Math.max(.01,duration-.04));gain.gain.linearRampToValueAtTime(0,now+duration);
+    source.connect(filter).connect(panner).connect(gain).connect(this.buses.sfx!);this.workLive.add(source);
+    source.onended=()=>{this.workLive.delete(source);source.disconnect();filter.disconnect();panner.disconnect();gain.disconnect()};
+    source.start(now);source.stop(now+duration);return true;
   }
   private startBird(bird:T.Object3D,now:number){
     const ctx=this.ctx!;
@@ -165,7 +217,7 @@ export class TableSound {
     const now=this.ctx!.currentTime;voice.gain.gain.cancelScheduledValues(now);voice.gain.gain.setValueAtTime(voice.gain.gain.value,now);voice.gain.gain.linearRampToValueAtTime(0,now+.08);voice.source.stop(now+.1);
   }
   resetAmbience(){
-    this.stopBird();this.birdClipIndex=0;this.lastSpatial=-1;this.nextBirdAt=(this.ctx?.currentTime??0)+3;
+    this.stopBird();this.lastWork.clear();this.birdClipIndex=0;this.lastSpatial=-1;this.nextBirdAt=(this.ctx?.currentTime??0)+3;
   }
   play(cue:Cue,force=false){
     if(this.muted||document.hidden||!this.ctx||this.ctx.state!=='running'||this.live.size>=(cue==='fence'||cue==='fenceBreak'||force?8:3))return;
@@ -263,6 +315,7 @@ export class TableSound {
     if(bonus)later(()=>this.note(587.33,.025,.24),BUILD_END*1000);
   }
   cancel(){
+    for(const voice of this.workLive){try{voice.stop()}catch{}}this.workLive.clear();
     for(const token of this.pending)clearTimeout(token);this.pending.clear();
     for(const source of this.live){try{source.stop()}catch{/* A voice may already have ended. */}}
     this.live.clear();

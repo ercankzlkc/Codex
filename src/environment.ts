@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {CENTER,coast,position} from './hex';
+import {CENTER,coast,position,type ShoreEdge} from './hex';
 import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,terrainSignature,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
 import {tree} from './models';
@@ -17,6 +17,7 @@ export class Environment {
   private readonly water=new TropicalWater();
   private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
 
+  private audioShore:ShoreEdge[]=[];
   private shoreOpenings=new Map<number,number>();
   private atmosphere:Atmosphere;
   private wildlife:Wildlife;
@@ -35,7 +36,7 @@ export class Environment {
     this.wildlife.sync(board);this.atmosphere.sync(board);
     for(const id of this.land.keys())if(!board.has(id))this.removeLand(id)
     this.pendingBoard=placed>=0?new Map(board):null;
-    const edges=coast(board);
+    const edges=coast(board);this.audioShore=edges;
     this.water.sync(board,edges,placed);
     for(const id of board.keys()){
       const signature=terrainSignature(id,board);
@@ -89,7 +90,7 @@ export class Environment {
   }
   demolish(board:ReadonlyMap<number,unknown>,id:number){
     this.pendingBoard=new Map(board);this.sinking.set(id,0);this.land.get(id)?.fence.plan(id,board);
-    this.water.sync(board,coast(board),-1,id);
+    this.audioShore=coast(board);this.water.sync(board,this.audioShore,-1,id);
   }
   private removeLand(id:number){
     const tile=this.land.get(id);if(!tile)return;
@@ -98,6 +99,7 @@ export class Environment {
     this.land.delete(id);
   }
   setSun(direction:T.Vector3){this.water.setSun(direction)}
+  get soundShore(){return this.audioShore}
   get soundBirds(){return this.wildlife.soundBirds}
   fitWaterView(camera:T.OrthographicCamera,focus:T.Vector3){this.water.fitView(camera,focus)}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
@@ -132,5 +134,5 @@ export class Environment {
     }
   }
 
-  reset(){this.nextFenceAt=0;this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
+  reset(){this.audioShore=[];this.nextFenceAt=0;this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
 }

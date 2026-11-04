@@ -1,0 +1,29 @@
+Yelken Koyu — karo yerleştirme sesleri
+
+Kenney · RPG Audio · CC0 1.0 Universal
+https://kenney.nl/assets/rpg-audio
+placement-straw-1/2.ogg: cloth1/2.ogg (ekim ve yaprakla birlikte yumuşak hışırtı)
+placement-timber-1/2.ogg: creak1/2.ogg (iskele ve yapı ahşabı)
+placement-door.ogg: doorClose_2.ogg (evin son oturuşu)
+
+Kenney · Impact Sounds · CC0 1.0 Universal
+https://kenney.nl/assets/impact-sounds
+placement-stone.ogg: impactMining_001.ogg
+Mevcut impactWood_light_000/003.ogg dosyaları yapı katmanında tekrar kullanılır.
+Paket lisansının yerel kopyası: Kenney-Impact-License.txt.
+
+TinyWorlds · Different Steps · CC0 1.0 Universal
+https://opengameart.org/content/different-steps-on-wood-stone-leaves-gravel-and-mud
+placement-leaves-1/2.ogg: leaves01/02.ogg
+placement-gravel.ogg: gravel.ogg
+
+Yeni dosyalar orijinal Ogg kayıtlarıdır, yalnızca isimleri değiştirildi.
+İndirme aynası ve paket bazında kaynak/lisans dökümü:
+https://github.com/Mcamento8/open-game-sfx-index
+https://github.com/Mcamento8/open-game-sfx-index/blob/main/ATTRIBUTION.md
+https://creativecommons.org/publicdomain/zero/1.0/
+
+Mevcut chips-stack-3.ogg (Kenney Casino Audio, CC0) şenlikte tekrar kullanılır.
+Diğer mevcut seslerin kaynakları CREDITS.txt içindedir.
+
+Aynı kaydın kopyasını tutmamak için ortak yaprak ve taş kayıtlarında harvest-* dosya adları kullanılır; özgün adlar yukarıdadır.

@@ -1,5 +1,6 @@
 import './style.css';
-import {CENTER} from './hex';
+import {Vector3} from 'three';
+import {CENTER,position} from './hex';
 import {Game,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
 import {World} from './world';
 import {CardDrag} from './drag';
@@ -22,7 +23,9 @@ const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=ge
 const world=new World(get('#world'));
 const thumbs=world.thumbnails();
 const sound=new TableSound();
-world.onSoundFrame=(camera,focus,birds)=>sound.updateSpatial(camera,focus,birds);
+world.onSoundFrame=(camera,focus,birds,shore,land)=>sound.updateSpatial(camera,focus,birds,shore,land);
+world.onWorkSound=(cue,at)=>sound.work(cue,at);
+world.onPlacementSound=(kind,at)=>sound.placement(kind,at);
 world.onFenceBuild=()=>sound.play('fence');
 world.onFenceBreak=()=>sound.play('fenceBreak');
 let game=new Game();
@@ -68,7 +71,7 @@ function commit(i:number) {
   if(!production)return false;
   locked=true;
   sound.play('hover',true);select(null);world.sync(game.board,card.event?-1:i,rotation);
-  if(card.event)world.burst(i);
+  if(card.event){world.burst(i);const p=position(i);sound.placement(card.id,new Vector3(p.x,.3,p.z))}
   render(true);
   toast(card.event?`${card.name} uygulandı`:`${card.name} · yerleşim hazırlanıyor`);
   clearTimeout(settleTimer);settleTimer=window.setTimeout(settle,2000);return true;
