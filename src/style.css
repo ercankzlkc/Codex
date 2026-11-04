@@ -274,7 +274,8 @@ dialog[data-kind=milestone] .modal-cards .card{width:164px;height:232px}
 
 /* Settings share the game's modal pause and keyboard behaviour. */
 :root{--settings-accent:#355440;--settings-paper:#f3ecd6}
-dialog[data-kind=settings]{width:540px;max-width:90vw;padding:24px 28px;background:var(--settings-paper);border-radius:16px;color:#283e36}
+dialog[data-kind=settings]{position:fixed;inset:18px 22px auto auto;margin:0;width:420px;max-width:calc(100vw - 44px);max-height:calc(100dvh - 100px);padding:20px 22px;background:var(--settings-paper);border-radius:16px;color:#283e36;box-shadow:0 12px 35px #284a4733}
+dialog[data-kind=settings]::backdrop{background:transparent;backdrop-filter:none}
 .settings-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
 .settings-heading small{font-size:9px;letter-spacing:2px}.settings-heading h1{margin:6px 0 16px}
 .settings-heading button{margin:0;background:transparent!important;color:var(--settings-accent)!important;font-size:24px;padding:0 7px;border:0}
@@ -283,7 +284,7 @@ dialog[data-kind=settings]{width:540px;max-width:90vw;padding:24px 28px;backgrou
 .settings-section h2 span{float:right;font:11px "Segoe UI",sans-serif;color:#52665b}
 .settings-section p{font-size:12px;margin:4px 0 12px}
 dialog[data-kind=settings] .mixer{border:0;margin:0;padding:0}
-dialog[data-kind=settings] .mixer label{display:grid;grid-template-columns:125px 1fr 38px;gap:12px;padding:8px 0}
+dialog[data-kind=settings] .mixer label{display:grid;grid-template-columns:105px 1fr 34px;gap:12px;padding:8px 0}
 dialog[data-kind=settings] .mixer input{width:100%;margin:0;accent-color:var(--settings-accent)}
 .mixer output{text-align:right;font-size:11px;font-variant-numeric:tabular-nums}
 dialog[data-kind=settings] button{background:var(--settings-accent);color:#fff}
