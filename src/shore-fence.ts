@@ -95,15 +95,13 @@ export class ShoreFence {
       panel.age+=dt;const age=panel.age-(panel.removing?0:panel.delay);
       if(age<0)continue;
       if(!panel.smoked){this.dust(panel.spec);panel.smoked=true;if(panel.removing)onBreak();else onBuild()}
-      const t=Math.min(1,age/(panel.removing ? .5 : .42));panel.mesh.visible=true;
-      if(panel.removing){
-        panel.mesh.rotation.x=Math.sin(panel.spec.side*Math.PI/3)*t*.55;panel.mesh.rotation.z=Math.cos(panel.spec.side*Math.PI/3)*t*.55;
-        panel.mesh.position.y=LAND_Y-t*.16;panel.mesh.scale.y=Math.max(.001,panel.initialScale*(1-t*.9));
-      }else{
-        const rise=1-(1-t)**3;panel.mesh.scale.y=Math.max(.001,rise+Math.sin(t*Math.PI)*.07);
-      }
+      const t=Math.min(1,age/.42);panel.mesh.visible=true;
+      const progress=panel.removing?1-t:t;
+      const height=1-(1-progress)**3+Math.sin(progress*Math.PI)*.07;
+      panel.mesh.rotation.set(0,0,0);panel.mesh.position.y=LAND_Y;
+      panel.mesh.scale.y=Math.max(.001,height*(panel.removing?panel.initialScale:1));
     }
-    this.retiring=this.retiring.filter(panel=>{if(panel.age<.5)return true;this.root.remove(panel.mesh);panel.mesh.geometry.dispose();return false});
+    this.retiring=this.retiring.filter(panel=>{if(panel.age<.42)return true;this.root.remove(panel.mesh);panel.mesh.geometry.dispose();return false});
     this.puffs=this.puffs.filter(puff=>{
       puff.age+=dt;if(puff.age>=.65){this.root.remove(puff.mesh);puff.mesh.material.dispose();return false}
       const t=puff.age/.65;puff.mesh.position.addScaledVector(puff.velocity,dt);puff.mesh.scale.setScalar(.45+t*1.6);puff.mesh.material.opacity=Math.sin(t*Math.PI)*.48;return true;
