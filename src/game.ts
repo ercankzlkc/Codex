@@ -174,10 +174,15 @@ export class Game {
   categoryFor(id:number):WorkCategory|null{
     const kind=this.board.get(id);return kind==='stone'?'stone':kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':kind==='garden'?'garden':null;
   }
+  private capacitySize=-1;
+  private capacities:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
   workCapacity(category:WorkCategory){
-    let capacity=0;
-    for(const id of this.board.keys())if(this.categoryFor(id)===category)capacity+=this.productAt(id)?.capacity??0;
-    return capacity;
+    if(this.capacitySize!==this.board.size){
+      this.capacities={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
+      for(const id of this.board.keys()){const kind=this.categoryFor(id);if(kind)this.capacities[kind]+=this.productAt(id)?.capacity??0}
+      this.capacitySize=this.board.size;
+    }
+    return this.capacities[category];
   }
   workTargets(){
     const result:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
@@ -298,6 +303,7 @@ export class Game {
     return {wood,stone,food,happy,people,neighbors:adjacent(i).filter(n=>this.board.has(n)),localBonus:wood>2||food>4||happy>2};
   }
   play(card:Card,i=CENTER){
+    this.capacitySize=-1;
     if(!this.valid(card,i))return null;
     for(const [key,n] of Object.entries(card.cost)){if(key==='wood')this.spendWood(n);else if(key==='stone')this.spendStock('stone',n);else if(key==='food')this.consumeFood(n);else if(key==='gold')this.gold-=n}
     if(card.id==='harbor'){this.harborReward=false;this.tradeClock=0;this.tradeSold=0}
@@ -311,6 +317,7 @@ export class Game {
     this.unlockMilestones();this.draw();return this.production();
   }
   remove(i:number){
+    this.capacitySize=-1;
     if(i===CENTER||!this.board.has(i))return false;
     if(this.board.get(i)==='forest'&&this.wood<2&&[...this.board.values()].filter(k=>k==='forest').length===1)return false;
     const stock=this.storageStocks.get(i);

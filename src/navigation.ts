@@ -2,13 +2,26 @@ import {Game,BUILDING_SCALE} from './game';
 import {CENTER,fromWorld,position,adjacent} from './hex';
 export type WalkPoint={tile:number;x:number;z:number};
 /** Sampled land navigation with padded footprints; paths never cut a building corner. */
+type Search={key:string;run:Generator<void,WalkPoint[]|null,unknown>;done:boolean;result:WalkPoint[]|null;touched:number};
 export class Walkways {
+  private searches=new Map<number,Search>();
+  waiting(id:number){return this.searches.get(id)?.done===false}
+  cancel(id:number){this.searches.delete(id)}
+  process(budgetMs=2){
+    const until=performance.now()+budgetMs;
+    const pending=[...this.searches.values()].filter(s=>!s.done);
+    while(pending.length&&performance.now()<until){
+      const search=pending.shift()!,next=search.run.next();
+      if(next.done){search.done=true;search.result=next.value}else pending.push(search);
+    }
+    for(const [id,search] of this.searches)if(performance.now()-search.touched>6000)this.searches.delete(id);
+  }
   private cache=new Map<string,boolean>();
   private exactFree=new Map<string,boolean>();
   private segments=new Map<string,boolean>();
   readonly step=.10;
   constructor(private game:Game,private ready:(id:number)=>boolean,private yaw:(id:number)=>number,private obstacles:(id:number)=>{x:number;z:number;r:number}[]=()=>[]){}
-  invalidate(){this.cache.clear();this.exactFree.clear();this.segments.clear()}
+  invalidate(){this.searches.clear();this.cache.clear();this.exactFree.clear();this.segments.clear()}
   free(x:number,z:number){
     const key=`${x.toFixed(6)},${z.toFixed(6)}`;
     const cached=this.exactFree.get(key);if(cached!==undefined)return cached;
@@ -52,21 +65,39 @@ export class Walkways {
     return true;
   }
   nearest(x:number,z:number,accept=(x:number,z:number)=>true,radius=.8):WalkPoint|null{
-    let best:WalkPoint|null=null,distance=Infinity;
+    const candidates:{x:number;z:number;distance:number}[]=[];
     for(let dz=-radius;dz<=radius;dz+=this.step)for(let dx=-radius;dx<=radius;dx+=this.step){
-      const nx=Math.round((x+dx)/this.step)*this.step,nz=Math.round((z+dz)/this.step)*this.step,d=(nx-x)**2+(nz-z)**2;
-      if(d<distance&&this.free(nx,nz)&&accept(nx,nz)){distance=d;best={x:nx,z:nz,tile:fromWorld(nx,nz)}}
+      const nx=Math.round((x+dx)/this.step)*this.step,nz=Math.round((z+dz)/this.step)*this.step;
+      candidates.push({x:nx,z:nz,distance:(nx-x)**2+(nz-z)**2});
     }
-    return best;
+    candidates.sort((a,b)=>a.distance-b.distance);
+    for(const point of candidates)if(this.free(point.x,point.z)&&accept(point.x,point.z))return {x:point.x,z:point.z,tile:fromWorld(point.x,point.z)};
+    return null;
   }
-  path(start:{x:number;z:number},end:{x:number;z:number},crowd:(x:number,z:number)=>number=()=>0,endRadius=.8):WalkPoint[]|null{
-    const a=this.nearest(start.x,start.z,(x,z)=>this.segment(start,{x,z})),b=this.nearest(end.x,end.z,()=>true,endRadius);if(!a||!b)return null;
+
+  path(start:{x:number;z:number},end:{x:number;z:number},crowd:(x:number,z:number)=>number=()=>0,endRadius=.8,requester=0):WalkPoint[]|null{
+    const key=[start.x,start.z,end.x,end.z,endRadius].map(n=>n.toFixed(4)).join(':');
+    const previous=this.searches.get(requester);
+    if(previous&&previous.key===key){
+      previous.touched=performance.now();if(!previous.done)return null;
+      this.searches.delete(requester);return previous.result;
+    }
+    if(previous&&!previous.done)return null;
+    this.searches.set(requester,{key,run:this.search({...start},{...end},crowd,endRadius),done:false,result:null,touched:performance.now()});
+    return null;
+  }
+  private *search(start:{x:number;z:number},end:{x:number;z:number},crowd:(x:number,z:number)=>number,endRadius:number):Generator<void,WalkPoint[]|null,unknown>{
+    const a=this.nearest(start.x,start.z,(x,z)=>this.segment(start,{x,z}));if(!a)return null;
+    yield;
+    const b=this.nearest(end.x,end.z,()=>true,endRadius);if(!b)return null;
+    yield;
     const key=(x:number,z:number)=>`${x},${z}`,sx=Math.round(a.x/this.step),sz=Math.round(a.z/this.step),tx=Math.round(b.x/this.step),tz=Math.round(b.z/this.step),target=key(tx,tz);
     type Node={x:number;z:number;key:string;cost:number;score:number};
     const heap:Node[]=[],push=(n:Node)=>{heap.push(n);for(let i=heap.length-1;i>0;){const p=(i-1)>>1;if(heap[p].score<=n.score)break;heap[i]=heap[p];heap[p]=n;i=p}},pop=()=>{const first=heap[0],last=heap.pop()!;if(heap.length){heap[0]=last;let i=0;for(;;){let j=i*2+1;if(j>=heap.length)break;if(j+1<heap.length&&heap[j+1].score<heap[j].score)j++;if(heap[i].score<=heap[j].score)break;[heap[i],heap[j]]=[heap[j],heap[i]];i=j}}return first};
     const first=key(sx,sz),cost=new Map([[first,0]]),parent=new Map<string,string>(),positions=new Map<string,{x:number;z:number}>([[first,{x:sx,z:sz}]]);
     push({x:sx,z:sz,key:first,cost:0,score:Math.hypot(tx-sx,tz-sz)});
     for(let visited=0;heap.length&&visited<14000;visited++){
+      if(visited%4===0)yield;
       const node=pop();if(node.cost!==cost.get(node.key))continue;
       if(node.key===target){
         const raw:WalkPoint[]=[];for(let k=target;;k=parent.get(k)!){const p=positions.get(k)!;raw.push({x:p.x*this.step,z:p.z*this.step,tile:fromWorld(p.x*this.step,p.z*this.step)});if(k===first)break}raw.reverse();

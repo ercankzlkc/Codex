@@ -14,7 +14,7 @@ export class StaticInstances{
     for(const root of roots)root.traverse(object=>{
       let parent:T.Object3D|null=object;while(parent&&parent!==root){if(parent.userData.upgradedAt!==undefined)return;parent=parent.parent}
       if(!(object instanceof T.Mesh)||!object.visible||!(object.material instanceof T.MeshStandardMaterial))return;
-      const key=[Math.floor(root.position.x/12),Math.floor(root.position.z/12),object.geometry.uuid,object.material.uuid,object.castShadow,object.receiveShadow].join(':');
+      const key=[Math.floor(root.position.x/6),Math.floor(root.position.z/6),object.geometry.uuid,object.material.uuid,object.castShadow,object.receiveShadow].join(':');
       if(!groups.has(key))groups.set(key,[]);groups.get(key)!.push({mesh:object,root});
     });
     for(const group of groups.values()){

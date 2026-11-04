@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {mergeGeometries,mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
 import type {Kind} from './game';
 const mats=new Map<number,T.MeshStandardMaterial>();const geometries=new Map<string,T.BufferGeometry>();
 function material(c:number){if(!mats.has(c))mats.set(c,new T.MeshStandardMaterial({color:c,roughness:.84,flatShading:true}));return mats.get(c)!}
@@ -11,9 +11,12 @@ export function ball(p:T.Group,c:number,x:number,y:number,z:number,r:number){con
 function batchParts(root:T.Group){
   root.updateWorldMatrix(true,true);const inverse=root.matrixWorld.clone().invert(),batches=new Map<T.Material,T.BufferGeometry[]>();
   root.traverse(object=>{if(object instanceof T.Mesh){const geometry=object.geometry.index?object.geometry.toNonIndexed():object.geometry.clone();geometry.deleteAttribute('uv');geometry.applyMatrix4(inverse.clone().multiply(object.matrixWorld));const mat=object.material as T.Material;if(!batches.has(mat))batches.set(mat,[]);batches.get(mat)!.push(geometry)}});
-  root.clear();for(const [mat,parts] of batches){const merged=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());if(merged){const mesh=new T.Mesh(merged,mat);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh)}}
+  root.clear();for(const [mat,parts] of batches){const merged=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());if(merged){const indexed=mergeVertices(merged,1e-6);merged.dispose();const mesh=new T.Mesh(indexed,mat);mesh.castShadow=true;mesh.receiveShadow=true;root.add(mesh)}}
 }
+const treeTemplates=new Map<number,T.Group>();
 export function tree(p:T.Group,x:number,z:number,v=0,s=1){
+  const cached=treeTemplates.get(v%10);
+  if(cached){const g=cached.clone();g.position.set(x,0,z);g.scale.setScalar(s);p.add(g);return}
   const g=new T.Group();g.position.set(x,0,z);g.scale.setScalar(s);p.add(g);
   const variant=v%10,h=.65+(variant%3)*.1;
   part(g,new T.CylinderGeometry(.035,.065,h,8),variant%2?0x806044:0x705137,0,h/2,0);
@@ -23,6 +26,7 @@ export function tree(p:T.Group,x:number,z:number,v=0,s=1){
   else{for(let j=0;j<3;j++){const leaf=ball(g,colors[variant],(j-1)*.13,h+j*.17,0,.25);leaf.scale.set(.85,1.3,.85)}}
   for(let i=0;i<3;i++){const a=i*Math.PI*2/3;beam(g,0x806044,new T.Vector3(0,.12,0),new T.Vector3(Math.cos(a)*.1,.015,Math.sin(a)*.1),.026)}
   batchParts(g);
+  const template=g.clone();template.position.set(0,0,0);template.scale.setScalar(1);treeTemplates.set(variant,template);
 }
 let wheatTemplate:T.Group|undefined;
 function wheatTuft(){
@@ -44,7 +48,7 @@ function wheatTuft(){
   }
   source.updateMatrixWorld(true);const batches=new Map<T.Material,T.BufferGeometry[]>();
   source.traverse(o=>{if(o instanceof T.Mesh){const mat=o.material as T.Material;if(!batches.has(mat))batches.set(mat,[]);batches.get(mat)!.push(o.geometry.clone().applyMatrix4(o.matrixWorld))}});
-  wheatTemplate=new T.Group();for(const [mat,parts] of batches){const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());if(geometry){const mesh=new T.Mesh(geometry,mat);mesh.castShadow=true;mesh.receiveShadow=true;wheatTemplate.add(mesh)}}
+  wheatTemplate=new T.Group();for(const [mat,parts] of batches){const geometry=mergeGeometries(parts,false);parts.forEach(g=>g.dispose());if(geometry){const indexed=mergeVertices(geometry,1e-6);geometry.dispose();const mesh=new T.Mesh(indexed,mat);mesh.castShadow=true;mesh.receiveShadow=true;wheatTemplate.add(mesh)}}
   return wheatTemplate.clone();
 }
 const resourceTemplates=new Map<string,T.Group>();
