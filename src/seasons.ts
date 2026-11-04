@@ -62,7 +62,10 @@ export class SeasonCycle{
     this.sun.position.copy(this.sun.target.position).add(new T.Vector3(-6,3+Math.abs(elevation)*8,-4));
     this.ambient.intensity=mix(.32,1,daylight);this.ambient.color.set(night>.5?'#91acd9':'#ddeaf1');
     (this.scene.background as T.Color).copy(this.sky).lerp(this.nightColor,night*.88);
-    for(const path of this.paths)path.color.set(0xccbc95).lerp(new T.Color('#765a42'),winter*.8);
+    for(const path of this.paths){
+      path.color.set(0xccbc95).lerp(new T.Color('#765a42'),winter*.8).multiplyScalar(mix(1,.11,night));
+      path.opacity=mix(.28,.12,night);
+    }
     climate.night.value=night;climate.winter.value=winter;
     climate.autumn.value=season===2?blend:season===3?1-blend:0;
     for(const [material,state] of this.materials){

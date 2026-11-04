@@ -16,7 +16,7 @@ export class CameraController {
   private clearanceHeight=2.5;
   /** Keep the orbit above sea level and the highest model, including when panning. */
   setClearance(highest:number):void{this.clearanceHeight=Math.max(2.2,highest+.7)}
-  private maxPitch():number{return Math.min(1.36,Math.acos(THREE.MathUtils.clamp((this.clearanceHeight-this.target.y)/this.distance,0,.95)))}
+  private maxPitch():number{return Math.min(.92,Math.acos(THREE.MathUtils.clamp((this.clearanceHeight-this.target.y)/this.distance,0,.95)))}
   private yaw = Math.PI / 4;
   private desiredYaw = Math.PI / 4;
   private pitch = 0.86;
@@ -134,7 +134,8 @@ export class CameraController {
   get audioFocus(){return this.target}
 
   private applyTransform(): void {
-    this.pitch=Math.min(this.pitch,this.maxPitch());
+    this.desiredPitch=THREE.MathUtils.clamp(this.desiredPitch,.80,this.maxPitch());
+    this.pitch=THREE.MathUtils.clamp(this.pitch,.80,this.maxPitch());
     // Orthographic zoom expands the ray origins too. Keep the entire near edge
     // above the water when looking low, rather than just the camera centre.
     const sin=Math.sin(this.pitch),cos=Math.cos(this.pitch);
@@ -151,7 +152,7 @@ export class CameraController {
   }
 
   private onPointerDown = (event: PointerEvent): void => {
-    if (this.placement || event.pointerType === 'touch' || (event.button !== 1 && event.button !== 2)) return;
+    if (document.querySelector('dialog[open]') || this.placement || event.pointerType === 'touch' || (event.button !== 1 && event.button !== 2)) return;
     // A wrapper may also contain floating DOM feedback. Never steal a HUD gesture.
     if (event.target instanceof HTMLElement && event.target.closest('button, input, dialog, [data-card]')) return;
     event.preventDefault();
@@ -179,7 +180,7 @@ export class CameraController {
       }
     } else {
       this.desiredYaw -= dx * 0.0035;
-      this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0025, 0.48, this.maxPitch());
+      this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0007, .80, this.maxPitch());
     }
   };
 
@@ -196,9 +197,9 @@ export class CameraController {
 
   private onWheel = (event: WheelEvent): void => {
     event.preventDefault();
-    if (this.placement) return;
+    if (this.placement || document.querySelector('dialog[open]')) return;
     const delta = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? this.viewportHeight : 1);
-    this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.70, 3.5);
+    this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.80, 3.2);
   };
 
   private onContextMenu = (event: MouseEvent): void => event.preventDefault();

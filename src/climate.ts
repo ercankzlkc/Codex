@@ -19,8 +19,11 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
       float upward=smoothstep(.18,.75,normalize(vSeasonNormal).y);
       float grain=.5+.5*sin(vSeasonPosition.x*17.+sin(vSeasonPosition.z*13.))*sin(vSeasonPosition.z*19.);
       float snow=upward*smoothstep(grain*.22,.3+grain*.22,uSeasonSnow)*smoothstep(.025,.10,vSeasonPosition.y);
+      // A light dusting reaches the upper coastal bevel and vertical tile rim.
+      float rim=smoothstep(-.24,-.025,vSeasonPosition.y)*(1.-smoothstep(.08,.15,vSeasonPosition.y));
+      snow=max(snow,rim*.28*smoothstep(.02,.8,uSeasonSnow));
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.87,.93,.97),snow*.96);
     `);
   };
-  material.customProgramCacheKey=()=>key+'-season-surface-v1';material.needsUpdate=true;
+  material.customProgramCacheKey=()=>key+'-season-surface-v2';material.needsUpdate=true;
 }
