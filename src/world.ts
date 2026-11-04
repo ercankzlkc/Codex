@@ -116,6 +116,12 @@ export class World {
   onDelivery=(_source:number,_store:number,_resource:Resource,_amount:number)=>0;
   onInspect=(_id:number,_x:number,_y:number,_bounds:{left:number;right:number;top:number;bottom:number}|null)=>{};
 
+  setPalette(colors:readonly string[],sky:string,sun:string){
+    (this.scene.background as T.Color).set(sky);
+    this.sun.color.set(sun);
+    this.environment.setPalette(colors);
+  }
+
   constructor(readonly el:HTMLElement) {
     this.renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
     this.renderer.shadowMap.enabled=true;

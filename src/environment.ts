@@ -98,6 +98,7 @@ export class Environment {
     tile.root.traverse(o=>{if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
     this.land.delete(id);
   }
+  setPalette(colors:readonly string[]){this.water.setPalette(colors)}
   setSun(direction:T.Vector3){this.water.setSun(direction)}
   get soundShore(){return this.audioShore}
   get soundBirds(){return this.wildlife.soundBirds}

@@ -70,6 +70,10 @@ export class TropicalWater {
     this.root.add(sand,this.stones,surface);
   }
 
+  setPalette(colors:readonly string[]){
+    [this.uniforms.uMint,this.uniforms.uTurquoise,this.uniforms.uLagoon,this.uniforms.uDeep].forEach((uniform,i)=>uniform.value.set(colors[i]));
+  }
+
   private receiver(sand:boolean){
     const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,depthWrite:!sand});
     mat.onBeforeCompile=shader=>{
