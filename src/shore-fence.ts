@@ -98,8 +98,11 @@ export class ShoreFence {
       const t=Math.min(1,age/.42);panel.mesh.visible=true;
       const progress=panel.removing?1-t:t;
       const height=1-(1-progress)**3+Math.sin(progress*Math.PI)*.07;
-      panel.mesh.rotation.set(0,0,0);panel.mesh.position.y=LAND_Y;
-      panel.mesh.scale.y=Math.max(.001,height*(panel.removing?panel.initialScale:1));
+      const visibleHeight=Math.max(.001,height*(panel.removing?panel.initialScale:1));
+      panel.mesh.rotation.set(0,0,0);
+      // The same ground-anchored curve runs forward to build and backward to remove,
+      // including shared edges retired when a new tile joins the island.
+      panel.mesh.position.y=LAND_Y-.26*(1-visibleHeight);panel.mesh.scale.y=visibleHeight;
     }
     this.retiring=this.retiring.filter(panel=>{if(panel.age<.42)return true;this.root.remove(panel.mesh);panel.mesh.geometry.dispose();return false});
     this.puffs=this.puffs.filter(puff=>{
