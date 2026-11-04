@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {climate,seasonalSurface} from './climate';
 import {coast,fromWorld,type ShoreEdge} from './hex';
 import {LAND_Y,SEA_Y} from './scenery';
 import type {Kind} from './game';
@@ -15,6 +16,7 @@ export class SeasonCycle{
   private elapsed=0;private lastSeason=-1;private lastPhase='';private scanClock=0;
   private sky=new T.Color('#93bfcb');private sunlight=new T.Color('#fff2da');
   private materials=new Map<T.MeshStandardMaterial,{base:T.Color;foliage:boolean;ground:boolean;window:boolean}>();
+  private paths=new Set<T.MeshBasicMaterial>();
   private tint=new T.Color();private nightColor=new T.Color('#172c50');
   private hud:HTMLElement;private notice:HTMLElement;
   private snow:T.Points;private snowPositions:Float32Array;
@@ -32,11 +34,13 @@ export class SeasonCycle{
     this.snow.frustumCulled=false;scene.add(this.snow,this.ice);
   }
   setPalette(sky:string,sun:string){this.sky.set(sky);this.sunlight.set(sun)}
-  reset(){for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
+  reset(){for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){
     this.scene.traverse(object=>{
       if(!(object instanceof T.Mesh))return;
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
+        if(material instanceof T.MeshBasicMaterial&&material.color.getHex()===0xccbc95)this.paths.add(material);
+        if(material instanceof T.MeshStandardMaterial||material instanceof T.MeshLambertMaterial)seasonalSurface(material);
         if(!(material instanceof T.MeshStandardMaterial)||this.materials.has(material)||material===this.iceMat)continue;
         const base=material.color.clone(),hsl={h:0,s:0,l:0};base.getHSL(hsl);
         this.materials.set(material,{base,foliage:hsl.h>.16&&hsl.h<.43&&hsl.s>.12,ground:material.vertexColors,window:base.getHex()===0x84b4b7});
@@ -58,10 +62,13 @@ export class SeasonCycle{
     this.sun.position.copy(this.sun.target.position).add(new T.Vector3(-6,3+Math.abs(elevation)*8,-4));
     this.ambient.intensity=mix(.32,1,daylight);this.ambient.color.set(night>.5?'#91acd9':'#ddeaf1');
     (this.scene.background as T.Color).copy(this.sky).lerp(this.nightColor,night*.88);
+    for(const path of this.paths)path.color.set(0xccbc95).lerp(new T.Color('#765a42'),winter*.8);
+    climate.night.value=night;climate.winter.value=winter;
+    climate.autumn.value=season===2?blend:season===3?1-blend:0;
     for(const [material,state] of this.materials){
       material.color.copy(state.base);
-      if(state.ground)material.color.lerp(this.tint,winter>.01?mix(.24,.85,winter):.24);
-      else if(state.foliage)material.color.lerp(this.tint,season===2?.72:mix(.12,.9,winter));
+      // Surface shaders colour grass and lay snow over vertex colours and roof textures.
+      if(state.foliage)material.color.lerp(this.tint,season===2?.35:.08);
       if(state.window){material.emissive.set('#ffbd62');material.emissiveIntensity=night*1.8;material.color.copy(state.base).lerp(new T.Color('#ffd48a'),night)}
     }
     const key=[...board.keys()].join(',');

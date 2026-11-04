@@ -2,6 +2,7 @@
 // Refraction shifts the surface image slightly away from the light on the bed.
 export const optics = /* glsl */ `
 uniform float uTime;
+uniform float uNight,uFreeze;
 uniform sampler2D uLight;
 const mat2 turn = mat2(.891, .454, -.454, .891);
 vec2 current(vec2 p) {
@@ -64,13 +65,14 @@ vec3 seaWave(vec2 p) {
   float pc=dot(p,c)-uTime*1.47, pd=dot(p,d)+uTime*1.92;
   float height=.027*sin(pa)+.016*sin(pb)+.007*sin(pc)+.003*sin(pd);
   vec2 gradient=.027*cos(pa)*a+.016*cos(pb)*b+.007*cos(pc)*c+.003*cos(pd)*d;
-  return vec3(height,gradient);
+  return vec3(height,gradient)*(1.-uFreeze);
 }
 `;
 export const waterVertex = /* glsl */ `
 #include <common>
 #include <shadowmap_pars_vertex>
 uniform float uTime;
+uniform float uFreeze;
 ` + waves + /* glsl */ `
 varying vec3 vWorld;
 void main() {
@@ -192,6 +194,16 @@ void main() {
   float opacity=1.-.78*exp(-1.25*max(0.,depth-.25));
   opacity=mix(opacity,1.,smoothstep(2.38,3.25,depth));
   opacity=mix(opacity,.94,foam);
+  // Freeze the entire visible ocean, with stable fine cracks and a gradual frost front.
+  float frostNoise=waterNoise(p*.8)*.6+waterNoise(p*3.1)*.4;
+  float freeze=smoothstep(frostNoise*.32,.48+frostNoise*.32,uFreeze);
+  float cell=texture2D(uLight,p*.12).r;
+  float cracks=(1.-smoothstep(.006,.025,cell));
+  vec3 iceColor=mix(vec3(.57,.77,.85),vec3(.83,.92,.95),waterNoise(p*1.8));
+  iceColor*=1.-cracks*.16;
+  pigment=mix(pigment,iceColor,freeze);
+  opacity=mix(opacity,1.,freeze);
+  pigment*=mix(vec3(1.),vec3(.07,.13,.25),uNight*.94);
   gl_FragColor=vec4(pigment,opacity);
   #include <colorspace_fragment>
 }`;
@@ -207,7 +219,7 @@ export const receiverLight = /* glsl */ `
   float transmission=exp(-immersion*.98);
   float concentration=sunprint.thread*.64 + sunprint.halo*.32 + sunprint.knot*.18;
   diffuseColor.rgb*=.90 + transmission*(.09+concentration*.49);
-  diffuseColor.rgb+=vec3(.21,.37,.30)*concentration*transmission;
+  diffuseColor.rgb+=vec3(.21,.37,.30)*concentration*transmission*(1.-uNight)*(1.-uFreeze);
 `;
 
 

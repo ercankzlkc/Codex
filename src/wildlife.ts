@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {climate} from './climate';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {fromWorld,position,coast,type ShoreEdge} from './hex';
@@ -76,7 +77,7 @@ export class Wildlife {
     });
     for(const fish of this.swimmers){
       const edge=this.shore[fish.edge%this.shore.length];fish.root.visible=false;
-      if(!edge||this.fishVisibility<.01)continue;
+      if(!edge||this.fishVisibility<.01||climate.winter.value>.5)continue;
       const dx=edge.bx-edge.ax,dz=edge.bz-edge.az,length=Math.max(.001,Math.hypot(dx,dz));
       const t=.5+.32*Math.sin(time*.24+fish.phase),offset=.45+.12*Math.sin(time*.31+fish.phase);
       const x=edge.ax+dx*t,z=edge.az+dz*t;
@@ -91,6 +92,7 @@ export class Wildlife {
       fish.materials.forEach(material=>material.opacity=.65*this.fishVisibility);fish.root.visible=true;
     }
     for(const f of this.fish){
+      if(climate.winter.value>.35){f.root.visible=false;f.age=-1;continue;}
       if(f.age<0){
         f.wait-=dt;if(f.wait>0)continue;
         let found=false;

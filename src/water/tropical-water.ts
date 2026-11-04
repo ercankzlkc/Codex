@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {climate} from '../climate';
 import { coast, position, type ShoreEdge } from '../hex';
 import {LAND_START,LAND_END,SINK_START,SINK_END,easeBetween} from '../emergence';
 import { SEA_Y } from '../scenery';
@@ -19,6 +20,7 @@ export class TropicalWater {
   private transitionEnd=LAND_END;
   private pendingEdges:ShoreEdge[]|null=null;
   private readonly uniforms={
+    uNight:climate.night,uFreeze:climate.winter,
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
     uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},
     uCoastMix:{value:1},uPreviousCoast:{value:this.previousField.texture},
@@ -77,6 +79,7 @@ export class TropicalWater {
   private receiver(sand:boolean){
     const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,depthWrite:!sand});
     mat.onBeforeCompile=shader=>{
+      shader.uniforms.uNight=climate.night;shader.uniforms.uFreeze=climate.winter;
       shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
       shader.uniforms.uWakes=this.uniforms.uWakes;shader.uniforms.uWakeDirs=this.uniforms.uWakeDirs;shader.uniforms.uLanding=this.uniforms.uLanding;
       shader.vertexShader='varying vec3 vReceiver;\n'+shader.vertexShader;
