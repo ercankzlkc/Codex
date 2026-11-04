@@ -5,6 +5,10 @@ export type Kind =
 
 export type CostResource='wood'|'stone'|'food'|'gold';
 export const REROLL_COST=5;
+/** Harvest effort scales with the actual load, including adjacency bonuses. */
+export function harvestSeconds(category:string|null,amount:number){
+  return category==='berry'?amount*1.5:category==='farm'?amount*2:2.4;
+}
 export interface Card {
   id: Kind;
   name: string;
@@ -21,10 +25,10 @@ export const cards: Card[] = [
   {id:'stone',name:'Taş Ocağı',cost:{wood:3},workers:2,desc:'+3 taş / teslimat',bonus:'Kazmayla çıkarılır · yeniden oluşur'},
   { id:'fisher',name:'Balıkçı Kulübesi',cost:{wood:7,stone:2},workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
   { id: 'forest', name: 'Orman', cost: {wood:2}, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
-  { id: 'berry', name: 'Çilek Bahçesi', cost: {wood:3}, workers: 1, desc: '+4 yiyecek / teslimat', bonus: 'Komşu orman: +1 yiyecek' },
+  { id: 'berry', name: 'Çilek Bahçesi', cost: {wood:3}, workers: 1, desc: '+4 çilek / teslimat · 6 sn', bonus: 'Komşu orman: +1 çilek · +1,5 sn' },
   { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'lumber',unlock:10, name: 'Oduncu Kulübesi', cost: {wood:6,stone:2}, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
-  { id: 'farm',unlock:24, name: 'Çiftlik', cost: {wood:7,stone:3}, workers: 2, desc: '+4 yiyecek / teslimat', bonus: 'Komşu depo: +2 yiyecek' },
+  { id: 'farm',unlock:24, name: 'Çiftlik', cost: {wood:7,stone:3}, workers: 2, desc: '+4 buğday / teslimat · 8 sn', bonus: 'Komşu depo: +2 buğday · +4 sn' },
   { id: 'store',unlock:10, name: 'Depo', cost: {wood:8,stone:4}, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
   { id: 'garden',unlock:24, name: 'Bahçe', cost: {stone:4,food:2}, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
   { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
@@ -256,8 +260,8 @@ export class Game {
         
         if(kind==='fisher')food=3;
         if (kind === 'farm') {
-          food = 4 + (neighbors.includes('store') ? 2 : 0);
-          bonus = food > 9;
+          food = 4 + neighbors.filter(k => k === 'store').length * 2;
+          bonus = food > 4;
         }
         if (kind === 'garden') {
           happy = 2 + neighbors.filter(k => k === 'house' || k === 'manor').length;

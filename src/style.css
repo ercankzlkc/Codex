@@ -311,3 +311,5 @@ dialog[data-kind=settings] .palette-option[aria-pressed=true]{border-color:var(-
 .resource svg,.resource small,.resource em,.hand-label,.crest>div,.crest small,.run,#influence{color:var(--palette-accent)}
 #log,#placement,.crest>span,dialog button{background:var(--palette-accent);color:var(--palette-paper)}
 #work-panel header,#tile-editor strong,#work-panel strong,#tile-tooltip strong{color:var(--palette-accent)}
+
+.regrowth-loader[hidden]{display:none}

@@ -105,6 +105,8 @@ export class World {
   private selected:Card|null=null;
   private previousTime=performance.now();
   private time=0;
+  private detailTile=-1;
+  private detailPointer:{x:number;y:number}|null=null;
   hover=-1;
   valid=(_i:number)=>false;
   onHover=(_i:number)=>{};
@@ -154,7 +156,7 @@ export class World {
     new ResizeObserver(resize).observe(el);resize();
     const canvas=this.renderer.domElement;
     canvas.addEventListener('pointermove',e=>{if(this.selected&&!e.buttons)this.point(e.clientX,e.clientY)});
-    canvas.addEventListener('pointerleave',()=>{this.setHover(-1);this.lastSea=null;this.onInspect(-1,0,0,null)});
+    canvas.addEventListener('pointerleave',()=>{this.detailPointer=null;this.detailTile=-1;this.setHover(-1);this.lastSea=null;this.onInspect(-1,0,0,null)});
     canvas.addEventListener('pointermove',e=>{this.stirSea(e);this.inspectPointer(e)});
     canvas.addEventListener('click',e=>{
       if(e.button!==0)return;
@@ -263,7 +265,7 @@ export class World {
     for(const id of game.storageStocks.keys()){
       if(game.storageFree(id)>0||!this.ready(id))continue;
       let el=this.fullStores.get(id);if(!el){el=document.createElement('div');el.className='storage-full';el.innerHTML=`${icon('full')}<span>Depo dolu</span>`;el.setAttribute('role','status');this.el.append(el);this.fullStores.set(id,el)}
-      const p=this.screenPoint(id,1.1);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;el.style.opacity=String(fade);el.style.setProperty('--status-scale',String(.35+.65*fade));el.hidden=fade<.01;
+      const p=this.screenPoint(id,1.1);el.style.left=`${p.x}px`;el.style.top=`${p.y}px`;el.style.opacity=String(fade);el.style.setProperty('--status-scale',String(.35+.65*fade));el.hidden=fade<.01||id!==this.detailTile;
     }
   }
   private fallLeaves(tree:T.Object3D,count:number){
@@ -325,12 +327,12 @@ export class World {
     return {stand:new T.Vector3(p.x+dx*.94,LAND_Y,p.z+dz*.94),water};
   }
   private makeLoader(key:string,id:number,point:T.Vector3,total:number){
-    this.loaders.get(key)?.el.remove();const el=document.createElement('div');el.className='regrowth-loader';el.innerHTML='<i></i><span></span>';el.setAttribute('aria-label','Yeniden büyüyor');this.el.append(el);this.loaders.set(key,{id,el,point,total});
+    this.loaders.get(key)?.el.remove();const el=document.createElement('div');el.className='regrowth-loader';el.hidden=true;el.innerHTML='<i></i><span></span>';el.setAttribute('aria-label','Yeniden büyüyor');this.el.append(el);this.loaders.set(key,{id,el,point,total});
   }
   private updateLoader(key:string,age:number){
     const loader=this.loaders.get(key);if(!loader)return;
     if(!this.board.has(loader.id)||age>=loader.total){loader.el.remove();this.loaders.delete(key);return}
-    const camera=this.cameraControl.camera,pixels=this.el.clientHeight/((camera.top-camera.bottom)/camera.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);loader.el.style.opacity=String(fade);loader.el.hidden=fade<.01;
+    const camera=this.cameraControl.camera,pixels=this.el.clientHeight/((camera.top-camera.bottom)/camera.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);loader.el.style.opacity=String(fade);loader.el.hidden=fade<.01||loader.id!==this.detailTile;
     const p=loader.point.clone().project(camera);loader.el.style.left=`${(p.x+1)*this.el.clientWidth/2}px`;loader.el.style.top=`${(1-p.y)*this.el.clientHeight/2}px`;
     loader.el.style.setProperty('--progress',`${age/loader.total*360}deg`);loader.el.querySelector('span')!.textContent=`${Math.ceil(loader.total-age)}s`;
   }
@@ -347,6 +349,7 @@ export class World {
   }
   screenPoint(id:number,y=.7){const p=position(id),v=new T.Vector3(p.x,y,p.z).project(this.cameraControl.camera);return {x:(v.x+1)*this.el.clientWidth/2,y:(1-v.y)*this.el.clientHeight/2}}
   private inspectPointer(event:PointerEvent){
+    this.detailPointer=event.buttons?null:{x:event.clientX,y:event.clientY};
     if(this.selected||event.buttons||document.querySelector('dialog[open]')){this.onInspect(-1,0,0,null);return}
     const id=this.grid.pick(event.clientX,event.clientY,this.cameraControl.camera,this.el);
     if(!this.board.has(id)){this.onInspect(-1,0,0,null);this.renderer.domElement.style.cursor='';return}
@@ -514,7 +517,7 @@ export class World {
   }
   reset(){
     for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
-    this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
+    this.detailTile=-1;this.detailPointer=null;this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
     this.loaders.forEach(l=>l.el.remove());this.loaders.clear();this.trailPoints=[];this.trailKeys.clear();this.trails.count=0;
     for(const d of this.drops.values())this.scene.remove(d.group);this.drops.clear();this.storageDecor.clear();this.root.clear();this.environment.reset();this.buildings.clear();this.builds=[];this.demolitions=[];this.rotationTargets.clear();
     for(const leaf of this.leaves)this.scene.remove(leaf.mesh);this.leaves=[];
@@ -602,7 +605,8 @@ export class World {
       ship.position.set(.68,(SEA_Y-LAND_Y)/BUILDING_SCALE+.025*Math.sin(this.time*1.5),1.14+approach*4);
       ship.rotation.y=t>46?Math.PI:0;ship.rotation.z=Math.sin(this.time*1.2)*.035;
     }
-    this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight);this.updateStorageLabels();
+    this.detailTile=this.detailPointer&&!this.selected&&!document.querySelector('dialog[open]')?this.grid.pick(this.detailPointer.x,this.detailPointer.y,this.cameraControl.camera,this.el):-1;
+    this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight,this.detailTile);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}
     for(const [key,cycle] of this.treeCycles){
       if(!this.board.has(cycle.id)){this.updateLoader(key,99);this.treeCycles.delete(key);continue}

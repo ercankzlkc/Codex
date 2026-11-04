@@ -4,7 +4,7 @@ import type {PersonMotion} from './motions';
 import {icon} from './icons';
 import {box,ball,resourceModel,resourceUnitModel} from './models';
 import {CENTER,position,fromWorld,adjacent} from './hex';
-import {Game,hexDistance,WORK_CATEGORIES,type Resource,type WorkCategory} from './game';
+import {Game,harvestSeconds,hexDistance,WORK_CATEGORIES,type Resource,type WorkCategory} from './game';
 import {LAND_Y,SEA_Y} from './scenery';
 import {Walkways,type WalkPoint} from './navigation';
 type Job={source:number;store:number;resource:Resource;amount:number;tree:number;category:WorkCategory|null};
@@ -80,7 +80,7 @@ export class Villagers {
     const bobber=new T.Mesh(floatGeometry,new T.MeshStandardMaterial({vertexColors:true,roughness:.55}));bobber.visible=false;
     const fish=new T.Group(),belly=ball(fish,0x94babb,0,0,0,.055);belly.scale.set(.55,.7,1.6);const tail=partFishTail();fish.add(tail);fish.visible=false;
     root.position.set(free.x,LAND_Y,free.z);root.rotation.y=yaw+Math.PI;
-    const status=document.createElement('div');status.className='citizen-status';status.setAttribute('role','img');this.overlay.append(status);
+    const status=document.createElement('div');status.className='citizen-status';status.hidden=true;status.setAttribute('role','img');this.overlay.append(status);
     this.root.add(root,line,bobber,fish);this.spawned.add(id);
     const citizen:Citizen={visual:null,restUntil:0,id,root,body,arms,legs,bundle,axe,pickaxe,rod,line,bobber,fish,stage:'idle',unload:null,path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:id===0?1:0,speed:0,walkPhase:0,wait:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]};
     this.citizens.push(citizen);
@@ -227,7 +227,7 @@ export class Villagers {
       else{c.unload=null;c.bundle.scale.setScalar(1);c.bundle.visible=true;c.stage='to-store';c.target=null;job.store=-1;c.retry=.4}
     }
   }
-  updateStatuses(camera:T.Camera,width:number,height:number){
+  updateStatuses(camera:T.Camera,width:number,height:number,detailTile:number){
     const v=new T.Vector3();
     for(const c of this.citizens){
       const eating=c.eatUntil>this.time&&!c.job&&!c.path.length,carrying=c.bundle.visible;
@@ -235,7 +235,7 @@ export class Villagers {
       const graphic=state==='unload'?'carry':state==='carry'?(c.job?.category??'garden'):state,key=`${state}:${graphic}`;
       if(key!==c.lastStatus){c.lastStatus=key;c.status.innerHTML=icon(graphic);c.status.dataset.state=state;const label=state==='carry'?`Depoya taşıyor · ${statusNames[graphic]??''}`:statusNames[state]??'Dinleniyor';c.status.setAttribute('aria-label',label);c.status.title=label}
       v.copy(c.root.position);v.y+=.58;v.project(camera);c.status.hidden=v.z< -1||v.z>1;c.status.style.left=`${(v.x+1)*width/2}px`;c.status.style.top=`${(1-v.y)*height/2}px`;const ortho=camera as T.OrthographicCamera,pixels=height/((ortho.top-ortho.bottom)/ortho.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);
-      c.status.style.opacity=String(c.birth*fade);c.status.style.setProperty('--status-scale',String(.35+.65*fade));c.status.hidden=c.status.hidden||fade<.01;
+      c.status.style.opacity=String(c.birth*fade);c.status.style.setProperty('--status-scale',String(.35+.65*fade));c.status.hidden=c.status.hidden||fade<.01||detailTile<0||fromWorld(c.root.position.x,c.root.position.z)!==detailTile;
     }
   }
   private fishing(c:Citizen,dt:number){
@@ -316,7 +316,7 @@ export class Villagers {
         c.clock+=dt;
         const impactRate=c.visual?.hasAnimations?1/c.visual.workDuration(c.job.resource==='stone'?'stone':'wood'):1.7;
         if(wood&&c.clock>.3&&Math.floor(c.clock*impactRate-.72)!==Math.floor((c.clock-dt)*impactRate-.72))this.hooks.impact(c.job.source,c.job.tree);
-        const duration=fishing?this.fishTiming().total:wood?(c.job.resource==='stone'?6.8:6):2.4;
+        const duration=fishing?this.fishTiming().total:wood?(c.job.resource==='stone'?6.8:6):harvestSeconds(c.job.category,c.job.amount);
         if(fishing){c.body.rotation.x=.05;this.fishing(c,dt)}
         else{const p=this.hooks.workPoint(c.job.source,c.job.tree);c.root.rotation.y=c.job.category==='farm'?this.hooks.yaw(c.job.source)+Math.PI:Math.atan2(p.x-.12-c.root.position.x,p.z-.15-c.root.position.z);this.hooks.harvestProgress(c.job.source,c.id,Math.min(1,c.clock/duration))}
         if(c.clock>=duration){
