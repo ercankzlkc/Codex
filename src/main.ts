@@ -1,11 +1,12 @@
 import './style.css';
 import {Vector3} from 'three';
 import {CENTER,position} from './hex';
-import {Game,harvestSeconds,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
+import {harvestSeconds,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
 import {World} from './world';
 import {CardDrag} from './drag';
 import {TableSound} from './sound';
 import {setupSettings} from './settings';
+import {createDemoGame} from './demo';
 
 import {icon} from './icons';
 const app=document.querySelector<HTMLElement>('#app')!;
@@ -32,7 +33,7 @@ world.onWorkSound=(cue,at)=>sound.work(cue,at);
 world.onPlacementSound=(kind,at)=>sound.placement(kind,at);
 world.onFenceBuild=()=>sound.play('fence');
 world.onFenceBreak=()=>sound.play('fenceBreak');
-let game=new Game();
+let game=createDemoGame();
 let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
 let editedTile=-1;
@@ -323,7 +324,7 @@ function reset(){
   handMotion++;handBusy=false;hand.removeAttribute('data-cards');hand.getAnimations({subtree:true}).forEach(a=>a.cancel());
   clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
   document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());get('#food-details').hidden=true;get('#work-panel').hidden=true;closeWork();
-  drag.cancel();sound.cancel();sound.resetAmbience();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();selected=null;locked=false;
+  drag.cancel();sound.cancel();sound.resetAmbience();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=createDemoGame();selected=null;locked=false;
   world.reset();world.sync(game.board);world.bindGame(game);select(null);render(true);
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
