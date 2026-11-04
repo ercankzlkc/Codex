@@ -9,9 +9,6 @@ export class CameraController {
   private readonly desiredTarget = new THREE.Vector3(0, 0.12, 0);
   private readonly offset = new THREE.Vector3();
   private readonly spherical = new THREE.Spherical();
-  private readonly right = new THREE.Vector3();
-  private readonly forward = new THREE.Vector3();
-  private readonly up = new THREE.Vector3(0, 1, 0);
   private distance = 20;
   private clearanceHeight=2.5;
   /** Keep the orbit above sea level and the highest model, including when panning. */
@@ -49,7 +46,7 @@ export class CameraController {
   }
   private viewportHeight = 900;
   private placement = false;
-  private pointer: { id: number; x: number; y: number; pan: boolean } | null = null;
+  private pointer: { id: number; x: number; y: number } | null = null;
   private disposed = false;
   private readonly cleanup = new AbortController();
 
@@ -96,7 +93,8 @@ export class CameraController {
     }
     this.yaw = THREE.MathUtils.lerp(this.yaw, this.desiredYaw, motion);
     this.pitch = THREE.MathUtils.lerp(this.pitch, this.desiredPitch, motion);
-    this.target.lerp(this.desiredTarget, motion);
+    this.desiredTarget.copy(this.islandCenter);
+    this.target.lerp(this.islandCenter, motion);
     const nextZoom = THREE.MathUtils.lerp(this.camera.zoom, this.desiredZoom, zoom);
     if (Math.abs(nextZoom - this.camera.zoom) > 0.000001) {
       this.camera.zoom = nextZoom;
@@ -156,7 +154,9 @@ export class CameraController {
     // A wrapper may also contain floating DOM feedback. Never steal a HUD gesture.
     if (event.target instanceof HTMLElement && event.target.closest('button, input, dialog, [data-card]')) return;
     event.preventDefault();
-    this.pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, pan: event.button === 1 || event.shiftKey };
+    if(event.button===1){this.reset();return}
+    this.desiredTarget.copy(this.islandCenter);
+    this.pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
     this.element.setPointerCapture(event.pointerId);
     this.element.style.cursor = 'grabbing';
   };
@@ -167,21 +167,9 @@ export class CameraController {
     const dy = event.clientY - this.pointer.y;
     this.pointer.x = event.clientX;
     this.pointer.y = event.clientY;
-    if (this.pointer.pan) {
-      const worldPerPixel = 2 * this.halfHeight / (this.viewportHeight * this.desiredZoom);
-      this.right.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
-      this.forward.crossVectors(this.up, this.right);
-      this.desiredTarget.addScaledVector(this.right, -dx * worldPerPixel * 0.8);
-      this.desiredTarget.addScaledVector(this.forward, dy * worldPerPixel * 0.8);
-      const radius = Math.hypot(this.desiredTarget.x-this.islandCenter.x, this.desiredTarget.z-this.islandCenter.z);
-      if (radius > 0.85) {
-        this.desiredTarget.x=this.islandCenter.x+(this.desiredTarget.x-this.islandCenter.x)*.85/radius;
-        this.desiredTarget.z=this.islandCenter.z+(this.desiredTarget.z-this.islandCenter.z)*.85/radius;
-      }
-    } else {
-      this.desiredYaw -= dx * 0.0035;
-      this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0007, .80, this.maxPitch());
-    }
+    this.desiredTarget.copy(this.islandCenter);
+    this.desiredYaw -= dx * 0.0035;
+    this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0007, .80, this.maxPitch());
   };
 
   private onPointerUp = (event: PointerEvent): void => {
