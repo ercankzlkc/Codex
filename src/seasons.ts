@@ -13,7 +13,7 @@ const seasons=[
 const mix=(a:number,b:number,t:number)=>a+(b-a)*t;
 /** Accelerated visual preview: one ten-second day per season. */
 export class SeasonCycle{
-  private elapsed=0;private lastSeason=-1;private lastPhase='';private scanClock=0;
+  private elapsed=0;private lastSeason=-1;private lastPhase='';private scanClock=0;private hudClock=0;
   private sky=new T.Color('#93bfcb');private sunlight=new T.Color('#fff2da');
   private materials=new Map<T.MeshStandardMaterial,{base:T.Color;foliage:boolean;ground:boolean;window:boolean}>();
   private paths=new Set<T.MeshBasicMaterial>();
@@ -88,6 +88,9 @@ export class SeasonCycle{
     this.snow.position.set(focus.x,0,focus.z);
     for(let i=0;i<240;i++){this.snowPositions[i*3]+=dt*.11;this.snowPositions[i*3+1]-=dt*(.4+(i%5)*.06);if(this.snowPositions[i*3+1]<0)this.snowPositions[i*3+1]=7;if(this.snowPositions[i*3]>9)this.snowPositions[i*3]=-9}
     this.snow.geometry.getAttribute('position').needsUpdate=true;
+    this.hudClock-=dt;
+    if(this.hudClock>0&&season===this.lastSeason)return;
+    this.hudClock=.1;
     const phase=cycle<.08?'Şafak':cycle<.42?'Gündüz':cycle<.55?'Gün batımı':'Gece';
     this.hud.style.setProperty('--season-color',current.color);this.hud.style.setProperty('--day-progress',String(cycle));
     this.hud.querySelector('.clock-orbit')!.textContent=night>.5?'☾':'☀';

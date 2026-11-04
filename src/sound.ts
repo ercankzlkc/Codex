@@ -28,7 +28,10 @@ export class TableSound {
   private seaPan:StereoPannerNode|null=null;
   private seaFilter:BiquadFilterNode|null=null;
   private workLive=new Set<AudioBufferSourceNode>();
+  private workViews=new Map<AudioBufferSourceNode,{at:T.Vector3;gain:GainNode}>();
   private lastWork=new Map<string,number>();
+  private viewCamera:T.OrthographicCamera|null=null;
+  private clipPoint=new T.Vector3();
   private readonly audioRight=new T.Vector3();
   private clips=new Map<string,AudioBuffer>();
   private live=new Set<AudioScheduledSourceNode>();
@@ -120,6 +123,7 @@ export class TableSound {
     return mono;
   }
   updateSpatial(camera:T.OrthographicCamera,focus:T.Vector3,birds:readonly T.Object3D[],shore:readonly ShoreEdge[],land:ReadonlyMap<number,unknown>){
+    this.viewCamera=camera;
     const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.master)return;
     const now=ctx.currentTime;if(now-this.lastSpatial<1/30)return;this.lastSpatial=now;
     camera.getWorldDirection(this.forward);this.up.set(0,1,0).applyQuaternion(camera.quaternion);
@@ -132,6 +136,7 @@ export class TableSound {
         [listener.forwardX,this.forward.x],[listener.forwardY,this.forward.y],[listener.forwardZ,this.forward.z],
         [listener.upX,this.up.x],[listener.upY,this.up.y],[listener.upZ,this.up.z]] as [AudioParam,number][])parameter.setTargetAtTime(value,now,.06);
     }else{listener.setPosition(this.ear.x,this.ear.y,this.ear.z);listener.setOrientation(this.forward.x,this.forward.y,this.forward.z,this.up.x,this.up.y,this.up.z)}
+    for(const voice of this.workViews.values())voice.gain.gain.setTargetAtTime(this.workWeight(voice.at),now,.08);
     this.updateSea(camera,focus,shore,land,now);
     if(!this.levels.ambience){this.stopBird();return}
     if(this.birdVoice&&now>this.birdVoice.endsAt+.5)this.stopBird();
@@ -179,17 +184,26 @@ export class TableSound {
     if(this.lastWork.size>512)for(const [k,t] of this.lastWork)if(now-t>3)this.lastWork.delete(k);
   }
   placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}
+  private workWeight(at:T.Vector3){
+    const camera=this.viewCamera;if(!camera)return 0;
+    this.clipPoint.copy(at).project(camera);
+    if(Math.abs(this.clipPoint.x)>1.05||Math.abs(this.clipPoint.y)>1.05||Math.abs(this.clipPoint.z)>1)return 0;
+    const distance=Math.hypot(this.clipPoint.x,this.clipPoint.y);
+    return (1-T.MathUtils.smoothstep(distance,.18,.95))*(.12+.88*T.MathUtils.smoothstep(camera.zoom,.8,2.2));
+  }
   private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number]},at:T.Vector3){
     const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.sfx||this.workLive.size>=12)return false;
+    const focusGain=this.workWeight(at);if(focusGain<.012)return false;
     const buffer=this.clips.get(cue.files[Math.floor(Math.random()*cue.files.length)]);if(!buffer)return false;
     const source=ctx.createBufferSource(),panner=ctx.createPanner(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
     source.buffer=buffer;source.playbackRate.value=T.MathUtils.lerp(cue.rate[0],cue.rate[1],Math.random());
-    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=5;panner.rolloffFactor=1;panner.maxDistance=45;
+    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=1.2;panner.rolloffFactor=2;panner.maxDistance=12;
     panner.setPosition(at.x,at.y,at.z);filter.type='lowpass';filter.Q.value=.3;filter.frequency.value=T.MathUtils.lerp(7000,1500,T.MathUtils.smoothstep(at.distanceTo(this.ear),5,30));
     const now=ctx.currentTime,duration=Math.min(2.5,buffer.duration/source.playbackRate.value);
     gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(cue.volume,now+.008);gain.gain.setValueAtTime(cue.volume,now+Math.max(.01,duration-.04));gain.gain.linearRampToValueAtTime(0,now+duration);
-    source.connect(filter).connect(panner).connect(gain).connect(this.buses.sfx!);this.workLive.add(source);
-    source.onended=()=>{this.workLive.delete(source);source.disconnect();filter.disconnect();panner.disconnect();gain.disconnect()};
+    const viewGain=ctx.createGain();viewGain.gain.value=focusGain;
+    source.connect(filter).connect(panner).connect(gain).connect(viewGain).connect(this.buses.sfx!);this.workLive.add(source);this.workViews.set(source,{at:at.clone(),gain:viewGain});
+    source.onended=()=>{this.workLive.delete(source);this.workViews.delete(source);source.disconnect();filter.disconnect();panner.disconnect();gain.disconnect();viewGain.disconnect()};
     source.start(now);source.stop(now+duration);return true;
   }
   private startBird(bird:T.Object3D,now:number){

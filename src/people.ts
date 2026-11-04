@@ -47,7 +47,7 @@ export class PersonVisual {
     model.position.set(-center.x*scale,-bounds.min.y*scale,-center.z*scale);
     model.traverse(object=>{
       if((object as T.Bone).isBone)this.bones.push(object as T.Bone);
-      if((object as T.Mesh).isMesh){const mesh=object as T.Mesh;mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=false}
+      if((object as T.Mesh).isMesh){const mesh=object as T.Mesh;mesh.castShadow=true;mesh.receiveShadow=true;mesh.frustumCulled=true;if(mesh instanceof T.SkinnedMesh){mesh.computeBoundingSphere();if(mesh.boundingSphere)mesh.boundingSphere.radius*=1.6}}
     });
     this.root.updateMatrixWorld(true);
     const binds=new Map(this.bones.map(bone=>[bone,{quaternion:bone.quaternion.clone(),position:bone.position.clone()}]));

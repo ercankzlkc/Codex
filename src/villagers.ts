@@ -96,9 +96,7 @@ export class Villagers {
     if(!c.visual)return;
     c.visual.setFishingClock(c.stage==='working'&&c.job?.category==='fish'?c.clock:null);
     c.visual.update(c.body,c.arms,c.legs,c.bundle.visible);
-    c.root.updateMatrixWorld(true);
     c.visual.grip(c.axe,'axe');c.visual.grip(c.rod,'rod');c.visual.grip(c.pickaxe,'pickaxe');
-    c.root.updateMatrixWorld(true);
   }
   private motionFor(c:Citizen):PersonMotion{
     if(c.path.length)return c.bundle.visible?'carry':'walk';
@@ -232,6 +230,7 @@ export class Villagers {
   updateStatuses(camera:T.Camera,width:number,height:number,detailTile:number){
     const v=new T.Vector3();
     for(const c of this.citizens){
+      if(detailTile<0||fromWorld(c.root.position.x,c.root.position.z)!==detailTile){c.status.hidden=true;continue}
       const eating=c.eatUntil>this.time&&!c.job&&!c.path.length,carrying=c.bundle.visible;
       const state=c.stage==='unloading'?'unload':eating?(c.hungry?'hungry':'eat'):carrying?(c.waitReason==='full'?'full':'carry'):c.job?(c.job.category??'garden'):'rest';
       const graphic=state==='unload'?'carry':state==='carry'?(c.job?.category??'garden'):state,key=`${state}:${graphic}`;

@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {StaticInstances} from './static-instances';
 import {PerformanceHud} from './performance-hud';
 import {SeasonCycle} from './seasons';
 import {icon} from './icons';
@@ -49,6 +50,7 @@ function villageHouse() {
 export class World {
   private readonly performanceHud=new PerformanceHud();
   readonly scene=new T.Scene();
+  private readonly staticInstances=new StaticInstances(this.scene);
   readonly renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
   readonly cameraControl:CameraController;
   readonly grid:PlacementGrid;
@@ -523,6 +525,7 @@ export class World {
     });
   }
   reset(){
+    this.staticInstances.clear();
     this.seasons.reset();
     for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
     this.detailTile=-1;this.detailPointer=null;this.setSelection(null);this.cameraControl.reset();this.treeCycles.clear();this.woodHits.clear();this.fields.clear();this.harvestParts.clear();
@@ -668,6 +671,7 @@ export class World {
       f.el.style.opacity=String(Math.max(0,Math.min(1,f.life*2.8)));
       if(f.life<=0)f.el.remove();return f.life>0;
     });
+    this.staticInstances.sync(this.buildings,this.board);this.staticInstances.update();
     this.renderer.render(this.scene,this.cameraControl.camera);
     this.performanceHud.update(this.renderer);
   };

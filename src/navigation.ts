@@ -4,19 +4,27 @@ export type WalkPoint={tile:number;x:number;z:number};
 /** Sampled land navigation with padded footprints; paths never cut a building corner. */
 export class Walkways {
   private cache=new Map<string,boolean>();
+  private exactFree=new Map<string,boolean>();
+  private segments=new Map<string,boolean>();
   readonly step=.10;
   constructor(private game:Game,private ready:(id:number)=>boolean,private yaw:(id:number)=>number,private obstacles:(id:number)=>{x:number;z:number;r:number}[]=()=>[]){}
-  invalidate(){this.cache.clear()}
+  invalidate(){this.cache.clear();this.exactFree.clear();this.segments.clear()}
   free(x:number,z:number){
+    const key=`${x.toFixed(6)},${z.toFixed(6)}`;
+    const cached=this.exactFree.get(key);if(cached!==undefined)return cached;
+    const result=this.freeUncached(x,z);if(this.exactFree.size>80000)this.exactFree.clear();this.exactFree.set(key,result);return result;
+  }
+  private freeUncached(x:number,z:number){
     // A narrow walkable strip reaches the outer end of each coastal pier.
-    for(const [cell,k] of this.game.board)if(k==='fisher'&&this.ready(cell)){
+    for(const cell of [fromWorld(x,z),...adjacent(fromWorld(x,z))])if(this.game.board.get(cell)==='fisher'&&this.ready(cell)){
       const p=position(cell),a=this.yaw(cell),dx=x-p.x,dz=z-p.z;
       const lx=dx*Math.cos(a)-dz*Math.sin(a),lz=dx*Math.sin(a)+dz*Math.cos(a);
       if(Math.abs(lx)<.13&&lz>.10&&lz<1.04)return true;
     }
     const id=fromWorld(x,z),kind=this.game.board.get(id);if(!kind||!this.ready(id))return false;
     const p=position(id),px=x-p.x,pz=z-p.z;
-    for(let i=0;i<6;i++)if(!this.game.board.has(adjacent(id)[i])&&px*Math.cos(i*Math.PI/3)+pz*Math.sin(i*Math.PI/3)>.70)return false;
+    const neighbors=adjacent(id);
+    for(let i=0;i<6;i++)if(!this.game.board.has(neighbors[i])&&px*Math.cos(i*Math.PI/3)+pz*Math.sin(i*Math.PI/3)>.70)return false;
     const angle=this.yaw(id),c=Math.cos(angle),s=Math.sin(angle),lx=px*c-pz*s,lz=px*s+pz*c;
     const rect=(x0:number,x1:number,z0:number,z1:number,scale=BUILDING_SCALE)=>lx>x0*scale-.075&&lx<x1*scale+.075&&lz>z0*scale-.075&&lz<z1*scale+.075;
     if(kind==='house'||kind==='manor'||kind==='store'||kind==='lumber'){
@@ -34,6 +42,11 @@ export class Walkways {
     return true;
   }
   segment(a:{x:number;z:number},b:{x:number;z:number}){
+    const key=`${a.x.toFixed(6)},${a.z.toFixed(6)}:${b.x.toFixed(6)},${b.z.toFixed(6)}`;
+    const cached=this.segments.get(key);if(cached!==undefined)return cached;
+    const result=this.segmentUncached(a,b);if(this.segments.size>50000)this.segments.clear();this.segments.set(key,result);return result;
+  }
+  private segmentUncached(a:{x:number;z:number},b:{x:number;z:number}){
     const n=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.z-a.z)/.055));
     for(let i=1;i<=n;i++)if(!this.free(a.x+(b.x-a.x)*i/n,a.z+(b.z-a.z)*i/n))return false;
     return true;
