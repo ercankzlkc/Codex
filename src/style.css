@@ -115,17 +115,17 @@ dialog[data-kind=milestone],dialog[data-kind=reroll],dialog[data-kind=progress],
 .hand-dock{position:relative}
 .card-exchange{
   position:static;transform:none;display:inline-flex;align-items:center;gap:6px;
-  width:auto;height:24px;padding:3px 7px;flex:none;
-  border:1px solid #a6b59866;border-radius:6px;background:#f5efd855;
-  color:#49654e;font:400 10px/1.2 "Segoe UI",sans-serif;box-shadow:none;
+  width:auto;min-width:180px;height:26px;padding:3px 14px;flex:none;justify-content:center;
+  border:1px solid #aeb894;border-radius:999px;background:linear-gradient(#fff7df,#eae6c9);
+  color:#354f3d;font:500 11px/1.2 "Segoe UI",sans-serif;box-shadow:0 2px 5px #284e4426;
   text-align:left;text-shadow:none;pointer-events:auto;white-space:nowrap;
 }
 .card-exchange .exchange-icon{display:grid;place-items:center;width:12px;height:12px;flex:none;border:0;border-radius:0}
 .card-exchange .exchange-icon svg{width:11px;height:11px}
 .card-exchange small{display:flex;align-items:center;gap:3px;margin:0;padding-left:6px;border-left:1px solid #9ba98555;font-size:9px;color:#927e50}
 .card-exchange small svg{width:10px;height:10px}
-.card-exchange:hover:enabled{background:#faf5e1b3;border-color:#9fae8f;box-shadow:none}
-.card-exchange:disabled{opacity:.45;cursor:default}
+.card-exchange:hover:enabled{background:#fff8e4;border-color:#81996f;box-shadow:0 2px 7px #284e4433}
+.card-exchange:disabled{opacity:.7;cursor:default}
 #work-panel{
   position:fixed;z-index:11;width:334px;max-height:calc(100dvh - 128px);overflow:auto;
   padding:19px 18px 13px;border:1px solid #fff7e7;border-radius:15px;
@@ -229,8 +229,7 @@ dialog[data-kind=milestone],dialog[data-kind=reroll],dialog[data-kind=progress],
 .kingdom-hud .resource[data-resource=food] em,.kingdom-hud .resource[data-resource=people] em{background:none}
 .kingdom-hud .resource+.resource:before{height:24px}
 .population-track{left:10px;right:10px;bottom:0;height:2px}
-.hand-label{display:flex;justify-content:space-between;gap:12px;min-height:24px;padding:0 5px;font-size:11px;margin-bottom:7px}
-#hand-hint{min-width:0;text-align:left}
+.hand-label{display:flex;justify-content:center;min-height:26px;padding:0 5px;margin-bottom:9px}
 #hand .card{grid-template-rows:18px minmax(34px,1fr) 30px 1px 26px 25px;gap:3px;padding:9px;border-radius:12px}
 #hand .card>strong{font-size:14px;line-height:15px}
 #hand .card .effect{font-size:10px;line-height:13px}

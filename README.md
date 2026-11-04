@@ -18,7 +18,7 @@ Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction`
 
 ## Altın, gelişim ve ticaret
 
-HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kartların üzerindeki sürükleme ipucuyla aynı satırdaki ince Kartları yenile düğmesi modal açmadan, toplam 5 altın karşılığında üç kartı birden yeniler. Önceki elin dışında kalan kartlar yeterliyse onlardan çekilir; liman ödülü kullanılana kadar korunur. Eski el çekilerek ayrılır; yeni kartlar kısa aralıklarla sırayla yükselerek gelir. Yerleştirme sonrasındaki yeni el de aynı animasyonla dağıtılır.
+HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kartların üzerinde ortalanan ince, oval Kartları yenile düğmesi modal açmadan, toplam 5 altın karşılığında üç kartı birden yeniler. Önceki elin dışında kalan kartlar yeterliyse onlardan çekilir; liman ödülü kullanılana kadar korunur. Eski el çekilerek ayrılır; yeni kartlar kısa aralıklarla sırayla yükselerek gelir. Yerleştirme sonrasındaki yeni el de aynı animasyonla dağıtılır.
 
 | Nüfus | Aşama | Açılan kartlar / özellik | Altın ödülü |
 | --- | --- | --- | --- |
