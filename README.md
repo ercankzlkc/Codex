@@ -88,4 +88,6 @@ Yürüyüş, hedef hız yerine aynı karede gerçekten alınan mesafeye bağlan�
 
 Gelişim modalları yumuşak ölçek ve kayma animasyonuyla açılır; ödül kartları sırayla dönerek yükselir. Ortadaki Devam Et düğmesi ve Esc animasyonlu kapanışı kullanır. Kart yenileme ve yerleştirmede eski ses dizisi yerine hover kart kaydırma sesi çalar; yenilemede her kartın gelişi kendi sesini üretir. Çit sesleri mevcut Kenney CC0 ahşap örneklerinden gelir. H tuşu her basışta odun, taş, çilek, buğday, balık ve altına 1.000 ekler; nüfus ve refahı değiştirmez. Ek ürünler merkez stoklarında tutulur, merkez kapasitesi bunlara yetecek şekilde artırılır.
 
-Kazmanın görseli, el kemiğindeki tutuş noktası korunarak yüzde 62 ölçeğe indirilmiştir; yeniden tutuş hesapları bu iç görsel ölçeğini değiştirmez.
+Balta ve kazmanın görselleri, el kemiğindeki tutuş noktaları korunarak yüzde 62 ölçeğe indirilmiştir; yeniden tutuş hesapları bu iç görsel ölçeğini değiştirmez.
+
+Köylüler iş başındayken yemek animasyonu işi ve alet görünürlüğünü kesmez; yiyecek tüketimi sürer, yemek pozu yalnız boşta oynar. Depoya ulaşınca köylü boşaltma pozuna girer; ürünler 0,14 saniye aralıklarla eldeki yükten çıkar, yarım saniyelik yumuşak bir yay çizerek depoya uçar. Stok her ürün vardığında artar, eldeki yük kademeli azalır. Depo dolarsa kabul edilmeyen ürün geri döner ve kalan yük başka uygun depoya götürülür. Aynı karedeki HUD güncellemeleri birleştirilir.

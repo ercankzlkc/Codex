@@ -67,6 +67,16 @@ export function resourceModel(kind:string){
   resourceTemplates.set(kind,g);return g.clone();
 }
 
+/** A single readable item for the hand-to-storage flight, sharing cached assets. */
+export function resourceUnitModel(kind:string){
+  const group=resourceModel(kind);
+  if(kind!=='wheat'){
+    const keep=group.children.slice(0,kind==='berry'||kind==='happy'?2:1);
+    group.clear();for(const item of keep){item.position.x=0;item.position.z=0;group.add(item)}
+  }
+  return group;
+}
+
 function beam(p:T.Group,color:number,a:T.Vector3,b:T.Vector3,width=.025){
   const delta=b.clone().sub(a),m=box(p,color,(a.x+b.x)/2,(a.y+b.y)/2,(a.z+b.z)/2,width,delta.length(),width);m.quaternion.setFromUnitVectors(new T.Vector3(0,1,0),delta.normalize());return m;
 }
