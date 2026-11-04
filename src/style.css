@@ -114,18 +114,18 @@ dialog[data-kind=milestone],dialog[data-kind=reroll],dialog[data-kind=progress],
 .population-track i{display:block;height:100%;background:#8c9f76;transition:width .3s}
 .hand-dock{position:relative}
 .card-exchange{
-  position:absolute;left:calc(100% + 24px);top:50%;transform:translateY(-50%);
-  display:flex;align-items:center;gap:10px;width:140px;padding:12px 10px;
-  text-align:left;border:1px solid #fdf7e5;border-radius:12px;
-  background:linear-gradient(135deg,#fbf5e4f2,#efe5ccf2);color:#4c6651;
-  box-shadow:0 3px 12px #254b4520;font-size:12px;
+  position:static;transform:none;display:inline-flex;align-items:center;gap:6px;
+  width:auto;height:24px;padding:3px 7px;flex:none;
+  border:1px solid #a6b59866;border-radius:6px;background:#f5efd855;
+  color:#49654e;font:400 10px/1.2 "Segoe UI",sans-serif;box-shadow:none;
+  text-align:left;text-shadow:none;pointer-events:auto;white-space:nowrap;
 }
-.card-exchange .exchange-icon{display:grid;place-items:center;width:28px;height:28px;border:1px solid #b6b89a88;border-radius:50%;flex:none}
-.card-exchange .exchange-icon svg{width:14px;height:14px}
-.card-exchange small{display:flex;align-items:center;gap:4px;margin-top:5px;font-size:10px;color:#9a8657}
-.card-exchange small svg{width:12px;height:12px}
-.card-exchange:hover:enabled{background:#fff8e6;box-shadow:0 5px 15px #254b4530}
-.card-exchange:disabled{opacity:.55;cursor:default}
+.card-exchange .exchange-icon{display:grid;place-items:center;width:12px;height:12px;flex:none;border:0;border-radius:0}
+.card-exchange .exchange-icon svg{width:11px;height:11px}
+.card-exchange small{display:flex;align-items:center;gap:3px;margin:0;padding-left:6px;border-left:1px solid #9ba98555;font-size:9px;color:#927e50}
+.card-exchange small svg{width:10px;height:10px}
+.card-exchange:hover:enabled{background:#faf5e1b3;border-color:#9fae8f;box-shadow:none}
+.card-exchange:disabled{opacity:.45;cursor:default}
 #work-panel{
   position:fixed;z-index:11;width:334px;max-height:calc(100dvh - 128px);overflow:auto;
   padding:19px 18px 13px;border:1px solid #fff7e7;border-radius:15px;
@@ -229,7 +229,8 @@ dialog[data-kind=milestone],dialog[data-kind=reroll],dialog[data-kind=progress],
 .kingdom-hud .resource[data-resource=food] em,.kingdom-hud .resource[data-resource=people] em{background:none}
 .kingdom-hud .resource+.resource:before{height:24px}
 .population-track{left:10px;right:10px;bottom:0;height:2px}
-.hand-label{font-size:11px;margin-bottom:6px}
+.hand-label{display:flex;justify-content:space-between;gap:12px;min-height:24px;padding:0 5px;font-size:11px;margin-bottom:7px}
+#hand-hint{min-width:0;text-align:left}
 #hand .card{grid-template-rows:18px minmax(34px,1fr) 30px 1px 26px 25px;gap:3px;padding:9px;border-radius:12px}
 #hand .card>strong{font-size:14px;line-height:15px}
 #hand .card .effect{font-size:10px;line-height:13px}
@@ -238,6 +239,3 @@ dialog[data-kind=milestone],dialog[data-kind=reroll],dialog[data-kind=progress],
 #hand .card .costs>span{padding:2px 4px;font-size:9px;gap:2px}
 #hand .card .costs svg{width:9px;height:9px}
 #hand .card .type{font-size:7px;letter-spacing:0}
-.card-exchange{left:calc(100% + 20px);width:124px;padding:10px 9px;gap:8px;font-size:11px}
-.card-exchange .exchange-icon{width:24px;height:24px}
-.card-exchange small{font-size:9px;margin-top:3px}
