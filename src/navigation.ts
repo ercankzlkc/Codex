@@ -16,7 +16,7 @@ export class Walkways {
     }
     const id=fromWorld(x,z),kind=this.game.board.get(id);if(!kind||!this.ready(id))return false;
     const p=position(id),px=x-p.x,pz=z-p.z;
-    for(let i=0;i<6;i++)if(!this.game.board.has(adjacent(id)[i])&&px*Math.cos(i*Math.PI/3)+pz*Math.sin(i*Math.PI/3)>.745)return false;
+    for(let i=0;i<6;i++)if(!this.game.board.has(adjacent(id)[i])&&px*Math.cos(i*Math.PI/3)+pz*Math.sin(i*Math.PI/3)>.70)return false;
     const angle=this.yaw(id),c=Math.cos(angle),s=Math.sin(angle),lx=px*c-pz*s,lz=px*s+pz*c;
     const rect=(x0:number,x1:number,z0:number,z1:number,scale=BUILDING_SCALE)=>lx>x0*scale-.075&&lx<x1*scale+.075&&lz>z0*scale-.075&&lz<z1*scale+.075;
     if(kind==='house'||kind==='manor'||kind==='store'||kind==='lumber'){

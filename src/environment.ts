@@ -3,19 +3,22 @@ import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,terrainSignature,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
 import {tree} from './models';
+import {shoreFence} from './shore-fence';
 import {Wildlife} from './wildlife';
 import {Atmosphere} from './atmosphere';
 import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
 
 
-type Patch={root:T.Group; surface:T.Mesh;signature:string;age:number;grass?:T.Group};
+type Patch={root:T.Group; surface:T.Mesh;signature:string;age:number;grass?:T.Group;fence?:T.Mesh;fenceSignature?:string};
 export class Environment {
   readonly root=new T.Group();
   private readonly land=new Map<number,Patch>();
   private readonly water=new TropicalWater();
   private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
 
+  private readonly fenceMat=new T.MeshStandardMaterial({vertexColors:true,roughness:.95,flatShading:true});
+  private shoreOpenings=new Map<number,number>();
   private atmosphere:Atmosphere;
   private wildlife:Wildlife;
   private last=0;
@@ -46,6 +49,19 @@ export class Environment {
     }
   }
 
+  setShoreOpenings(board:ReadonlyMap<number,unknown>,openings:Map<number,number>){
+    this.shoreOpenings=openings;this.syncFences(board);
+  }
+  private syncFences(board:ReadonlyMap<number,unknown>){
+    for(const [id,tile] of this.land){
+      if(!board.has(id))continue;
+      const result=shoreFence(id,board,this.shoreOpenings.get(id),tile.fenceSignature);
+      if(result.geometry===undefined)continue;
+      if(tile.fence){tile.root.remove(tile.fence);tile.fence.geometry.dispose();tile.fence=undefined}
+      tile.fenceSignature=result.signature;
+      if(result.geometry){const fence=new T.Mesh(result.geometry,this.fenceMat);fence.castShadow=true;fence.receiveShadow=true;tile.root.add(fence);tile.fence=fence}
+    }
+  }
   setMeadow(id:number,footprints:T.Box3[]){
     const tile=this.land.get(id);if(!tile)return;
     if(tile.grass){tile.root.remove(tile.grass);tile.grass.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();(o.material as T.Material).dispose()}})}
@@ -59,7 +75,7 @@ export class Environment {
   private removeLand(id:number){
     const tile=this.land.get(id);if(!tile)return;
     this.root.remove(tile.root);tile.surface.geometry.dispose();
-    tile.root.traverse(o=>{if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
+    tile.root.traverse(o=>{if(o===tile.fence){tile.fence.geometry.dispose();return}if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
     this.land.delete(id);
   }
   setSun(direction:T.Vector3){this.water.setSun(direction)}
@@ -90,9 +106,9 @@ export class Environment {
         const signature=terrainSignature(id,board);
         if(tile.signature!==signature){tile.surface.geometry.dispose();tile.surface.geometry=terrainGeometry(id,board);tile.signature=signature}
       }
-      this.pendingBoard=null;
+      this.syncFences(board);this.pendingBoard=null;
     }
   }
 
-  reset(){this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
+  reset(){this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
 }

@@ -289,6 +289,11 @@ export class World {
     const score=(a:number)=>{const x=p.x+Math.sin(a)*2.8,z=p.z+Math.cos(a)*2.8;return Math.min(...points.map(q=>Math.hypot(x-q.x,z-q.z)))+Math.hypot(x-center.x,z-center.z)*.15};
     const angle=open.sort((a,b)=>score(b)-score(a)||Math.abs(delta(a,current))-Math.abs(delta(b,current)))[0];return current+delta(angle,current);
   }
+  private refreshFences(){
+    const openings=new Map<number,number>();
+    for(const [id,kind] of this.board)if(kind==='fisher'||kind==='harbor')openings.set(id,this.rotationTargets.get(id)??this.buildings.get(id)?.rotation.y??0);
+    this.environment.setShoreOpenings(this.board,openings);
+  }
   private alignFisheries(){
     for(const [id,kind] of this.board)if(kind==='fisher'||kind==='harbor'){
       const g=this.buildings.get(id);if(!g)continue;
@@ -343,6 +348,7 @@ export class World {
     else if(this.editing>=0&&!this.placing){
       const g=this.buildings.get(this.editing);if(g){if(['fisher','harbor'].includes(this.board.get(this.editing)!))g.userData.manualCoast=true;const current=this.rotationTargets.get(this.editing)??g.rotation.y;this.rotationTargets.set(this.editing,['fisher','harbor'].includes(this.board.get(this.editing)!)?this.coastalYaw(this.editing,current,steps):current+steps*Math.PI/3)}
     }
+    this.refreshFences();
   }
   get placing(){return this.builds.length>0||this.demolitions.length>0}
   editTile(id:number){
@@ -464,7 +470,7 @@ export class World {
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
       if(i===placed){if(['fisher','harbor'].includes(kind)&&this.placedManualCell===i)g.userData.manualCoast=true;g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
     });
-    this.alignFisheries();
+    this.alignFisheries();this.refreshFences();
     this.cameraControl.setClearance(Math.max(1.7,...[...this.buildings.values()].map(g=>new T.Box3().setFromObject(g).max.y)));
     if(opening||refresh)for(const id of board.keys())this.refreshMeadow(id);else if(placed>=0)this.refreshMeadow(placed);
   }
