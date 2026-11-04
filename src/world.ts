@@ -532,7 +532,8 @@ export class World {
     for(const {mesh} of this.rings){this.scene.remove(mesh);(mesh.material as T.Material).dispose()}this.rings=[];
   }
   private frame=(now:number)=>{
-    const dt=Math.min(.065,(now-this.previousTime)/1000);this.previousTime=now;this.time+=dt;
+    const timestamp=Number.isFinite(now)?now:performance.now();
+    const dt=Math.max(0,Math.min(.065,(timestamp-this.previousTime)/1000));this.previousTime=timestamp;this.time+=dt;
     this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     if(this.ghost?.visible){

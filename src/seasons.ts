@@ -44,6 +44,8 @@ export class SeasonCycle{
     });
   }
   update(dt:number,board:ReadonlyMap<number,Kind>,focus:T.Vector3){
+    dt=Number.isFinite(dt)?Math.max(0,Math.min(.1,dt)):0;
+    if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=0;
     this.elapsed+=dt;this.scanClock-=dt;if(this.scanClock<=0){this.scanClock=.5;this.scan()}
     const season=Math.floor(this.elapsed/30)%4,part=this.elapsed%30,day=Math.floor(part/10),cycle=(this.elapsed%10)/10;
     const blend=T.MathUtils.smoothstep(part,0,2.5),previous=seasons[(season+3)%4],current=seasons[season];
