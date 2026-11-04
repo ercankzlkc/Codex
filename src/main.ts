@@ -10,14 +10,11 @@ const app=document.querySelector<HTMLElement>('#app')!;
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
- <button id="milestone-progress" title="Yerleşim gelişimi"></button>
- <div class="economy-tools"><button id="trade-toggle">${icon('harbor')} Ticaret</button><button id="reroll-toggle">${icon('gold')} Kart değiştir · ${REROLL_COST}</button></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
- <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div id="hand"></div></div>
+ <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><i></i><span>Bir kartı adaya sürükle</span><i></i></div><div class="hand-dock"><div id="hand"></div><button id="reroll-toggle" class="card-exchange" title="Bir kartı rastgele yeni kartla değiştir"><span class="exchange-icon">${icon('reset')}</span><span>Kart değiştir<small>${icon('gold')} ${REROLL_COST} altın</small></span></button></div></div>
  <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
- <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
- <button id="population-toggle" aria-expanded="false" aria-controls="work-panel">${icon('people')}<span>Görevler</span><b id="population-badge">1</b></button>
- <section id="work-panel" hidden aria-label="Nüfus görev dağılımı"><header><strong>İş öncelikleri</strong><button data-work-balance>Dengele</button><button data-work-close aria-label="Kapat">×</button></header><p id="work-summary"></p><div id="work-rows"></div></section>
+ <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
+ <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
  <aside id="food-details" hidden role="tooltip"></aside>
  <aside id="tile-tooltip" hidden><strong></strong><div></div></aside><dialog></dialog>`;
 const get=<E extends HTMLElement=HTMLElement>(selector:string)=>app.querySelector<E>(selector)!;
@@ -85,6 +82,7 @@ world.onTileSelect=i=>{
   if(i<0){get('#storage-upgrade').hidden=true;return}
   get('#tile-editor strong').textContent=i===CENTER?'Krallık merkezi':cards.find(c=>c.id===game.board.get(i))?.name??'Yerleşim';
   get('#tile-editor small').textContent=i===CENTER?'Merkez korunur · R / tekerlek ile döndür':'R / tekerlek · Silmede kaynak iadesi yok';
+  get('#tile-trade').hidden=game.board.get(i)!=='harbor';
   const remove=get<HTMLButtonElement>('[data-tile-delete]');remove.disabled=i===CENTER;
   remove.title=i===CENTER?'Krallık merkezi silinemez':'Yapı ve toprak denize çöker';renderStorage();
 };
@@ -123,25 +121,39 @@ const drag=new CardDrag(hand,{
   cancel:()=>{sound.play('invalid');select(null)},
   tap:i=>{const c=game.hand[i];select(selected===c?null:c)},
 });
-const workNames:Record<WorkCategory,string>={stone:'Taş',wood:'Odun',berry:'Çilek',farm:'Buğday',fish:'Balık'};
-const workIcons:Record<WorkCategory,string>={stone:'stone',wood:'wood',berry:'berry',farm:'wheat',fish:'fish'};
-get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<label class="work-row" data-work="${category}"><span>${icon(workIcons[category])}<b>${workNames[category]}</b><small></small><em></em></span><input type="range" min="0" max="100" value="${game.priorities[category]}" aria-label="${workNames[category]} iş önceliği" data-priority="${category}"></label>`).join('');
+const workNames:Record<WorkCategory,string>={stone:'Taş çıkarma',wood:'Odunculuk',berry:'Çilek toplama',farm:'Buğday hasadı',fish:'Balıkçılık',garden:'Bahçe bakımı'};
+const workIcons:Record<WorkCategory,string>={stone:'stone',wood:'wood',berry:'berry',farm:'wheat',fish:'fish',garden:'garden'};
+get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<div class="work-row" data-work="${category}"><span class="work-symbol">${icon(workIcons[category])}</span><div class="work-description"><b>${workNames[category]}</b><small></small></div><div class="worker-stepper" role="group" aria-label="${workNames[category]} işçi sayısı"><button data-worker="${category}" data-delta="-1" aria-label="${workNames[category]} görevinden bir kişi çıkar">−</button><output aria-label="${workNames[category]} için ayrılan kişi">0</output><button data-worker="${category}" data-delta="1" aria-label="${workNames[category]} görevine bir kişi ekle">+</button></div></div>`).join('');
 function renderWork(){
   const counts=world.villagers.assignedCounts(),targets=game.workTargets();
-  get('#population-badge').textContent=String(game.people);get('#work-summary').textContent=`${world.villagers.working} çalışıyor · ${Math.max(0,game.people-world.villagers.working)} boşta`;
+  const allocated=Object.values(targets).reduce((a,b)=>a+b,0),free=game.people-allocated;
+  get('#work-summary').innerHTML=`<span><b>${game.people}</b> Köylü</span><span><b>${allocated}</b> Görevli</span><span class="free-workers"><b>${free}</b> Ayrılabilir</span>`;
+  get('#work-mode-label').textContent=game.autoWorkers?'Otomatik dağılım':'Elle dağılım';
+  get<HTMLButtonElement>('[data-work-balance]').disabled=game.autoWorkers;
+  get('#work-hint').textContent=game.autoWorkers?'Köylüler açık işlere otomatik yerleşir. − ve + ile kendin düzenleyebilirsin.':free?'Ayrılabilir köylüleri + ile bir işe yerleştir. Yeni gelenler burada bekler.':'Görev değiştirmek için önce bir işten − ile çıkar, ardından diğer işe + ile ekle.';
   for(const category of WORK_CATEGORIES){
-    const row=get(`[data-work="${category}"]`),input=row.querySelector<HTMLInputElement>('input')!;
-    if(document.activeElement!==input)input.value=String(game.priorities[category]);
-    row.querySelector('small')!.textContent=`${counts[category]} / ${targets[category]} kişi`;
-    row.querySelector('em')!.textContent=`%${game.priorities[category]}`;
-    row.classList.toggle('inactive',![...game.board.keys()].some(id=>game.categoryFor(id)===category));
+    const row=get(`[data-work="${category}"]`),capacity=game.workCapacity(category),count=targets[category];
+    row.querySelector('output')!.textContent=String(count);
+    row.querySelector('small')!.textContent=!capacity?'Önce çalışma alanı kur':counts[category]>count?'Son teslimatını bitiriyor':counts[category]<count?`${counts[category]} çalışıyor · ${count-counts[category]} hazırlanıyor`:`${counts[category]} çalışıyor · ${capacity} kişilik yer`;
+    row.querySelector<HTMLButtonElement>('[data-delta="-1"]')!.disabled=count===0;
+    row.querySelector<HTMLButtonElement>('[data-delta="1"]')!.disabled=free===0||count>=capacity;
+    row.classList.toggle('inactive',!capacity);row.classList.toggle('staffed',count>0);
   }
+  if(!get('#work-panel').hidden)positionWork();
 }
-function toggleWork(){const panel=get('#work-panel');panel.hidden=!panel.hidden;get('#population-toggle').setAttribute('aria-expanded',String(!panel.hidden));renderWork()}
-get('#population-toggle').onclick=toggleWork;
-get('[data-work-close]').onclick=()=>{get('#work-panel').hidden=true;get('#population-toggle').setAttribute('aria-expanded','false')};
-get('[data-work-balance]').onclick=()=>{game.priorities={wood:20,stone:20,berry:20,farm:20,fish:20};world.villagers.rebalance();renderWork()};
-app.querySelectorAll<HTMLInputElement>('[data-priority]').forEach(input=>input.oninput=()=>{game.setPriority(input.dataset.priority as WorkCategory,Number(input.value));world.villagers.rebalance();renderWork()});
+function positionWork(){
+  const panel=get('#work-panel'),rect=get('[data-resource="people"]').getBoundingClientRect();
+  panel.style.left=`${Math.max(16,Math.min(innerWidth-panel.offsetWidth-16,rect.left+rect.width/2-panel.offsetWidth/2))}px`;
+  panel.style.top=`${rect.bottom+14}px`;
+}
+function closeWork(){get('#work-panel').hidden=true;get('#stats').querySelector('[data-resource="people"]')?.setAttribute('aria-expanded','false')}
+function toggleWork(){const panel=get('#work-panel');panel.hidden=!panel.hidden;get('[data-resource="people"]').setAttribute('aria-expanded',String(!panel.hidden));renderWork()}
+get('[data-work-close]').onclick=closeWork;
+get('[data-work-balance]').onclick=()=>{game.autoWorkers=true;world.villagers.rebalance();renderWork()};
+app.querySelectorAll<HTMLButtonElement>('[data-worker]').forEach(button=>button.onclick=()=>{
+  if(game.changeWorkers(button.dataset.worker as WorkCategory,Number(button.dataset.delta) as -1|1)){world.villagers.rebalance();renderWork()}
+});
+document.addEventListener('pointerdown',e=>{if(!(e.target as Element).closest('#work-panel,[data-resource="people"]'))closeWork()});
 function renderFood(){
   const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${icon(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>−${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
 }
@@ -161,19 +173,20 @@ function animateCounter(id:string,target:number){
 }
 function renderHud(){
   const stats=get('#stats');
-  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['gold','Altın'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<div class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em></div>`).join('');
+  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['gold','Altın'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<${id==='people'?'button type="button" aria-expanded="false" aria-controls="work-panel"':'div'} class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em>${id==='people'?'<span class="population-track" aria-hidden="true"><i></i></span>':''}</${id==='people'?'button':'div'}>`).join('');
   const foodStat=get('[data-resource="food"]');
   foodStat.onmouseenter=showFood;foodStat.onmouseleave=()=>get('#food-details').hidden=true;foodStat.onfocus=showFood;foodStat.onblur=()=>get('#food-details').hidden=true;foodStat.tabIndex=0;foodStat.setAttribute('aria-describedby','food-details');
   get('[data-resource="people"]').onclick=toggleWork;
   for(const id of ['wood','stone','food','gold','people','happy'] as const){
     animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
-    get(`[data-resource="${id}"] em`).textContent=id==='people'?`${world.villagers.working}/${game.people} çalışıyor`:id==='happy'?'Köyün ruhu':id==='food'?`−${game.foodPerMinute}/dk`:id==='gold'?'Hazine':'Depoda';
+    get(`[data-resource="${id}"] em`).textContent=id==='people'?(game.nextMilestone?`Hedef ${game.nextMilestone.population}`:'Tüm ödüller açık'):id==='food'?`−${game.foodPerMinute}/dk`:'';
   }
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
-  const next=game.nextMilestone,last=MILESTONES.filter(m=>game.reached.has(m.population)).at(-1);
-  get('#milestone-progress').innerHTML=`<span>${last?.name??'Yeni Yerleşim'}</span><b>${next?`${game.people} / ${next.population} nüfus`:'Ticaret Kasabası'}</b><progress max="${next?.population??100}" value="${next?game.people:100}"></progress>`;
+  const next=game.nextMilestone,population=get('[data-resource="people"]');
+  population.title=`Köylü görevleri${next?` · ${next.population} nüfusta ${next.name}`:' · Tüm gelişim ödülleri açıldı'}`;
+  population.querySelector<HTMLElement>('.population-track i')!.style.width=`${next?Math.min(100,game.people/next.population*100):100}%`;
   get<HTMLButtonElement>('#reroll-toggle').disabled=game.gold<REROLL_COST;
-  get('#trade-toggle').innerHTML=`${icon('harbor')} ${game.harborId===undefined?'Liman · 60 nüfus':game.merchantPresent?'Tüccar limanda':`Gemi · ${game.merchantCountdown} sn`}`;
+  get('#reroll-toggle').title=game.gold<REROLL_COST?`Kart değiştirmek için ${REROLL_COST} altın gerekir`:'Bir kartı rastgele yeni kartla değiştir';
   renderWork();renderStorage();if(!get('#food-details').hidden)renderFood();
 }
 const resourceNames:Record<string,string>={wood:'odun',stone:'taş',food:'yiyecek',gold:'altın'};
@@ -214,9 +227,9 @@ function openTrade(){
   modal(`<small>LİMAN · DENİZ TİCARETİ</small><h1>${game.merchantPresent?'Tüccar limanda':'Bir sonraki gemi yolda'}</h1><p>${game.merchantPresent?`Kalan süre ${game.merchantCountdown} saniye · ${game.tradeCapacity-game.tradeSold} ürün daha alabilir.`:`Gemi ${game.merchantCountdown} saniye sonra gelecek.`} Pencere açıkken oyun durur.</p><p class="milestone-reward">${icon('gold')} ${game.gold} altın</p><div class="trade-list">${TRADE_GOODS.map(item=>`<div>${icon(item.id)}<span><b>${item.name}</b><small>${game.tradeStock(item.id)} stok · tanesi ${item.price} altın</small></span><button data-sell="${item.id}" ${!game.merchantPresent||game.tradeStock(item.id)<1||game.tradeSold>=game.tradeCapacity?'disabled':''}>${Math.min(5,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold)} adet sat</button></div>`).join('')}</div><p>Satış stoklarından düşer. Köylülerin yiyeceğini ve inşaat malzemelerini ayırmayı unutma.</p><button data-close>Oyuna dön</button>`,'trade');
   dialog.querySelectorAll<HTMLButtonElement>('[data-sell]').forEach(button=>button.onclick=()=>{if(game.sell(button.dataset.sell as TradeGood)){render();renderStorage();sound.play('reward');openTrade()}});
 }
-get('#milestone-progress').onclick=openProgress;
+get('[data-progress]').onclick=()=>{closeWork();openProgress()};
 get('#reroll-toggle').onclick=openReroll;
-get('#trade-toggle').onclick=openTrade;
+get('#tile-trade').onclick=openTrade;
 
 world.onDelivery=(source,store,resource,amount)=>{
   const accepted=game.deliver(source,store,resource,amount);if(!accepted)return 0;
@@ -238,7 +251,7 @@ world.onInspect=(id,x,y,bounds)=>{
   else if(kind==='store')lines.push(`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapasiteyi yükselt');
   else if(product){lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,'Ürünler depoya taşınır');}
   else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
-  else if(kind==='harbor')lines.push(game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Ticaret düğmesiyle ürün sat');
+  else if(kind==='harbor')lines.push(game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Limanı seçerek ticaret yap');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
   const graphic=id===CENTER?'crest':({harbor:'harbor',forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
@@ -256,7 +269,7 @@ world.onInspect=(id,x,y,bounds)=>{
 window.setInterval(()=>{renderHud();showMilestones()},200);
 dialog.addEventListener('close',()=>{game.paused=false;window.setTimeout(showMilestones,0)});
 function modal(html:string,kind='standard') {
-  game.paused=true;dialog.dataset.kind=kind;
+  closeWork();game.paused=true;dialog.dataset.kind=kind;
   drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
   if(audioButton)audioButton.onclick=()=>{sound.toggle();audioButton.textContent=sound.muted?'Ses kapalı':'Ses açık'};
@@ -268,7 +281,7 @@ function modal(html:string,kind='standard') {
 }
 function reset(){
   clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
-  document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());get('#food-details').hidden=true;get('#work-panel').hidden=true;get('#population-toggle').setAttribute('aria-expanded','false');
+  document.querySelectorAll('.delivery-spark').forEach(el=>el.remove());get('#food-details').hidden=true;get('#work-panel').hidden=true;closeWork();
   drag.cancel();sound.cancel();sound.resetAmbience();for(const state of counters.values())cancelAnimationFrame(state.frame);counters.clear();game=new Game();selected=null;locked=false;
   world.reset();world.sync(game.board);world.bindGame(game);select(null);render();
 }
@@ -277,10 +290,10 @@ get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy<
  <p>Altınla Kart değiştir menüsünden tek bir kartı yenileyebilirsin. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. 60 nüfusta Liman kartı hediye edilir; limanı kurup gelen tüccara ürün satarak altın kazanırsın. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
  <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
- <p>Sağ alttaki Görevler panelinden odun, taş, çilek, buğday ve balık işlerinin önceliğini değiştirebilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
+ <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir; − ile bir görevden çıkarıp + ile diğerine ekle. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
  <p>Depoyu seçerek kapasitesini görebilir, odunla yükseltebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
  <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · kaydır<br>Tekerlek · yakınlaş &nbsp; H · ortala<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}<input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"></label>`).join('')}</div><button data-audio>Ses ${sound.muted?'kapalı':'açık'}</button><button data-close>Oyuna dön</button>`);
-document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){drag.cancel();select(null)}});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!dialog.open){closeWork();drag.cancel();select(null)}});
 reset();
 
 

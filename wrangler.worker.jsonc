@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "yelken-koyu",
+  "name": "codex",
   "compatibility_date": "2026-11-04",
   "workers_dev": true,
   "assets": {

@@ -63,9 +63,9 @@ export interface Production {
 }
 
 export type Resource='wood'|'stone'|'food'|'happy';
-export type WorkCategory='stone'|'wood'|'berry'|'farm'|'fish';
+export type WorkCategory='stone'|'wood'|'berry'|'farm'|'fish'|'garden';
 export type FoodKind='berry'|'wheat'|'fish';
-export const WORK_CATEGORIES:WorkCategory[]=['wood','stone','berry','farm','fish'];
+export const WORK_CATEGORIES:WorkCategory[]=['wood','stone','berry','farm','fish','garden'];
 export const BUILDING_SCALE=.80;
 export function hexDistance(a:number,b:number){
   const p=axial(a),q=axial(b);
@@ -113,7 +113,8 @@ export class Game {
     let left=amount;for(const stock of this.storageStocks.values()){const take=Math.min(left,stock[good]);stock[good]-=take;left-=take;if(!left)break}
   }
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
-  priorities:Record<WorkCategory,number>={wood:30,stone:15,berry:30,farm:15,fish:10};
+  autoWorkers=true;
+  assignments:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
   private meal=0;
   private mealPerson=0;
   private meals:{id:number;ate:boolean}[]=[];
@@ -158,23 +159,34 @@ export class Game {
     }
   }
   categoryFor(id:number):WorkCategory|null{
-    const kind=this.board.get(id);return kind==='stone'?'stone':kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':null;
+    const kind=this.board.get(id);return kind==='stone'?'stone':kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':kind==='garden'?'garden':null;
+  }
+  workCapacity(category:WorkCategory){
+    let capacity=0;
+    for(const id of this.board.keys())if(this.categoryFor(id)===category)capacity+=this.productAt(id)?.capacity??0;
+    return capacity;
   }
   workTargets(){
-    const active=WORK_CATEGORIES.filter(category=>[...this.board.keys()].some(id=>this.categoryFor(id)===category&&this.storageFor(id).length));
-    const result:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0};
-    const sum=active.reduce((n,c)=>n+this.priorities[c],0);if(!sum)return result;
-    const shares=active.map(c=>({c,raw:this.people*this.priorities[c]/sum}));
-    for(const x of shares)result[x.c]=Math.floor(x.raw);
-    let left=this.people-Object.values(result).reduce((a,b)=>a+b,0);
-    for(const x of shares.sort((a,b)=>(b.raw%1)-(a.raw%1)))if(left-->0)result[x.c]++;
+    const result:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
+    let left=this.people;
+    if(!this.autoWorkers){
+      for(const c of WORK_CATEGORIES){result[c]=Math.min(left,this.workCapacity(c),this.assignments[c]);left-=result[c]}
+      return result;
+    }
+    // Assign whole people, one place at a time. A single resident can fill only one job.
+    const order:WorkCategory[]=['wood','berry','stone','farm','fish','garden'];
+    const capacity=new Map(order.map(c=>[c,this.workCapacity(c)]));
+    while(left>0){
+      let assigned=false;
+      for(const c of order)if(left>0&&result[c]<capacity.get(c)!){result[c]++;left--;assigned=true}
+      if(!assigned)break;
+    }
     return result;
   }
-  setPriority(category:WorkCategory,value:number){
-    value=Math.max(0,Math.min(100,Math.round(value)));const others=WORK_CATEGORIES.filter(c=>c!==category);
-    const sum=others.reduce((n,c)=>n+this.priorities[c],0);this.priorities[category]=value;
-    let rest=100-value;
-    others.forEach((c,i)=>{const n=i===others.length-1?rest:Math.min(rest,Math.round((100-value)*(sum?this.priorities[c]/sum:1/others.length)));this.priorities[c]=n;rest-=n});
+  changeWorkers(category:WorkCategory,delta:-1|1){
+    const targets=this.workTargets(),used=Object.values(targets).reduce((a,b)=>a+b,0);
+    if(delta<0&&targets[category]===0||delta>0&&(used>=this.people||targets[category]>=this.workCapacity(category)))return false;
+    this.assignments={...targets,[category]:targets[category]+delta};this.autoWorkers=false;return true;
   }
   residents:{id:number;home:number}[]=[{id:0,home:CENTER}];
   get people(){return this.residents.length}
@@ -273,6 +285,7 @@ export class Game {
     for(let j=0;j<count;j++)this.residents.push({id:this.residents.length,home:i});
     if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);}
     if(card.id==='harvest'){this.addFood('berry',12);this.happy=Math.max(0,this.happy-5)}
+    if(!this.autoWorkers)this.assignments=this.workTargets();
     this.unlockMilestones();this.draw();return this.production();
   }
   remove(i:number){
@@ -280,7 +293,7 @@ export class Game {
     const stock=this.storageStocks.get(i);
     if(stock){this.wood-=stock.wood;this.stone-=stock.stone;for(const kind of ['berry','wheat','fish'] as const)this.foods[kind]-=stock[kind];this.storageStocks.delete(i);this.storageLevels.delete(i)}
     if(this.board.get(i)==='harbor')this.harborReward=true;
-    this.board.delete(i);for(const r of this.residents)if(r.home===i)r.home=CENTER;
+    this.board.delete(i);if(!this.autoWorkers)this.assignments=this.workTargets();for(const r of this.residents)if(r.home===i)r.home=CENTER;
     if(this.harborReward&&!this.hand.some(c=>c.id==='harbor'))this.hand.push(cards.find(c=>c.id==='harbor')!);
     return true;
   }

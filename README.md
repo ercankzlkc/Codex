@@ -18,7 +18,7 @@ Martılar kullanıcı tarafından sağlanan rigli GLB modeli ve `ArmatureAction`
 
 ## Altın, gelişim ve ticaret
 
-HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kart değiştir menüsünde 5 altın karşılığı eldeki tek bir kart seçilir ve açılmış havuzdan farklı, rastgele bir kartla değiştirilir; diğer kartlar korunur.
+HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. Başlangıçta 10 altın verilir. Kartların yanındaki Kart değiştir menüsünde 5 altın karşılığı eldeki tek bir kart seçilir ve açılmış havuzdan farklı, rastgele bir kartla değiştirilir; diğer kartlar korunur.
 
 | Nüfus | Aşama | Açılan kartlar / özellik | Altın ödülü |
 | --- | --- | --- | --- |
@@ -28,11 +28,11 @@ HUD altını ayrı hazine olarak gösterir; altın depo kapasitesini kullanmaz. 
 | 60 | Kıyı Kasabası | Liman kartı doğrudan hediye | 25 |
 | 100 | Ticaret Kasabası | Tüccar ziyaretinde 40 ürün kapasitesi | 40 |
 
-Her eşik bir kez ödüllendirilir. Modal yeni kartları eldeki kartlarla aynı görsellerle gösterir; açılanlar sonraki çekilişlere girer. Sol üstteki gelişim düğmesi ilerlemeyi ve gelecek ödülleri gösterir. Pencereler açıkken köylüler, tüketim ve ticaret saati durur.
+Her eşik bir kez ödüllendirilir. Modal yeni kartları eldeki kartlarla aynı görsellerle gösterir; açılanlar sonraki çekilişlere girer. HUD’daki nüfus göstergesi sonraki ödül eşiğini gösterir. Nüfusa tıklayarak görev paneli ve yerleşim gelişimi açılır. Pencereler açıkken köylüler, tüketim ve ticaret saati durur.
 
 Orman ve çilek alanı ücretsizdir. Yapılarda odun/taş, bahçede taş/yiyecek, şenlikte yiyecek/altın kullanılır. Tüm maliyetler kartta gösterilir; harcamalar gerçek depo stoklarından düşer.
 
-Liman 24 odun ve 16 taşla kıyıya kurulur; köyde yalnızca bir liman bulunur ve son su komşusu kapatılamaz. Ödül kartı kullanılana kadar elde ayrı tutulur, rastgele çekilişte kaybolmaz ve altınla değiştirilemez. Yıkılırsa tekrar inşa için geri gelir. İlk tüccar kurulumla gelir; sonraki ziyaretler 120 saniyede bir gerçekleşir. Geminin ticaret penceresi 40 saniye, alış kapasitesi ilk etapta 20 üründür. Ticaret panelinde en fazla 5'er adet satılır: odun/çilek 1, taş/buğday 2, balık 3 altın. Satış hem toplam stoktan hem depolardan düşer.
+Liman 24 odun ve 16 taşla kıyıya kurulur; köyde yalnızca bir liman bulunur ve son su komşusu kapatılamaz. Ödül kartı kullanılana kadar elde ayrı tutulur, rastgele çekilişte kaybolmaz ve altınla değiştirilemez. Yıkılırsa tekrar inşa için geri gelir. İlk tüccar kurulumla gelir; sonraki ziyaretler 120 saniyede bir gerçekleşir. Geminin ticaret penceresi 40 saniye, alış kapasitesi ilk etapta 20 üründür. Liman altıgeni seçilerek açılan ticaret panelinde en fazla 5'er adet satılır: odun/çilek 1, taş/buğday 2, balık 3 altın. Satış hem toplam stoktan hem depolardan düşer.
 
 Yayın GitHub `main` üzerinden Cloudflare Pages tarafından otomatik derlenir; kaynak ve yayın için ayrı dal kullanılmaz.
 
@@ -40,11 +40,13 @@ Yayın GitHub `main` üzerinden Cloudflare Pages tarafından otomatik derlenir; 
 
 `pages.dev` adresine erişilemeyen ağlarda alternatif olarak aynı depo Cloudflare Workers Static Assets ile de yayınlanabilir. `wrangler.worker.jsonc` bu ek yayın için hazırdır; yalnızca statik dosya sunar.
 
-Cloudflare Workers & Pages → Create application → GitHub deposu `ercankzlkc/Codex` seçilir. Worker adı `yelken-koyu`, üretim dalı `main`, build command `npm run build`, deploy command `npx wrangler deploy --config wrangler.worker.jsonc`, root directory depo kökü ve `NODE_VERSION=24` kullanılır. Free plan seçilir. Cloudflare hesabında oluşturulduktan sonra verilen `workers.dev` adresi kullanılır. Bu alan adına ağdan erişim ayrıca denenmelidir.
+Cloudflare Workers & Pages → Create application → GitHub deposu `ercankzlkc/Codex` seçilir. Worker adı `codex`, üretim dalı `main`, build command `npm run build`, deploy command `npx wrangler deploy --config wrangler.worker.jsonc`, root directory depo kökü ve `NODE_VERSION=24` kullanılır. Free plan seçilir. Cloudflare hesabında oluşturulduktan sonra verilen `workers.dev` adresi kullanılır. Bu alan adına ağdan erişim ayrıca denenmelidir.
 
-## İş öncelikleri
+## Köylü görevleri
 
-Sağ alttaki Görevler panelinde odun, taş, çilek, buğday ve balık ağırlıklarını ayarlayın. Yüzdeler mevcut işlere göre çalışan hedeflerine dönüşür; taşıma halindeki sakinler teslimatlarını bitirir. Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur. Takılan sakinler alternatif rota ve depo girişleri arar. Başlarının üzerindeki Font Awesome ikonları toplama, taşıma, yemek, dinlenme ve dolu depo durumlarını gösterir. Yürürken hedef işin ikonu görünür; kamera uzaklaştığında baloncuklar küçülerek kaybolur.
+Üstteki nüfus göstergesine tıklayarak Köylüler panelini açın. İşler yüzde yerine tam kişi sayılarıyla gösterilir; bir köylü tek göreve ayrılır. Varsayılan otomatik dağılım, mevcut alanların kapasitesini aşmadan köylüleri işlere yerleştirir. − ile görevden çıkarıp + ile başka göreve eklemek elle dağılıma geçirir; yeni gelenler bu modda ayrılabilir olarak bekler. Otomatik dağıt düğmesi otomatik yönetime döner. Çalışma alanı kurulmamış satırlar ve ayrılabilir kişi kalmadığında + düğmeleri kapalıdır. Bahçe çalışanları da aynı toplam içinde sayılır. Taşıma halindeki sakinler görev değiştirirken teslimatlarını bitirir.
+
+Çalışanlar yapıların çevresinde yol bulur, birbirlerine yol verir ve kullandıkları yerde patikalar oluşur. Takılan sakinler alternatif rota ve depo girişleri arar. Başlarının üzerindeki Font Awesome ikonları toplama, taşıma, yemek, dinlenme ve dolu depo durumlarını gösterir. Yürürken hedef işin ikonu görünür; kamera uzaklaştığında baloncuklar küçülerek kaybolur.
 
 ## Kontroller
 
