@@ -102,7 +102,7 @@ export class Environment {
   setSun(direction:T.Vector3){this.water.setSun(direction)}
   get soundShore(){return this.audioShore}
   get soundBirds(){return this.wildlife.soundBirds}
-  fitWaterView(camera:T.OrthographicCamera,focus:T.Vector3){this.water.fitView(camera,focus)}
+  fitWaterView(camera:T.OrthographicCamera,focus:T.Vector3){this.water.fitView(camera,focus);this.wildlife.setView(camera,window.innerHeight)}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
     grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));

@@ -1,7 +1,7 @@
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
-import {fromWorld,position} from './hex';
+import {fromWorld,position,coast,type ShoreEdge} from './hex';
 import {SEA_Y} from './scenery';
 /** Small shared meshes keep the coast alive without adding simulation workers. */
 export class Wildlife {
@@ -9,6 +9,9 @@ export class Wildlife {
   private root=new T.Group();
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
+  private swimmers:{root:T.Group;material:T.MeshBasicMaterial;phase:number;edge:number}[]=[];
+  private shore:ShoreEdge[]=[];
+  private fishVisibility=0;
   private center=new T.Vector3();private radius=4;
   private board:ReadonlyMap<number,unknown>=new Map();
   constructor(scene:T.Scene,private splash:(x:number,z:number)=>void){
@@ -32,13 +35,25 @@ export class Wildlife {
       const tail=new T.Mesh(tailGeo,silver);tail.rotation.x=-Math.PI/2;tail.position.z=-.18;root.add(tail);root.visible=false;this.root.add(root);
       this.fish.push({root,start:new T.Vector3(),direction:new T.Vector3(),age:-1,wait:5+i*7,duration:1.25});
     }
+    // Quiet underwater silhouettes, drawn through the transparent water surface.
+    for(let i=0;i<10;i++){
+      const material=new T.MeshBasicMaterial({color:0x356a70,transparent:true,opacity:0,depthWrite:false});
+      const root=new T.Group(),body=new T.Mesh(new T.SphereGeometry(.075,7,4),material);
+      body.scale.set(.48,.35,1.5);body.renderOrder=3;root.add(body);
+      const tail=new T.Mesh(new T.ConeGeometry(.04,.075,3),material);tail.rotation.x=-Math.PI/2;tail.position.z=-.13;tail.renderOrder=3;root.add(tail);
+      root.visible=false;this.root.add(root);this.swimmers.push({root,material,phase:i*2.37,edge:i*7});
+    }
+  }
+  setView(camera:T.OrthographicCamera,height:number){
+    const pixels=height/((camera.top-camera.bottom)/camera.zoom);
+    this.fishVisibility=T.MathUtils.smoothstep(pixels,65,140);
   }
   sync(board:ReadonlyMap<number,unknown>){
-    this.board=board;const points=[...board.keys()].map(position);if(!points.length)return;
+    this.board=board;this.shore=coast(board);const points=[...board.keys()].map(position);if(!points.length)return;
     this.center.set(points.reduce((n,p)=>n+p.x,0)/points.length,0,points.reduce((n,p)=>n+p.z,0)/points.length);
     this.radius=Math.max(3,...points.map(p=>Math.hypot(p.x-this.center.x,p.z-this.center.z)+1.7));
   }
-  reset(){for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
+  reset(){this.swimmers.forEach(f=>f.root.visible=false);this.shore=[];for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
   update(time:number,dt:number){
     this.birds.forEach((bird,i)=>{
       bird.angle+=dt*(.11+i*.007)*bird.pace*bird.direction;
@@ -53,6 +68,21 @@ export class Wildlife {
       bird.root.rotation.z=T.MathUtils.lerp(bird.root.rotation.z,-bird.direction*.10+Math.sin(a+bird.phase)*.04,1-Math.exp(-3*dt));
       bird.mixer.update(dt*(bird.pace===1?1:1.15));
     });
+    for(const fish of this.swimmers){
+      const edge=this.shore[fish.edge%this.shore.length];fish.root.visible=false;
+      if(!edge||this.fishVisibility<.01)continue;
+      const dx=edge.bx-edge.ax,dz=edge.bz-edge.az,length=Math.max(.001,Math.hypot(dx,dz));
+      const t=.5+.32*Math.sin(time*.24+fish.phase),offset=.45+.12*Math.sin(time*.31+fish.phase);
+      const x=edge.ax+dx*t,z=edge.az+dz*t;
+      // Pick the sea side of the boundary, with a safety margin against new land.
+      const sign=this.board.has(fromWorld(x-dz/length*.45,z+dx/length*.45))?-1:1;
+      const px=x-dz/length*offset*sign,pz=z+dx/length*offset*sign;
+      if(this.board.has(fromWorld(px,pz)))continue;
+      fish.root.position.set(px,SEA_Y-.09,pz);
+      fish.root.rotation.y=Math.atan2(dx,dz)+(Math.cos(time*.24+fish.phase)<0?Math.PI:0);
+      fish.root.rotation.y+=Math.sin(time*4+fish.phase)*.08;
+      fish.material.opacity=.20*this.fishVisibility;fish.root.visible=true;
+    }
     for(const f of this.fish){
       if(f.age<0){
         f.wait-=dt;if(f.wait>0)continue;

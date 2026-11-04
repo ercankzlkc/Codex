@@ -1,9 +1,9 @@
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
-export type PersonMotion='idle'|'walk'|'carry'|'wood'|'stone'|'farm'|'berry'|'fish_cast'|'fish_idle'|'pick'|'eat';
+export type PersonMotion='idle'|'hold'|'walk'|'carry'|'wood'|'stone'|'farm'|'berry'|'fish_cast'|'fish_idle'|'pick'|'eat';
 type Bind={quaternion:T.Quaternion;position:T.Vector3};
-type ClipState=Exclude<PersonMotion,'carry'|'pick'|'eat'>|'sit'|'stand'|'sit_down';
+type ClipState=Exclude<PersonMotion,'hold'|'carry'|'pick'|'eat'>|'sit'|'stand'|'sit_down';
 
 export async function loadCompressedGLTF(url:string){
   const response=await fetch(url);if(!response.ok)throw new Error(`Asset download: ${response.status}`);
@@ -118,9 +118,9 @@ export class PersonPlayback {
   }
   step(dt:number,requested:PersonMotion,speed:number,move?:()=>number){
     this.idleTime=requested==='idle'?this.idleTime+dt:0;
-    let desired:ClipState=requested==='carry'?'walk':requested==='eat'||requested==='pick'?'idle':requested;
+    let desired:ClipState=requested==='carry'?'walk':requested==='hold'||requested==='eat'||requested==='pick'?'idle':requested;
     if((this.state==='sit'||this.state==='sit_down')&&requested==='eat')desired='sit';
-    if((this.state==='sit'||this.state==='sit_down')&&desired!=='idle'&&desired!=='sit')this.play('stand',this.state==='sit_down'?this.action?.time:undefined);
+    if((this.state==='sit'||this.state==='sit_down')&&(requested==='hold'||desired!=='idle'&&desired!=='sit'))this.play('stand',this.state==='sit_down'?this.action?.time:undefined);
     if(this.state==='sit_down'){
       this.mixer.update(dt);this.cleanup();
       if(this.finished)this.play('sit');return false;

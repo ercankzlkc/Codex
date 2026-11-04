@@ -102,6 +102,7 @@ export class Villagers {
   }
   private motionFor(c:Citizen):PersonMotion{
     if(c.path.length)return c.bundle.visible?'carry':'walk';
+    if(c.bundle.visible||c.stage==='unloading'||c.stage==='to-store')return 'hold';
     if(c.stage==='picking')return 'pick';
     if(c.stage==='working'&&c.job){
       if(c.job.category==='fish')return 'fish_idle';
@@ -208,6 +209,7 @@ export class Villagers {
   }
   private unload(c:Citizen,dt:number){
     const state=c.unload,job=c.job;if(!state||!job)return;
+    c.visual?.animate(dt,'hold',0);
     state.clock+=dt;c.root.position.y=LAND_Y;
     const p=position(state.store),dx=c.root.position.x-p.x,dz=c.root.position.z-p.z,length=Math.max(.01,Math.hypot(dx,dz));
     c.root.rotation.y=Math.atan2(-dx,-dz);
