@@ -19,6 +19,7 @@ export class MotionLibrary {
   private clips:T.AnimationClip[]=[];
   private reference=new Map<string,Bind>();
   private cache=new Map<string,T.AnimationClip[]>();
+  private strides=new Map<string,Map<T.AnimationClip,number>>();
   readonly ready:Promise<void>;
   constructor(){
     const base=(import.meta as unknown as {env:{BASE_URL:string}}).env.BASE_URL;
@@ -49,7 +50,7 @@ export class MotionLibrary {
             tracks.push(new T.QuaternionKeyframeTrack(`${bone.name}.quaternion`,track.times,values,track.getInterpolation()));
           }else if(property==='position'&&name==='Pelvis'){
             const values=new Float32Array(track.values.length),ratio=bind.position.length()/Math.max(.001,reference.position.length());
-            for(let i=0;i<values.length;i+=3)for(let axis=0;axis<3;axis++)values[i+axis]=bind.position.getComponent(axis)+(track.values[i+axis]-reference.position.getComponent(axis))*ratio;
+            for(let i=0;i<values.length;i+=3)for(let axis=0;axis<3;axis++)values[i+axis]=bind.position.getComponent(axis)+((clip.name==='walk'||clip.name.startsWith('walk_'))&&axis!==1?0:(track.values[i+axis]-reference.position.getComponent(axis))*ratio);
             tracks.push(new T.VectorKeyframeTrack(`${bone.name}.position`,track.times,values,track.getInterpolation()));
           }
         }
@@ -57,8 +58,33 @@ export class MotionLibrary {
       });
       this.cache.set(model.name,clips);
     }
-    return new PersonPlayback(model,clips);
+    let speeds=this.strides.get(model.name);
+    if(!speeds){speeds=this.measureWalkSpeeds(model,bones,binds,clips);this.strides.set(model.name,speeds)}
+    return new PersonPlayback(model,clips,speeds);
   }
+  /** Grounded foot travel calibrates each supplied walk at the rendered character scale. */
+  private measureWalkSpeeds(model:T.Object3D,bones:T.Bone[],binds:Map<T.Bone,Bind>,clips:T.AnimationClip[]){
+    const speeds=new Map<T.AnimationClip,number>();
+    const feet=['R','L'].map(side=>bones.find(b=>b.name===`Foot_${side}`||b.name.startsWith(`Foot_${side}_`))??bones.find(b=>b.name===`Calf_${side}`)?.children.find(b=>(b as T.Bone).isBone)).filter((b):b is T.Bone=>!!b);
+    for(const clip of clips.filter(c=>c.name==='walk'||c.name.startsWith('walk_'))){
+      const mixer=new T.AnimationMixer(model),action=mixer.clipAction(clip);action.setLoop(T.LoopOnce,1);action.clampWhenFinished=true;action.play();
+      const samples=feet.map(()=>[] as T.Vector3[]),steps=48;
+      for(let i=0;i<=steps;i++){mixer.setTime(clip.duration*i/steps);model.updateWorldMatrix(true,true);feet.forEach((foot,j)=>samples[j].push(foot.getWorldPosition(new T.Vector3())))}
+      const velocities:number[]=[];
+      for(const foot of samples){
+        const low=Math.min(...foot.map(p=>p.y)),high=Math.max(...foot.map(p=>p.y));
+        for(let i=1;i<foot.length;i++)if((foot[i].y+foot[i-1].y)/2<low+(high-low)*.3+.002){
+          const speed=Math.hypot(foot[i].x-foot[i-1].x,foot[i].z-foot[i-1].z)*steps/Math.max(.01,clip.duration);
+          if(speed>.015)velocities.push(speed);
+        }
+      }
+      velocities.sort((a,b)=>a-b);speeds.set(clip,T.MathUtils.clamp(velocities[Math.floor(velocities.length/2)]??.36/Math.max(.25,clip.duration),.12,.8));
+      mixer.stopAllAction();mixer.uncacheRoot(model);
+      for(const [bone,bind] of binds){bone.position.copy(bind.position);bone.quaternion.copy(bind.quaternion)}model.updateWorldMatrix(true,true);
+    }
+    return speeds;
+  }
+
 }
 
 export class PersonPlayback {
@@ -66,7 +92,7 @@ export class PersonPlayback {
   private action:T.AnimationAction|null=null;
   private state:ClipState='idle';private idleTime=0;private finished=false;
   private retired:{action:T.AnimationAction;until:number}[]=[];
-  constructor(model:T.Object3D,private clips:T.AnimationClip[]){
+  constructor(model:T.Object3D,private clips:T.AnimationClip[],private walkSpeeds:Map<T.AnimationClip,number>){
     this.mixer=new T.AnimationMixer(model);
     this.mixer.addEventListener('finished',event=>{if(event.action===this.action)this.finished=true});
     this.mixer.addEventListener('loop',event=>{
@@ -74,6 +100,7 @@ export class PersonPlayback {
     });
     this.play('idle');if(this.action)this.action.time=Math.random()*this.action.getClip().duration;
   }
+  get walkSpeed(){return this.action&&this.state==='walk'?this.walkSpeeds.get(this.action.getClip())??.36:[...this.walkSpeeds.values()].reduce((a,b)=>a+b,0)/Math.max(1,this.walkSpeeds.size)||.36}
   duration(name:ClipState){return this.pool(name)[0]?.duration??0}
   private pool(state:ClipState){const name=state==='sit_down'?'stand':state;return this.clips.filter(clip=>clip.name===name||clip.name.startsWith(`${name}_`))}
   private play(state:ClipState,resume?:number){
@@ -89,7 +116,7 @@ export class PersonPlayback {
     if(previous&&previous!==next){next.crossFadeFrom(previous,.20,false);this.retired.push({action:previous,until:this.mixer.time+.22})}
     this.action=next;this.state=state;this.finished=false;
   }
-  step(dt:number,requested:PersonMotion,speed:number){
+  step(dt:number,requested:PersonMotion,speed:number,move?:()=>number){
     this.idleTime=requested==='idle'?this.idleTime+dt:0;
     let desired:ClipState=requested==='carry'?'walk':requested==='eat'||requested==='pick'?'idle':requested;
     if((this.state==='sit'||this.state==='sit_down')&&requested==='eat')desired='sit';
@@ -105,7 +132,8 @@ export class PersonPlayback {
     }
     if(desired==='idle'&&(this.state==='sit'||this.idleTime>3.5))desired=this.state==='sit'?'sit':'sit_down';
     if(desired!==this.state)this.play(desired);
-    if(this.action)this.action.timeScale=desired==='sit_down'?-1:desired==='walk'?T.MathUtils.clamp(speed/.85,.65,1.35):1;
+    const actualSpeed=move?.()??speed;
+    if(this.action)this.action.timeScale=desired==='sit_down'?-1:desired==='walk'?Math.max(0,actualSpeed)/this.walkSpeed:1;
     this.mixer.update(dt);this.cleanup();return false;
   }
   private cleanup(){

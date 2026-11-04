@@ -115,12 +115,13 @@ export class PersonVisual {
       this.pose(this.knees[i],Math.max(0,legs[i].rotation.x)*.55);
     }
   }
-  animate(dt:number,motion:PersonMotion,speed:number){
-    this.overlay=motion;const blocked=this.playback?.step(dt,motion,speed)??false;
+  animate(dt:number,motion:PersonMotion,speed:number,move?:()=>number){
+    this.overlay=motion;const blocked=this.playback?this.playback.step(dt,motion,speed,move):(move?.(),false);
     if(motion==='fish_idle')this.fishingBase=[...this.arms,...this.elbows,...(this.spine?[this.spine]:[])].map(joint=>joint.bone.quaternion.clone());
     return blocked;
   }
   setFishingClock(time:number|null){this.fishingClock=time}
+  get walkSpeed(){return this.playback?.walkSpeed??.4}
   get hasAnimations(){return this.playback!==null}
   get castDuration(){return 1.35}
   workDuration(kind:'wood'|'stone'){return this.playback?.duration(kind)??1/1.7}

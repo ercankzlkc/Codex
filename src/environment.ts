@@ -3,21 +3,20 @@ import {CENTER,coast,position} from './hex';
 import {TropicalWater} from './water/tropical-water';
 import {terrainGeometry,terrainSignature,meadow,grassTime,LAND_Y,SEA_Y} from './scenery';
 import {tree} from './models';
-import {shoreFence} from './shore-fence';
+import {ShoreFence} from './shore-fence';
 import {Wildlife} from './wildlife';
 import {Atmosphere} from './atmosphere';
-import {LAND_START,LAND_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
+import {LAND_START,LAND_END,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
 
 
-type Patch={root:T.Group; surface:T.Mesh;signature:string;age:number;grass?:T.Group;fence?:T.Mesh;fenceSignature?:string};
+type Patch={root:T.Group; surface:T.Mesh;signature:string;age:number;grass?:T.Group;fence:ShoreFence};
 export class Environment {
   readonly root=new T.Group();
   private readonly land=new Map<number,Patch>();
   private readonly water=new TropicalWater();
   private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
 
-  private readonly fenceMat=new T.MeshStandardMaterial({vertexColors:true,roughness:.95,flatShading:true});
   private shoreOpenings=new Map<number,number>();
   private atmosphere:Atmosphere;
   private wildlife:Wildlife;
@@ -44,8 +43,9 @@ export class Environment {
       const surface=new T.Mesh(terrainGeometry(id,board),this.landMat);surface.castShadow=true;surface.receiveShadow=true;
       root.add(surface);
       if(id===CENTER){const sprig=new T.Group();sprig.position.set(.44,LAND_Y,-.37);tree(sprig,0,0,1,.47);root.add(sprig)}
+      const fence=new ShoreFence();root.add(fence.root);
       root.visible=id!==placed;
-      this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?0:LAND_END});
+      this.root.add(root);this.land.set(id,{root,surface,signature,age:id===placed?0:BUILD_END,fence});
     }
   }
 
@@ -55,11 +55,7 @@ export class Environment {
   private syncFences(board:ReadonlyMap<number,unknown>){
     for(const [id,tile] of this.land){
       if(!board.has(id))continue;
-      const result=shoreFence(id,board,this.shoreOpenings.get(id),tile.fenceSignature);
-      if(result.geometry===undefined)continue;
-      if(tile.fence){tile.root.remove(tile.fence);tile.fence.geometry.dispose();tile.fence=undefined}
-      tile.fenceSignature=result.signature;
-      if(result.geometry){const fence=new T.Mesh(result.geometry,this.fenceMat);fence.castShadow=true;fence.receiveShadow=true;tile.root.add(fence);tile.fence=fence}
+      tile.fence.plan(id,board,this.shoreOpenings.get(id));
     }
   }
   setMeadow(id:number,footprints:T.Box3[]){
@@ -74,8 +70,8 @@ export class Environment {
   }
   private removeLand(id:number){
     const tile=this.land.get(id);if(!tile)return;
-    this.root.remove(tile.root);tile.surface.geometry.dispose();
-    tile.root.traverse(o=>{if(o===tile.fence){tile.fence.geometry.dispose();return}if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
+    this.root.remove(tile.root);tile.surface.geometry.dispose();tile.fence.dispose();
+    tile.root.traverse(o=>{if(o instanceof T.Mesh&&o!==tile.surface&&o.material.vertexColors){o.geometry.dispose();o.material.dispose()}});
     this.land.delete(id);
   }
   setSun(direction:T.Vector3){this.water.setSun(direction)}
@@ -84,13 +80,16 @@ export class Environment {
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
     grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));
-    for(const tile of this.land.values())if(tile.age<LAND_END){
-      tile.age=Math.min(LAND_END,tile.age+dt);
+    for(const tile of this.land.values())if(tile.age<BUILD_END){
+      tile.age=Math.min(BUILD_END,tile.age+dt);
       const progress=easeBetween(tile.age,LAND_START,LAND_END);
       tile.root.visible=tile.age>=LAND_START;
       tile.root.position.y=-1.1*(1-progress);
       tile.root.scale.set(.35+.65*progress,1,.35+.65*progress);
     }
+    const fencesReady=this.sinking.size===0&&[...this.land.values()].every(tile=>tile.age>=BUILD_END);
+    let fenceOrder=0;
+    for(const tile of this.land.values()){const count=tile.fence.pendingCount;tile.fence.update(dt,fencesReady,fenceOrder*.12);fenceOrder+=count}
     for(const [id,age] of this.sinking){
       const next=age+dt;this.sinking.set(id,next);
       const tile=this.land.get(id),progress=easeBetween(next,SINK_START,SINK_END);

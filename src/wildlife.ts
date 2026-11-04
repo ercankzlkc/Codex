@@ -7,7 +7,7 @@ import {SEA_Y} from './scenery';
 export class Wildlife {
   readonly soundBirds:T.Object3D[]=[];
   private root=new T.Group();
-  private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number}[]=[];
+  private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
   private center=new T.Vector3();private radius=4;
   private board:ReadonlyMap<number,unknown>=new Map();
@@ -21,7 +21,7 @@ export class Wildlife {
         const bounds=new T.Box3().setFromObject(bird),size=bounds.getSize(new T.Vector3()),center=bounds.getCenter(new T.Vector3());
         const scale=.55/Math.max(size.x,size.y,size.z);bird.scale.multiplyScalar(scale);bird.position.addScaledVector(center,-scale);
         const mixer=new T.AnimationMixer(bird);mixer.clipAction(clip).play();mixer.update(i*.27);
-        this.root.add(root);this.soundBirds.push(root);this.birds.push({root,mixer,phase:i*1.93});
+        this.root.add(root);this.soundBirds.push(root);this.birds.push({root,mixer,phase:i*1.93,pace:i===1?1.55:i===3?1.85:1});
       }
     },undefined,error=>console.error('Martı modeli yüklenemedi',error));
     const silver=new T.MeshStandardMaterial({color:0x88b5b5,metalness:.18,roughness:.5}),tailGeo=new T.ConeGeometry(.055,.12,3);
@@ -39,10 +39,10 @@ export class Wildlife {
   reset(){for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
   update(time:number,dt:number){
     this.birds.forEach((bird,i)=>{
-      const a=time*(.11+i*.007)+bird.phase,r=this.radius+Math.sin(time*.09+bird.phase)*.8;
+      const a=time*(.11+i*.007)*bird.pace+bird.phase,r=this.radius+Math.sin(time*.09+bird.phase)*.8;
       bird.root.position.set(this.center.x+Math.cos(a)*r,2.4+i*.24+Math.sin(time*.6+bird.phase)*.14,this.center.z+Math.sin(a)*r*.7);
       bird.root.rotation.set(0,Math.atan2(-Math.sin(a),Math.cos(a)*.7),Math.sin(a+bird.phase)*.15);
-      bird.mixer.update(dt);
+      bird.mixer.update(dt*(bird.pace===1?1:1.15));
     });
     for(const f of this.fish){
       if(f.age<0){

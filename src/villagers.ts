@@ -8,7 +8,7 @@ import {Game,hexDistance,WORK_CATEGORIES,type Resource,type WorkCategory} from '
 import {LAND_Y,SEA_Y} from './scenery';
 import {Walkways,type WalkPoint} from './navigation';
 type Job={source:number;store:number;resource:Resource;amount:number;tree:number;category:WorkCategory|null};
-type Citizen={visual:PersonVisual|null;restUntil:number;id:number;root:T.Group;body:T.Group;arms:T.Group[];legs:T.Group[];bundle:T.Group;axe:T.Group;pickaxe:T.Group;rod:T.Group;line:T.Line;bobber:T.Mesh;fish:T.Group;stage:'idle'|'to-work'|'working'|'to-pickup'|'picking'|'to-store';path:WalkPoint[];target:T.Vector3|null;job:Job|null;clock:number;retry:number;phase:number;birth:number;speed:number;wait:number;passUntil:number;status:HTMLElement;lastStatus:string;eatUntil:number;hungry:boolean;waitReason:string;searchUntil:number;stuck:number;bestDistance:number;nodeMarker:string;avoid:{x:number;z:number;until:number}[]};
+type Citizen={visual:PersonVisual|null;restUntil:number;id:number;root:T.Group;body:T.Group;arms:T.Group[];legs:T.Group[];bundle:T.Group;axe:T.Group;pickaxe:T.Group;rod:T.Group;line:T.Line;bobber:T.Mesh;fish:T.Group;stage:'idle'|'to-work'|'working'|'to-pickup'|'picking'|'to-store';path:WalkPoint[];target:T.Vector3|null;job:Job|null;clock:number;retry:number;phase:number;birth:number;speed:number;walkPhase:number;wait:number;passUntil:number;status:HTMLElement;lastStatus:string;eatUntil:number;hungry:boolean;waitReason:string;searchUntil:number;stuck:number;bestDistance:number;nodeMarker:string;avoid:{x:number;z:number;until:number}[]};
 export interface VillageHooks {
   ready(id:number):boolean;yaw(id:number):number;resourceReady(id:number):boolean;
   pickTree(id:number,preferred:number):number;workPoint(id:number,tree:number):T.Vector3;
@@ -79,7 +79,7 @@ export class Villagers {
     root.position.set(free.x,LAND_Y,free.z);root.rotation.y=yaw+Math.PI;
     const status=document.createElement('div');status.className='citizen-status';status.setAttribute('role','img');this.overlay.append(status);
     this.root.add(root,line,bobber,fish);this.spawned.add(id);
-    const citizen:Citizen={visual:null,restUntil:0,id,root,body,arms,legs,bundle,axe,pickaxe,rod,line,bobber,fish,stage:'idle',path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:id===0?1:0,speed:0,wait:0,passUntil:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]};
+    const citizen:Citizen={visual:null,restUntil:0,id,root,body,arms,legs,bundle,axe,pickaxe,rod,line,bobber,fish,stage:'idle',path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:id===0?1:0,speed:0,walkPhase:0,wait:0,passUntil:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]};
     this.citizens.push(citizen);
     void this.people.ready.then(()=>{
       if(!this.citizens.includes(citizen))return;
@@ -145,7 +145,7 @@ export class Villagers {
       if(crowded){c.passUntil=this.time+1;c.stuck=0}else{this.recover(c);return false}
     }
     const target=Math.atan2(dx,dz),difference=T.MathUtils.euclideanModulo(target-c.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
-    c.speed+=((.82+(c.id%4)*.025)*Math.max(.35,1-Math.abs(difference)/Math.PI*.65)-c.speed)*(1-Math.exp(-7*dt));
+    c.speed+=(((c.visual?.walkSpeed??.4)*(1+(c.id%4)*.025))*Math.max(.35,1-Math.abs(difference)/Math.PI*.65)-c.speed)*(1-Math.exp(-7*dt));
     const step=Math.min(d,c.speed*dt),ux=dx/d,uz=dz/d,origin={x:c.root.position.x,z:c.root.position.z};
     const dodge=Math.min(.06,dt*.8);
     const candidates=[{x:origin.x+ux*step,z:origin.z+uz*step},{x:origin.x+ux*step-uz*dodge,z:origin.z+uz*step+ux*dodge},{x:origin.x+ux*step+uz*dodge,z:origin.z+uz*step-ux*dodge},{x:origin.x-uz*dodge,z:origin.z+ux*dodge},{x:origin.x+uz*dodge,z:origin.z-ux*dodge}];
@@ -248,17 +248,23 @@ export class Villagers {
           else this.wander(c);
         }
       }
-      if(c.visual?.animate(dt,this.motionFor(c),c.speed)){
+      let walking=false;
+      const travel=()=>{
+        const x=c.root.position.x,z=c.root.position.z;walking=this.move(c,dt);
+        const distance=Math.hypot(c.root.position.x-x,c.root.position.z-z);c.walkPhase+=distance*Math.PI*2/.34;
+        return dt>0?distance/dt:0;
+      };
+      if(c.visual?.animate(dt,this.motionFor(c),0,travel)){
         c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;
         c.root.position.y=LAND_Y;this.updateVisual(c);continue;
       }
-      const walking=this.move(c,dt);
+      if(!c.visual)travel();
       if(c.stage==='to-work'&&!c.path.length&&c.job&&c.retry<=0){
         if(c.target&&Math.hypot(c.target.x-c.root.position.x,c.target.z-c.root.position.z)<.17){c.stage='working';c.clock=0}
         else{const goal=c.job.category==='fish'?this.hooks.fishingSpot(c.job.source)?.stand:this.hooks.workPoint(c.job.source,c.job.tree);if(!goal||!this.route(c,c.job.source,goal)){c.retry=.6;c.searchUntil=this.time+1}}
       }
       c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;
-      const working=c.stage==='working',mining=working&&c.job?.resource==='stone',wood=working&&(c.job?.resource==='wood'||c.job?.resource==='stone'),fishing=working&&c.job?.category==='fish',phase=this.time*9+c.phase;
+      const working=c.stage==='working',mining=working&&c.job?.resource==='stone',wood=working&&(c.job?.resource==='wood'||c.job?.resource==='stone'),fishing=working&&c.job?.category==='fish',phase=c.walkPhase+c.phase;
       c.root.position.y=LAND_Y+(fishing?.035:0)+(c.visual?.hasAnimations?0:walking?Math.abs(Math.sin(phase))*.012:Math.sin(this.time*2+c.phase)*.002);
       c.body.rotation.x=working?(wood?.12:.45+Math.sin(c.clock*4)**2*.22):walking?.05:Math.sin(this.time*1.4+c.phase)*.02;
       const chop=(c.clock*1.7)%1,windup=T.MathUtils.smoothstep(chop,0,.60),strike=T.MathUtils.smoothstep(chop,.60,.76),recover=T.MathUtils.smoothstep(chop,.76,1);
