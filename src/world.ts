@@ -88,7 +88,7 @@ export class World {
   private wheelRotation=0;
   private placementQueued=false;
   private previewLand:T.Mesh|null=null;
-  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
+  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide,transparent:true,opacity:.38,depthWrite:false});
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
@@ -427,7 +427,7 @@ export class World {
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
         this.ghostPalette.forEach(({mat,base})=>{
           mat.color.copy(base).lerp(new T.Color(valid?0xc5e7ae:0xe98875),valid?.04:.65);
-          mat.opacity=valid?1:.45;mat.transparent=!valid;mat.depthWrite=valid;
+          mat.opacity=valid?.48:.28;mat.transparent=true;mat.depthWrite=false;
         });
       }
     }
@@ -436,7 +436,7 @@ export class World {
       const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
       this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
       this.previewLand.position.copy(this.ghost.position);this.previewLand.position.y=0;
-      this.previewLand.receiveShadow=true;this.scene.add(this.previewLand);
+      this.previewLand.receiveShadow=false;this.previewLand.renderOrder=3;this.scene.add(this.previewLand);
     }
     this.onHover(i);
   }
@@ -451,11 +451,12 @@ export class World {
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
     this.selected=card;this.fisherOffset=same?this.fisherOffset:0;this.placementQueued=false;this.ghostModel=null;this.desiredGhostYaw=targetYaw;this.wheelRotation=0;
     if(card){
-      this.ghost=new T.Group();this.ghostModel=model(card.id);this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);this.ghost.scale.setScalar(.70);
+      this.ghost=new T.Group();this.ghostModel=model(card.id);this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);this.ghost.scale.setScalar(1);
+      this.ghostModel.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(card.id)?BUILDING_SCALE:['berry','farm'].includes(card.id)?.75:1);
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
         const mat=(o.material as T.MeshStandardMaterial).clone();
-        this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.72;mat.depthWrite=false;
-        o.material=mat;o.castShadow=false;o.receiveShadow=false;o.renderOrder=0;
+        this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.48;mat.depthWrite=false;
+        o.material=mat;o.castShadow=false;o.receiveShadow=false;o.renderOrder=4;
       }});
       this.scene.add(this.ghost);this.ghost.visible=false;
     }
