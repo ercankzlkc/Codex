@@ -241,6 +241,7 @@ export class World {
       const key=`${id}:${index}`,tree=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);
       if(!tree||this.treeCycles.has(key))return false;
       this.onWorkSound(resource==='stone'?'stoneBreak':'woodBreak',tree.getWorldPosition(new T.Vector3()));
+      this.woodHits.delete(tree);tree.rotation.x=0;
       this.treeCycles.set(key,{id,tree,age:0,scale:tree.scale.clone()});this.villagers.refreshNavigation();
       if(resource==='stone'){
         const at=tree.getWorldPosition(new T.Vector3());this.dust(at,20);
@@ -598,9 +599,9 @@ export class World {
     });
     for(const [key,drop] of this.drops){
       const id=Number(key.split(':')[0]);if(!this.board.has(id)){this.scene.remove(drop.group);this.drops.delete(key);continue}
-      const before=drop.age;drop.age+=dt;drop.group.visible=drop.age>.72;
-      if(before<=.72&&drop.age>.72){this.dust(drop.group.position,32);for(let i=0;i<14;i++){const mesh=new T.Mesh(this.moteGeo,this.moteMats[2]);mesh.position.copy(drop.group.position).add(new T.Vector3(0,.1,0));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*1.2,.4+Math.random()*.8,(Math.random()-.5)*1.2),life:1.2})}}
-      if(drop.age>.72)for(const piece of drop.pieces){
+      const before=drop.age;drop.age+=dt;drop.group.visible=drop.age>.85;
+      if(before<=.85&&drop.age>.85){this.onWorkSound('woodLand',drop.group.position);this.dust(drop.group.position,32);for(let i=0;i<14;i++){const mesh=new T.Mesh(this.moteGeo,this.moteMats[2]);mesh.position.copy(drop.group.position).add(new T.Vector3(0,.1,0));this.scene.add(mesh);this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*1.2,.4+Math.random()*.8,(Math.random()-.5)*1.2),life:1.2})}}
+      if(drop.age>.85)for(const piece of drop.pieces){
         piece.velocity.y-=dt*3.5;piece.mesh.position.addScaledVector(piece.velocity,dt);
         if(piece.mesh.position.y<.035){piece.mesh.position.y=.035;piece.velocity.y=Math.abs(piece.velocity.y)*.27;piece.velocity.x*=.75;piece.velocity.z*=.75;piece.spin.multiplyScalar(.65)}
         piece.velocity.x*=Math.exp(-dt*1.8);piece.velocity.z*=Math.exp(-dt*1.8);piece.mesh.rotation.x+=piece.spin.x*dt;piece.mesh.rotation.z+=piece.spin.z*dt;

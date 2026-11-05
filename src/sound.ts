@@ -30,6 +30,7 @@ export class TableSound {
   private workLive=new Set<AudioBufferSourceNode>();
   private workViews=new Map<AudioBufferSourceNode,{at:T.Vector3;gain:GainNode}>();
   private lastWork=new Map<string,number>();
+  private lastSpatialClip=new Map<string,string>();
   private viewCamera:T.OrthographicCamera|null=null;
   private clipPoint=new T.Vector3();
   private readonly audioRight=new T.Vector3();
@@ -78,7 +79,8 @@ export class TableSound {
       merge.connect(this.seaFilter).connect(this.seaPan).connect(sea).connect(this.buses.ambience!);
       const names=new Set([...Object.values(cues).flatMap(([files])=>[...files]),...Object.values(harvestAudio).flatMap(c=>[...c.files]),...Object.values(placementAudio).flatMap(c=>[...c.files])]);
       for(const name of names){
-        void fetch(new URL('audio/'+name+'.ogg',document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
+        const extension=/^(wood-hit|wood-fall|wood-land|stone-hit|stone-break)-/.test(name)?'.mp3':'.ogg';
+        void fetch(new URL('audio/'+name+extension,document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
           .then(b=>this.ctx!.decodeAudioData(b)).then(b=>this.clips.set(name,b)).catch(()=>{});
       }
       for(let i=1;i<=6;i++){
@@ -219,15 +221,19 @@ export class TableSound {
     const distance=Math.hypot(this.clipPoint.x,this.clipPoint.y);
     return (1-T.MathUtils.smoothstep(distance,.18,.95))*(.12+.88*T.MathUtils.smoothstep(camera.zoom,.8,2.2));
   }
-  private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number]},at:T.Vector3){
+  private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number];fullLength?:boolean},at:T.Vector3){
     const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.sfx||this.workLive.size>=12)return false;
     const focusGain=this.workWeight(at);if(focusGain<.012)return false;
-    const buffer=this.clips.get(cue.files[Math.floor(Math.random()*cue.files.length)]);if(!buffer)return false;
+    const key=cue.files.join(','),loaded=cue.files.filter(name=>this.clips.has(name));
+    const choices=loaded.length>1?loaded.filter(name=>name!==this.lastSpatialClip.get(key)):loaded;
+    if(!choices.length)return false;
+    const name=choices[Math.floor(Math.random()*choices.length)],buffer=this.clips.get(name)!;
+    this.lastSpatialClip.set(key,name);
     const source=ctx.createBufferSource(),panner=ctx.createPanner(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
     source.buffer=buffer;source.playbackRate.value=T.MathUtils.lerp(cue.rate[0],cue.rate[1],Math.random());
     panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=1.2;panner.rolloffFactor=2;panner.maxDistance=12;
     panner.setPosition(at.x,at.y,at.z);filter.type='lowpass';filter.Q.value=.3;filter.frequency.value=T.MathUtils.lerp(7000,1500,T.MathUtils.smoothstep(at.distanceTo(this.ear),5,30));
-    const now=ctx.currentTime,duration=Math.min(2.5,buffer.duration/source.playbackRate.value);
+    const now=ctx.currentTime,duration=Math.min(cue.fullLength?buffer.duration:2.5,buffer.duration/source.playbackRate.value);
     gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(cue.volume,now+.008);gain.gain.setValueAtTime(cue.volume,now+Math.max(.01,duration-.04));gain.gain.linearRampToValueAtTime(0,now+duration);
     const viewGain=ctx.createGain();viewGain.gain.value=focusGain;
     source.connect(filter).connect(panner).connect(gain).connect(viewGain).connect(this.buses.sfx!);this.workLive.add(source);this.workViews.set(source,{at:at.clone(),gain:viewGain});
