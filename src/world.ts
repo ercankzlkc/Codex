@@ -1,3 +1,4 @@
+import {terrainGeometry} from './scenery';
 import * as T from 'three';
 import {StaticInstances} from './static-instances';
 import {SeasonCycle} from './seasons';
@@ -85,7 +86,7 @@ export class World {
   private wheelRotation=0;
   private placementQueued=false;
   private previewLand:T.Mesh|null=null;
-  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
+  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide,transparent:true,opacity:.55,depthWrite:false});
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
@@ -152,6 +153,7 @@ export class World {
       ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
       harvestProgress:(id,actor,progress)=>{const key=`${id}:${actor}`;if(progress)this.harvestParts.set(key,{id,progress});else this.harvestParts.delete(key)},
+      contactDistance:(id,index,point)=>{const rock=this.buildings.get(id)?.children.find(t=>t.userData.treeIndex===index);return rock?new T.Box3().setFromObject(rock).distanceToPoint(point):Infinity},
       fishingSpot:id=>this.fishingSpot(id),impact:(id,index)=>this.woodImpact(id,index),splash:(x,z)=>this.environment.stir(x,z,1,0,.45,.1),trail:points=>this.addTrail(points),deliver:(source,store,resource,amount)=>this.onDelivery(source,store,resource,amount),
     },this.el);
     this.scene.add(this.trails);
@@ -430,6 +432,12 @@ export class World {
       }
     }
     if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
+    if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
+      const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
+      this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
+      this.previewLand.position.copy(this.ghost.position);this.previewLand.position.y=0;
+      this.previewLand.castShadow=false;this.previewLand.receiveShadow=false;this.previewLand.renderOrder=3;this.scene.add(this.previewLand);
+    }
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {

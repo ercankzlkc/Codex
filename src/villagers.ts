@@ -18,11 +18,12 @@ export interface VillageHooks {
   harvest(id:number,resource:Resource,tree:number,actor:number):boolean;
   harvestProgress(id:number,actor:number,progress:number):void;
   fishingSpot(id:number):{stand:T.Vector3;water:T.Vector3}|null;
+  contactDistance(id:number,index:number,point:T.Vector3):number;
   impact(id:number,index:number):void;splash(x:number,z:number):void;trail(points:WalkPoint[]):void;
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
-  private contacts=new WeakMap<Citizen,{distance:number;approaching:boolean;lastHit:number;job:Citizen['job']}>();
+  private contacts=new WeakMap<Citizen,{distance:number;approaching:boolean;lastHit:number;job:Citizen['job'];tips?:T.Vector3[]}>();
   private contactPoint=new T.Vector3();
   private updateToolContact(c:Citizen){
     const job=c.job;
@@ -32,16 +33,30 @@ export class Villagers {
     c.root.updateWorldMatrix(true,true);
     this.contactPoint.set(job.resource==='wood'?.025:0,.12,job.resource==='stone'?.07:0);tool.localToWorld(this.contactPoint);
     const target=this.hooks.workPoint(job.source,job.tree).clone();target.y+=.18;
-    const distance=this.contactPoint.distanceTo(target);
     const previous=this.contacts.get(c);
-    if(!previous||previous.job!==job){this.contacts.set(c,{distance,approaching:false,lastHit:-99,job});return}
+    const tips:T.Vector3[]=[];
+    let distance=this.contactPoint.distanceTo(target);
+    if(job.resource==='stone'){
+      distance=Infinity;
+      for(const z of [-.099,.099]){
+        this.contactPoint.set(0,.124,z);tool.localToWorld(this.contactPoint);
+        const tip=this.contactPoint.clone(),old=previous?.job===job?previous.tips?.[tips.length]:undefined;
+        tips.push(tip);
+        for(let step=0;step<=5;step++){
+          this.contactPoint.copy(old??tip).lerp(tip,step/5);
+          distance=Math.min(distance,this.hooks.contactDistance(job.source,job.tree,this.contactPoint));
+        }
+      }
+    }
+    if(!previous||previous.job!==job){this.contacts.set(c,{distance,approaching:false,lastHit:-99,job,tips});return}
     const change=distance-previous.distance;
     const cooldown=Math.max(.25,(c.visual?.workDuration(job.resource as 'wood'|'stone')??.59)*.5);
-    if(previous.approaching&&change>.0001&&this.time-previous.lastHit>cooldown){
+    const contact=job.resource==='stone'?distance<.025&&previous.distance>=.025:previous.approaching&&change>.0001;
+    if(contact&&this.time-previous.lastHit>cooldown){
       this.hooks.impact(job.source,job.tree);previous.lastHit=this.time;previous.approaching=false;
     }
     if(change<-.0001)previous.approaching=true;
-    previous.distance=distance;
+    previous.distance=distance;previous.tips=tips;
   }
 
   readonly root=new T.Group();

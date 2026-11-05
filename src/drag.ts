@@ -163,11 +163,14 @@ export class CardDrag {
     const vx=(gesture.lastX-gesture.visualX)*38,vy=(gesture.lastY-gesture.visualY)*38;
     const ax=(vx-gesture.previousVX),ay=(vy-gesture.previousVY);
     gesture.previousVX=vx;gesture.previousVY=vy;
-    const torque=(ax*(gesture.anchorY-.5)-ay*(gesture.anchorX-.5))*.055;
-    const gravity=(gesture.anchorX-.5)*12;
-    gesture.angularVelocity+=torque+(gravity-gesture.visualTilt)*80*dt;
-    gesture.angularVelocity*=Math.exp(-8*dt);
-    gesture.visualTilt=Math.max(-22,Math.min(22,gesture.visualTilt+gesture.angularVelocity*dt));
+    const dx=(.5-gesture.anchorX)*gesture.width,dy=(.5-gesture.anchorY)*gesture.height;
+    // A suspended card rotates until its centre of mass hangs below the grip.
+    const resting=Math.hypot(dx,dy)>8?Math.atan2(dx,dy)*180/Math.PI:0;
+    const error=((resting-gesture.visualTilt+540)%360)-180;
+    const torque=(ax*(gesture.anchorY-.5)-ay*(gesture.anchorX-.5))*.09;
+    gesture.angularVelocity+=torque+error*35*dt;
+    gesture.angularVelocity*=Math.exp(-5*dt);
+    gesture.visualTilt+=gesture.angularVelocity*dt;
     gesture.ghost.style.transform=this.followTransform(gesture);
     this.animationFrame=requestAnimationFrame(()=>this.follow(gesture,now));
   }

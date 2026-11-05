@@ -44,6 +44,11 @@ export class Wildlife {
     }
   }
 
+  private clearWater(x:number,z:number){
+    if(this.board.has(fromWorld(x,z)))return false;
+    for(let i=0;i<8;i++){const a=i*Math.PI/4;if(this.board.has(fromWorld(x+Math.cos(a)*.48,z+Math.sin(a)*.48)))return false}
+    return true;
+  }
   setView(camera:T.OrthographicCamera,height:number){
     const pixels=height/((camera.top-camera.bottom)/camera.zoom);
     this.fishVisibility=T.MathUtils.smoothstep(pixels,20,85);
@@ -69,7 +74,7 @@ export class Wildlife {
       bird.mixer.update(dt*(bird.pace===1?1:1.15));
     });
     // Separate elliptical lanes keep a body-width clearance even at different speeds.
-    const targetRadius=Math.max(1.8,this.radius-1.05);
+    const targetRadius=Math.max(1.8,(this.radius-.7)/.88);
     if(!this.swimReady){this.swimCenter.copy(this.center);this.swimRadius=targetRadius;this.swimReady=true}
     this.swimCenter.lerp(this.center,1-Math.exp(-dt*.8));
     this.swimRadius=T.MathUtils.damp(this.swimRadius,targetRadius,.8,dt);
@@ -81,10 +86,10 @@ export class Wildlife {
       fish.angle+=dt*fish.speed/Math.max(1,tangentLength);
       const angle=fish.angle,x=this.swimCenter.x+Math.sin(angle)*radius,z=this.swimCenter.z+Math.cos(angle)*radius*.88;
       const depth=.18+Math.min(.6,fish.lane*.045);
-      const targetOpacity=this.shore.length&&!this.board.has(fromWorld(x,z))&&climate.winter.value<.5
+      const targetOpacity=this.shore.length&&this.clearWater(x,z)&&climate.winter.value<.5
         ?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12)):0;
       fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,dt);
-      fish.root.visible=fish.opacity>.005;
+      fish.root.visible=fish.opacity>.005&&this.clearWater(x,z);
       fish.root.position.set(x,SEA_Y-depth,z);
       const yaw=Math.atan2(Math.cos(angle),-Math.sin(angle)*.88);
       const turn=T.MathUtils.euclideanModulo(yaw-fish.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
@@ -99,11 +104,13 @@ export class Wildlife {
         const heading=Math.atan2(f.direction.x,f.direction.z)+dt*.16;
         f.direction.set(Math.sin(heading)*1.5,0,Math.cos(heading)*1.5);
         const next=f.root.position.clone().addScaledVector(f.direction,dt*.2);
-        if(!this.board.has(fromWorld(next.x,next.z)))f.root.position.copy(next);
+        if(this.clearWater(next.x,next.z))f.root.position.copy(next);
+        else {f.direction.applyAxisAngle(new T.Vector3(0,1,0),dt*2);}
+        if(!this.clearWater(f.root.position.x,f.root.position.z)){f.root.visible=false;f.age=-1;f.wait=1;continue}
         f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-.23,3,dt);
         f.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),heading),1-Math.exp(-3*dt));
         animateKoi(f.root,dt,.42*this.fishVisibility);
-        if(swimAge>20&&[.25,.5,.75,1].every(t=>!this.board.has(fromWorld(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t)))){
+        if(swimAge>20&&[.25,.5,.75,1].every(t=>this.clearWater(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t))){
           f.start.copy(f.root.position);f.start.y=SEA_Y;f.age=0;this.splash(f.start.x,f.start.z);
         }
         continue;
@@ -114,14 +121,16 @@ export class Wildlife {
         for(let n=0;n<12;n++){
           const a=Math.random()*Math.PI*2,r=this.radius*(.75+Math.random()*.65),heading=a+Math.PI/2;
           f.start.set(this.center.x+Math.sin(a)*r,SEA_Y,this.center.z+Math.cos(a)*r);f.direction.set(Math.sin(heading)*1.5,0,Math.cos(heading)*1.5);
-          if([0,.25,.5,.75,1].every(t=>!this.board.has(fromWorld(f.start.x+f.direction.x*t,f.start.z+f.direction.z*t)))){found=true;break}
+          if([0,.25,.5,.75,1].every(t=>this.clearWater(f.start.x+f.direction.x*t,f.start.z+f.direction.z*t))){found=true;break}
         }
         if(!found){f.wait=3;continue}
         f.age=0;f.root.visible=true;this.splash(f.start.x,f.start.z);
       }
       animateKoi(f.root,dt,1);
       f.age+=dt;const t=Math.min(1,f.age/f.duration);
-      f.root.position.copy(f.start).addScaledVector(f.direction,t);f.root.position.y+=Math.sin(t*Math.PI)*.65;
+      const nextJump=f.start.clone().addScaledVector(f.direction,t);
+      if(!this.clearWater(nextJump.x,nextJump.z)){f.age=f.duration;continue}
+      f.root.position.copy(nextJump);f.root.position.y+=Math.sin(t*Math.PI)*.65;
       const tangent=f.direction.clone();tangent.y=Math.cos(t*Math.PI)*Math.PI*.65;f.root.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tangent.normalize());
       if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.age=f.duration;f.root.position.y=SEA_Y;animateKoi(f.root,0,.42*this.fishVisibility)}
     }
