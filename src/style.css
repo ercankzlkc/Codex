@@ -37,8 +37,8 @@ svg{display:block;width:1.25em;height:1.25em}
 .effect{font-size:clamp(10px,.72vw,12px);font-weight:650;line-height:1.25}.card>small{font-size:clamp(9px,.64vw,11px);color:#68735c;line-height:1.23;margin:4px 0 0;text-wrap:balance}
 .card:enabled:hover,.card.selected{z-index:2;transform:translateY(-13px) rotate(0) scale(1.04);box-shadow:inset 0 0 0 3px #fff3ce,0 3px 0 #bba473,0 12px 19px #29453955}
 .card:disabled{opacity:.67;filter:saturate(.55);cursor:default}.choosing .card:not(.selected){transform:translateY(6px) rotate(var(--tilt));opacity:.8}
-body.is-dragging,body.is-dragging canvas{cursor:grabbing}#hand .drag-source{opacity:.16;transform:translateY(5px) rotate(var(--tilt))}
-.drag-card{cursor:grabbing}.drag-card.drop-valid{opacity:.12}.drag-card.drop-invalid{opacity:.78}.float{position:absolute;z-index:3;pointer-events:none;transform:translate(-50%,-50%);font:700 13px "Segoe UI",sans-serif;color:#fff5d5;background:#38523ed9;border-radius:12px;padding:3px 9px;box-shadow:0 2px 5px #33453722}.float.bonus{color:#ffe299}
+body.is-dragging,body.is-dragging canvas{cursor:grabbing}#hand .drag-source{opacity:.32;transform:translateY(5px) rotate(var(--tilt))}
+.float{position:absolute;z-index:3;pointer-events:none;transform:translate(-50%,-50%);font:700 13px "Segoe UI",sans-serif;color:#fff5d5;background:#38523ed9;border-radius:12px;padding:3px 9px;box-shadow:0 2px 5px #33453722}.float.bonus{color:#ffe299}
 dialog{border:1px solid #bba574;outline:4px solid #e7dcbf;background:#f3ecd6;color:#354c3c;max-width:min(420px,88vw);border-radius:9px;padding:27px 30px;box-shadow:0 22px 65px #284a4755}dialog::backdrop{background:#27474155;backdrop-filter:blur(4px)}dialog h1{font:500 27px Georgia,serif;margin:8px 0 15px}dialog>small{font-size:9px;letter-spacing:2px}dialog p{font-size:13px;line-height:1.6}.controls{font-size:11px;color:#63735d}dialog button{border:1px solid #ad9c73;border-radius:4px;background:#355440;color:#f2e9cd;padding:9px 14px;margin:9px 8px 0 0}
 @media(max-width:940px){.crest>div{font-size:17px}.resource{gap:6px;padding:6px 10px}.resource em{display:none}.run small{font-size:8px}}
 @media(max-width:680px){:root{--card-w:min(28.6vw,150px);--card-h:clamp(140px,22vh,178px)}.crest{top:12px;left:13px;gap:8px}.crest>span{width:27px;height:32px}.crest small{font-size:6px;letter-spacing:1.4px}.run{top:10px;right:13px}.run b{font-size:20px}#stats{top:59px}.resource{padding:5px 9px;gap:6px}.resource b{font-size:17px}.resource svg{width:16px;height:16px}.tools{right:12px;bottom:auto;top:110px}#influence{display:none}.hand-wrap{bottom:25px}.hand-label{font-size:11px}.card{padding:6px 7px}.card strong{font-size:12px}.card img{height:43%}.cost{width:21px;height:24px;left:7px;top:8px}.type{font-size:5.5px;right:8px;top:9px}.effect{font-size:9px}.card>small{font-size:8px}.tools button{width:27px;height:27px}#log{top:109px;font-size:9px}#placement{bottom:calc(var(--card-h) + 40px);font-size:10px;max-width:95vw}}
@@ -56,7 +56,7 @@ dialog{border:1px solid #bba574;outline:4px solid #e7dcbf;background:#f3ecd6;col
 .card:before{inset:7px;border-color:#d1bc8d;border-radius:11px}.card:after{background:radial-gradient(ellipse at 50% 65%,#b4c99570,transparent 70%)}
 .card strong{font-size:clamp(15px,1.12vw,20px);color:#3b5947}.card .cost{background:linear-gradient(#54735a,#355341);border:2px solid #e6d29c;box-shadow:0 2px 4px #3b56332b;width:29px;height:32px}.card .type{letter-spacing:1px;color:#98835c}.card .effect{color:#405d4a}.card .rule{margin:8px 0 7px;background:#cfb47c}
 .card.tone-festival,.card.tone-harvest{background:linear-gradient(155deg,#fff8e9,#f6e3c3)}
-.drag-card.drop-valid{opacity:0;visibility:hidden}.drag-card.drop-invalid{opacity:.85}
+
 @media(max-width:900px){.kingdom-hud{gap:8px;padding:9px 10px}.kingdom-hud .resource{padding:3px 9px}.kingdom-hud .resource svg{padding:4px}.kingdom-hud .resource em{display:none}.kingdom-hud .run{padding-left:12px;min-width:125px}}
 @media(max-width:680px){.kingdom-hud{top:12px;width:calc(100% - 24px);flex-direction:column;gap:7px;padding:10px 8px;border-radius:19px}.kingdom-hud #stats{width:100%;justify-content:space-around}.kingdom-hud .resource{padding:1px 5px;gap:5px}.kingdom-hud .resource svg{width:15px;height:15px;padding:3px}.kingdom-hud .resource b{font-size:20px}.kingdom-hud .resource small{font-size:8px}.kingdom-hud .run{display:flex;align-items:center;justify-content:center;gap:16px;border:0;border-top:1px solid #c9b88d66;padding:5px 0 0;width:100%}.kingdom-hud .run b{font-size:20px}.kingdom-hud .run>small{margin:0}.tools{top:132px}.card strong{font-size:14px}.card .cost{width:23px;height:26px}.card .rule{margin:5px 0}}
 @media(max-height:620px) and (min-width:681px){.kingdom-hud{top:9px;padding:5px 10px}.kingdom-hud .resource b{font-size:19px}.card strong{font-size:14px}.card .rule{margin:4px 0}}
@@ -329,7 +329,7 @@ html,body,#app,#app *,.drag-card,.drag-card *{user-select:none;-webkit-user-sele
 #season-notice>span{display:block;font-size:40px;margin-bottom:6px}#season-notice small{display:block;font-size:9px;letter-spacing:4px}#season-notice strong{display:block;font:500 38px Georgia,serif;margin:6px 0}#season-notice p{font-size:12px;margin:0}
 
 .kingdom-hud{height:60px}
-.drag-card.drop-valid,.drag-card.drop-invalid{opacity:.96;visibility:visible}
+
 
 /* Native themed cursors keep the exact pointer hotspot and never lag behind input. */
 :root{--cursor-arrow:url('/cursors/arrow.svg') 3 2,default;--cursor-point:url('/cursors/hand.svg') 11 5,pointer;--cursor-grab:url('/cursors/grab.svg') 14 15,grabbing}
@@ -347,3 +347,19 @@ body.is-dragging,body.is-dragging *,body.is-dragging canvas{cursor:var(--cursor-
 .speed-controls button:hover{background:#dce3cf;color:#365447}
 .speed-controls button[aria-pressed=true]{background:#365447;color:#fff8e3;border-color:#365447}
 .speed-controls button:focus-visible{outline:2px solid #9baf7a;outline-offset:2px}
+
+/* Placement reads as a quiet part of the lagoon; the card stays in the hand. */
+.drag-token{position:fixed;left:0;top:0;z-index:100;display:flex;align-items:center;gap:8px;max-width:205px;min-height:42px;padding:7px 11px 7px 6px;pointer-events:none;border:1px solid #fff9e6c9;border-radius:12px;background:var(--palette-paper,#f4f0df);color:var(--palette-ink,#3a5954);box-shadow:0 5px 18px #173f3a25;transform-origin:top left;will-change:transform;transition:opacity .14s ease;user-select:none}
+.drag-token img{width:38px;height:38px;object-fit:contain;pointer-events:none}
+.drag-token strong{display:block;font:600 13px/1.2 Georgia,serif}
+.drag-token span{display:block;margin-top:3px;font:10px/1.3 "Segoe UI",sans-serif;opacity:.68}
+.drag-token.drop-valid{opacity:0}
+.drag-token.drop-invalid{opacity:.96}
+body.is-placing canvas{cursor:var(--cursor-grab)}
+#placement{display:grid;grid-template-columns:auto auto;align-items:center;column-gap:10px;row-gap:3px;max-width:min(620px,calc(100vw - 32px));padding:9px 16px 8px;border:1px solid #fff9e3c2;border-radius:13px;background:var(--palette-paper,#f4f0df);color:var(--palette-ink,#3a5954);box-shadow:0 6px 22px #214e4524;white-space:normal;text-align:center}
+#placement strong{font:600 14px/1.2 Georgia,serif}
+#placement>span{font:11px/1.35 "Segoe UI",sans-serif}
+#placement small{grid-column:1 / -1;font:9px/1.35 "Segoe UI",sans-serif;opacity:.58;white-space:pre-wrap}
+#placement[data-valid=false]{background:var(--palette-paper,#f4f0df);border-color:#cf9b86;color:#865f50}
+#placement[hidden]{display:none}
+@media(prefers-reduced-motion:reduce){.drag-token{transition:none}}

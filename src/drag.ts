@@ -19,17 +19,11 @@ interface Gesture {
   lastY: number;
   width: number;
   height: number;
-  anchorX: number;
-  anchorY: number;
   started: boolean;
   valid: boolean;
   ghost: HTMLElement | null;
   visualX:number;
   visualY:number;
-  tilt:number;
-  visualTilt:number;
-  angularVelocity:number;
-  previousVX:number;previousVY:number;
 }
 
 /**
@@ -94,11 +88,9 @@ export class CardDrag {
       lastY: event.clientY,
       width,
       height,
-      anchorX: Math.min(1, Math.max(0, (event.clientX - origin.left) / origin.width)),
-      anchorY: Math.min(1, Math.max(0, (event.clientY - origin.top) / origin.height)),
       started: false,
       valid: false,
-      ghost: null,visualX:event.clientX,visualY:event.clientY,tilt:0,visualTilt:0,angularVelocity:0,previousVX:0,previousVY:0,
+      ghost: null,visualX:event.clientX,visualY:event.clientY,
     };
     // Prevent native image dragging, text selection and touch scrolling.
     event.preventDefault();
@@ -117,25 +109,16 @@ export class CardDrag {
       }
       gesture.started = true;
       gesture.visualX=event.clientX;gesture.visualY=event.clientY;
-      // Clone before start(): selection is allowed to rebuild the hand.
-      const ghost = gesture.source.cloneNode(true) as HTMLElement;
-      ghost.removeAttribute('id');
-      ghost.removeAttribute('data-card');
-      ghost.removeAttribute('aria-pressed');
-      ghost.querySelectorAll('[id]').forEach(child => child.removeAttribute('id'));
-      ghost.classList.remove('selected', 'drag-source');
-      ghost.classList.add('drag-card');
-      ghost.setAttribute('aria-hidden', 'true');
-      ghost.setAttribute('inert', '');
-      ghost.tabIndex = -1;
-      Object.assign(ghost.style, {
-        position: 'fixed', left: '0', top: '0', margin: '0',
-        width: `${gesture.width}px`, height: `${gesture.height}px`,
-        pointerEvents: 'none', zIndex: '100', transition: 'none',
-        transformOrigin: `${gesture.anchorX*100}% ${gesture.anchorY*100}%`, willChange: 'transform',
-      });
-      gesture.ghost = ghost;
-      document.body.append(ghost);
+      // The full card stays in the hand. A compact token yields to the world preview.
+      const ghost=document.createElement('div');ghost.className='drag-token';
+      ghost.setAttribute('aria-hidden','true');ghost.setAttribute('inert','');
+      const image=gesture.source.querySelector('img')?.cloneNode(true) as HTMLImageElement|undefined;
+      if(image){image.alt='';image.draggable=false;ghost.append(image)}
+      const caption=document.createElement('div'),name=document.createElement('strong'),hint=document.createElement('span');
+      name.textContent=gesture.source.querySelector('strong')?.textContent??'Yerleşim';
+      hint.textContent='Bir karo üzerine götür';caption.append(name,hint);ghost.append(caption);
+      gesture.ghost=ghost;document.body.append(ghost);
+      gesture.width=ghost.offsetWidth;gesture.height=ghost.offsetHeight;
       document.body.classList.add('is-dragging');
       this.callbacks.start(gesture.index);
       // The current hand may now contain a different DOM node for this card.
@@ -148,7 +131,6 @@ export class CardDrag {
     gesture.valid = this.callbacks.move(event.clientX, event.clientY);
     gesture.ghost?.classList.toggle('drop-valid', gesture.valid);
     gesture.ghost?.classList.toggle('drop-invalid', !gesture.valid);
-    gesture.tilt = Math.max(-7, Math.min(7, (event.clientX - gesture.lastX) * 0.22));
     gesture.lastX = event.clientX;
     gesture.lastY = event.clientY;
 
@@ -156,31 +138,16 @@ export class CardDrag {
 
   private follow(gesture:Gesture,last:number){
     if(this.gesture!==gesture||!gesture.ghost)return;
-    const now=performance.now(),dt=Math.min(.05,Math.max(.001,(now-last)/1000));
-    const ease=1-Math.exp(-38*dt);
+    const now=performance.now(),dt=Math.min(.05,Math.max(.001,(now-last)/1000)),ease=1-Math.exp(-32*dt);
     gesture.visualX+=(gesture.lastX-gesture.visualX)*ease;
     gesture.visualY+=(gesture.lastY-gesture.visualY)*ease;
-    const vx=(gesture.lastX-gesture.visualX)*38,vy=(gesture.lastY-gesture.visualY)*38;
-    const ax=(vx-gesture.previousVX),ay=(vy-gesture.previousVY);
-    gesture.previousVX=vx;gesture.previousVY=vy;
-    const dx=(.5-gesture.anchorX)*gesture.width,dy=(.5-gesture.anchorY)*gesture.height;
-    // A suspended card rotates until its centre of mass hangs below the grip.
-    const resting=Math.hypot(dx,dy)>8?Math.atan2(dx,dy)*180/Math.PI:0;
-    const error=((resting-gesture.visualTilt+540)%360)-180;
-    const leverX=dx/Math.max(40,gesture.width),leverY=dy/Math.max(40,gesture.height);
-    const torque=(ax*leverY-ay*leverX)*.35+(vx*leverY-vy*leverX)*dt*.65;
-    gesture.angularVelocity+=torque+error*35*dt;
-    gesture.angularVelocity*=Math.exp(-3.2*dt);
-    gesture.visualTilt+=gesture.angularVelocity*dt;
     gesture.ghost.style.transform=this.followTransform(gesture);
     this.animationFrame=requestAnimationFrame(()=>this.follow(gesture,now));
   }
-  private followTransform(gesture: Gesture): string {
-    const scale=.84;
-    const x=gesture.visualX-gesture.width*gesture.anchorX;
-    const y=gesture.visualY-gesture.height*gesture.anchorY;
-    return `translate3d(${x}px, ${y}px, 0) rotate(${gesture.visualTilt}deg) scale(${scale})`;
-
+  private followTransform(gesture:Gesture):string{
+    const x=Math.max(10,Math.min(window.innerWidth-gesture.width-10,gesture.visualX+18));
+    const y=Math.max(10,Math.min(window.innerHeight-gesture.height-10,gesture.visualY+18));
+    return `translate3d(${x}px,${y}px,0) scale(${gesture.valid?.92:1})`;
   }
 
   private onUp = (event: PointerEvent): void => {
@@ -220,18 +187,14 @@ export class CardDrag {
     if(accepted){ghost.remove();return}
     ghost.classList.remove('drop-valid','drop-invalid');
     this.settling.add(ghost);
-    const currentCard = this.hand.querySelector<HTMLElement>(`[data-card="${gesture.index}"]`);
-    const target = currentCard?.getBoundingClientRect() ?? gesture.origin;
-    const x = target.left + (target.width - gesture.width) / 2;
-    const y = target.top + (target.height - gesture.height) / 2;
-    const end = accepted
-      ? `translate3d(${gesture.lastX - gesture.width / 2}px, ${gesture.lastY - gesture.height / 2}px, 0) scale(.15)`
-      : `translate3d(${x}px, ${y}px, 0) rotate(0deg) scale(1)`;
-    const duration = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : accepted ? 180 : 280;
-    const animation = ghost.animate([
-      { transform: ghost.style.transform || this.followTransform(gesture), opacity: 1 },
-      { transform: end, opacity: accepted ? 0 : 0.2 },
-    ], { duration, easing: 'cubic-bezier(.2,.8,.25,1)', fill: 'forwards' });
+    const currentCard=this.hand.querySelector<HTMLElement>(`[data-card="${gesture.index}"]`);
+    const target=currentCard?.getBoundingClientRect()??gesture.origin;
+    const x=target.left+(target.width-gesture.width)/2,y=target.top+(target.height-gesture.height)/2;
+    const duration=matchMedia('(prefers-reduced-motion: reduce)').matches?0:220;
+    const animation=ghost.animate([
+      {transform:ghost.style.transform||this.followTransform(gesture),opacity:gesture.valid?0:1},
+      {transform:`translate3d(${x}px,${y}px,0) scale(.62)`,opacity:0},
+    ],{duration,easing:'cubic-bezier(.2,.8,.25,1)',fill:'forwards'});
     void animation.finished.catch(() => {}).then(() => {
       ghost.remove();
       this.settling.delete(ghost);

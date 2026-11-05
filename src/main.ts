@@ -42,19 +42,27 @@ let handBusy=false,handMotion=0;
 function affordable(c:Card) { return game.canAfford(c); }
 function select(c:Card|null,carrying=false) {
   if(!c)pendingPlacement=null;
-  selected=c;get('#event-target').hidden=!c?.event;world.setSelection(c,carrying);
+  selected=c;document.body.classList.toggle('is-placing',!!c);get('#event-target').hidden=!c?.event;world.setSelection(c,carrying);
   hand.classList.toggle('choosing',!!c);
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{
     const active=!!c&&game.hand[Number(b.dataset.card)]===c;
     b.classList.toggle('selected',active);b.setAttribute('aria-pressed',String(active));
   });
 }
-function label(text:string) {
-  placement.textContent=text;placement.hidden=!text;
+function label(text:string){
+  const card=selected?.id??'';
+  if(placement.dataset.message===text&&placement.dataset.card===card)return;
+  placement.dataset.message=text;placement.dataset.card=card;placement.hidden=!text;
+  placement.replaceChildren();if(!text)return;
+  const name=document.createElement('strong'),detail=document.createElement('span'),keys=document.createElement('small');
+  name.textContent=selected?.name??'';detail.textContent=text;
+  keys.textContent=selected?.event?'Esc · iptal':'R / tekerlek · döndür     Esc · iptal';
+  placement.append(name,detail,keys);
 }
 world.valid=i=>!!selected&&i>=0&&game.valid(selected,i);
 world.onHover=i=>{
-  if(!selected||i<0){label('');return}
+  if(!selected){label('');return}
+  if(i<0){placement.dataset.valid='true';label(selected.event?'Mevcut bir karoya bırak':'Kıyıda boş bir yer seç');return}
   if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Liman ve balıkçı kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}

@@ -1,7 +1,6 @@
-import {terrainGeometry} from './scenery';
 import * as T from 'three';
 import {FenceTorches} from './torches';
-import {climate} from './climate';
+import {climate,seasonalSurface} from './climate';
 import {gameSpeed} from './game-speed';
 import {StaticInstances} from './static-instances';
 import {SeasonCycle} from './seasons';
@@ -11,14 +10,14 @@ import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld,corner,RADIUS,adjacent,type ShoreEdge} from './hex';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
-import { PlacementGrid, cellPosition } from './grid';
+import { PlacementGrid, cellPosition, PLACEMENT_Y, PLACEMENT_EASE } from './grid';
 import { model, resourceModel, part, box } from './models';
 import {Game,BUILDING_SCALE,cards,type Resource,type Card,type Kind,type Production} from './game';
 import {Villagers} from './villagers';
 import type {HarvestCue} from './harvest-audio';
 import type {WalkPoint} from './navigation';
 
-type Build = { id:number; group:T.Group; time:number; kind:Kind };
+type Build = { id:number; group:T.Group; time:number; kind:Kind;rise:number };
 type Mote = { mesh:T.Mesh; velocity:T.Vector3; life:number;dust?:boolean };
 type Leaf={mesh:T.Mesh;velocity:T.Vector3;spin:T.Vector3;age:number;life:number;size:number};
 type Label = { el:HTMLElement; position:T.Vector3; life:number; delay:number };
@@ -83,15 +82,16 @@ export class World {
   private demolitions:{id:number;group:T.Group;time:number}[]=[];
   private ghost:T.Group|null=null;
   private ghostModel:T.Group|null=null;
+  private placementModel:T.Group|null=null;
+  private pendingModel:{kind:Kind;group:T.Group}|null=null;
   private desiredGhostYaw=0;
   private ghostManualCell=-1;
   private placedManualCell=-1;
   private lastRotationWake=0;
   private wheelRotation=0;
   private placementQueued=false;
-  private previewLand:T.Mesh|null=null;
+  private previewWanted=false;
   private previewFade=0;
-  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:false,side:T.FrontSide,transparent:true,opacity:0,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
@@ -376,8 +376,12 @@ export class World {
     this.onInspect(id,event.clientX,event.clientY,{left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),top:Math.min(...points.map(p=>p.y))-35,bottom:Math.max(...points.map(p=>p.y))});
   }
 
-  holdSelection(){this.placementQueued=true;this.cameraControl.setPlacement(false)}
-  get placementRotation(){this.placedManualCell=this.ghostManualCell;return this.desiredGhostYaw}
+  holdSelection(){this.placementQueued=true;this.grid.showAvailable(false,this.valid);this.cameraControl.setPlacement(false)}
+  get placementRotation(){
+    this.placedManualCell=this.ghostManualCell;
+    this.pendingModel=this.selected&&!this.selected.event&&this.placementModel?{kind:this.selected.id,group:this.placementModel}:null;
+    return this.desiredGhostYaw;
+  }
   rotateSelection(steps:number){
     this.lastRotationWake=this.time-.06;this.villagers.refreshNavigation();
     if(this.selected&&!this.selected.event){if(['fisher','harbor'].includes(this.selected.id))this.ghostManualCell=this.hover;this.desiredGhostYaw=['fisher','harbor'].includes(this.selected.id)&&this.hover>=0?this.coastalYaw(this.hover,this.desiredGhostYaw,steps):this.desiredGhostYaw+steps*Math.PI/3}
@@ -403,7 +407,7 @@ export class World {
     // Pointer capture delivers the gesture even over HUD. Only the visible sea/land is playable.
     const hit=document.elementFromPoint(x,y);
     let i=hit===this.renderer.domElement?this.grid.pick(x,y,this.cameraControl.camera,this.el):-1;
-    if(hit===this.renderer.domElement&&this.selected&&!this.selected.event&&!this.valid(i)){
+    if(hit===this.renderer.domElement&&this.selected&&!this.selected.event&&!this.valid(i)&&!this.board.has(i)){
       const nearby=this.grid.nearestAvailable(x,y,this.cameraControl.camera,this.el,this.valid);if(nearby>=0)i=nearby;
     }
     this.setHover(i);return i;
@@ -439,51 +443,44 @@ export class World {
       }
     }
   }
-  private setHover(i:number,force=false) {
+  private setHover(i:number,force=false){
     if(this.editing>=0&&!this.selected){this.grid.setHover(this.editing,true,true);return}
     if(!force&&i===this.hover)return;
     this.hover=i;
     const valid=i>=0&&this.valid(i);
-    this.grid.setHover(i,valid,!!this.selected);
-    if(this.ghost){
-      const wasVisible=this.ghost.visible;
-      this.ghost.visible=i>=0;
-      if(i>=0){
-        this.previewFade=wasVisible?.3:0;
-        if(this.selected&&['fisher','harbor'].includes(this.selected.id)&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
-        this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.035:LAND_Y+.025));
-        if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
-        this.ghostPalette.forEach(({mat,base})=>{
-          mat.color.copy(base).lerp(new T.Color(valid?0xc5e7ae:0xe98875),valid?.04:.65);
-          mat.opacity=0;mat.transparent=true;mat.depthWrite=true;
-        });
-      }
-    }
-    if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
-    if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
-      const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
-      this.previewLand=new T.Mesh(terrainGeometry(i,preview,true),this.previewLandMat);
-      this.previewLand.position.copy(this.ghost.position);this.previewLand.position.y=0;
-      this.previewLand.castShadow=false;this.previewLand.receiveShadow=false;this.previewLand.renderOrder=3;this.scene.add(this.previewLand);
+    this.grid.setHover(i,valid,!!this.selected&&(valid||this.board.has(i)));
+    this.previewWanted=!!this.ghost&&valid&&!this.selected?.event;
+    if(this.ghost&&this.previewWanted){
+      if(this.selected&&['fisher','harbor'].includes(this.selected.id)&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
+      this.ghostTarget.copy(cellPosition(i,PLACEMENT_Y+.018));
+      if(this.previewFade<.02)this.ghost.position.copy(this.ghostTarget);
+      this.ghost.visible=true;
     }
     this.onHover(i);
   }
-  setSelection(card:Card|null,carrying=false) {
-    this.ghostManualCell=-1;
-    this.editTile(-1);this.onInspect(-1,0,0,null);
+  setSelection(card:Card|null,carrying=false){
+    this.ghostManualCell=-1;this.editTile(-1);this.onInspect(-1,0,0,null);
     const same=!!card&&card===this.selected;
     const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
-    this.cameraControl.setPlacement(carrying);
-    if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
+    this.cameraControl.setPlacement(!!card);
     if(this.ghost){this.scene.remove(this.ghost);this.ghost=null}
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
+    this.previewFade=0;this.previewWanted=false;this.placementModel=null;
     this.selected=card;this.fisherOffset=same?this.fisherOffset:0;this.placementQueued=false;this.ghostModel=null;this.desiredGhostYaw=targetYaw;this.wheelRotation=0;
-    if(card){
-      this.ghost=new T.Group();this.ghostModel=model(card.id);this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);this.ghost.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(card.id)?BUILDING_SCALE:['berry','farm'].includes(card.id)?.75:1);
+    this.renderer.domElement.style.cursor=card?'var(--cursor-grab)':'';
+    if(card&&!card.event){
+      this.ghost=new T.Group();this.ghostModel=model(card.id);this.placementModel=this.ghostModel.clone();this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);
+      this.ghost.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(card.id)?BUILDING_SCALE:['berry','farm'].includes(card.id)?.75:1);
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
-        const mat=(o.material as T.MeshStandardMaterial).clone();
-        this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.72;mat.depthWrite=false;
-        o.material=mat;o.castShadow=false;o.receiveShadow=false;o.renderOrder=0;
+        const cloneMaterial=(source:T.MeshStandardMaterial)=>{
+          const mat=source.clone(),base=mat.color.clone();
+          mat.color.lerp(new T.Color('#e5f3e6'),.055);
+          mat.emissive.copy(base).multiplyScalar(.10);mat.emissiveIntensity=1;
+          mat.transparent=true;mat.opacity=0;mat.depthWrite=true;seasonalSurface(mat);
+          this.ghostPalette.push({mat,base});return mat;
+        };
+        o.material=Array.isArray(o.material)?o.material.map(m=>cloneMaterial(m as T.MeshStandardMaterial)):cloneMaterial(o.material as T.MeshStandardMaterial);
+        o.castShadow=false;o.receiveShadow=false;o.renderOrder=4;o.userData.placementPreview=true;
       }});
       this.scene.add(this.ghost);this.ghost.visible=false;
     }
@@ -520,13 +517,20 @@ export class World {
       const old=this.buildings.get(i);
       if(!kind){if(old){this.root.remove(old);this.buildings.delete(i)}return}
       if(old)return;
-      const g=i===CENTER&&kind==='house'?villageHouse():model(kind);
+      const preview=i===placed&&this.pendingModel?.kind===kind?this.pendingModel.group:null;
+      const g=i===CENTER&&kind==='house'?villageHouse():preview??model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);
-      if(i===placed){if(['fisher','harbor'].includes(kind)&&this.placedManualCell===i)g.userData.manualCoast=true;g.rotation.y=rotation;g.scale.setScalar(.01);g.visible=false;g.position.y-=.74;this.builds.push({id:i,group:g,time:0,kind})}
+      if(i===placed){
+        if(['fisher','harbor'].includes(kind)&&this.placedManualCell===i)g.userData.manualCoast=true;
+        g.rotation.y=rotation;
+        const rise=Math.max(.22,new T.Box3().setFromObject(g).max.y-LAND_Y+.04);
+        g.visible=false;g.position.y=LAND_Y-rise;
+        this.builds.push({id:i,group:g,time:0,kind,rise});
+      }
     });
-    this.alignFisheries();this.refreshFences();
+    this.pendingModel=null;this.alignFisheries();this.refreshFences();
     this.cameraControl.setClearance(Math.max(1.7,...[...this.buildings.values()].map(g=>new T.Box3().setFromObject(g).max.y)));
     if(opening||refresh)for(const id of board.keys())this.refreshMeadow(id);else if(placed>=0)this.refreshMeadow(placed);
   }
@@ -534,6 +538,15 @@ export class World {
     const material=new T.MeshBasicMaterial({color,transparent:true,opacity:.8,depthWrite:false});
     const mesh=new T.Mesh(this.ringGeo,material);mesh.position.copy(cellPosition(i,LAND_Y+.024));mesh.renderOrder=4;
     this.scene.add(mesh);this.rings.push({mesh,time:0});
+  }
+  private settlePlacement(id:number){
+    // A few quiet ground flecks replace the large golden ring and explosive burst.
+    for(let j=0;j<6;j++){
+      const angle=j*Math.PI/3+.4,mesh=new T.Mesh(this.moteGeo,this.moteMats[j%3]);
+      mesh.position.copy(cellPosition(id,LAND_Y+.025));mesh.position.x+=Math.cos(angle)*.32;mesh.position.z+=Math.sin(angle)*.32;
+      mesh.scale.setScalar(.55);this.scene.add(mesh);
+      this.motes.push({mesh,velocity:new T.Vector3(Math.cos(angle)*.16,.20+(j%2)*.06,Math.sin(angle)*.16),life:.45});
+    }
   }
   burst(i:number) {
     this.pulse(i,0xffdf9a);
@@ -554,7 +567,7 @@ export class World {
     });
   }
   reset(){
-    this.torches.reset();
+    this.pendingModel=null;this.placementModel=null;this.torches.reset();
     this.staticInstances.clear();
     this.seasons.reset();
     for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
@@ -571,7 +584,7 @@ export class World {
     const realDt=Math.max(0,Math.min(.065,(timestamp-this.previousTime)/1000));this.previousTime=timestamp;
     const dt=this.game?.paused||document.hidden?0:realDt*gameSpeed.value;this.time+=dt;
     this.cameraControl.update(realDt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
-    this.grid.update(dt);
+    this.grid.update(document.hidden?0:realDt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     this.environment.setSun(this.waterSunDirection.subVectors(this.sun.position,this.sun.target.position));
     if(this.game){
@@ -579,19 +592,19 @@ export class World {
       if(dt>0)this.game.updateTorches(climate.night.value>.12,this.seasons.torchNight,[...new Set(anchors.map(anchor=>anchor.id))].sort((a,b)=>Number(b===CENTER)-Number(a===CENTER)||a-b));
       this.torches.update(dt,anchors,this.game,this.cameraControl.audioFocus);
     }
-    if(this.ghost?.visible){
-      this.previewFade=T.MathUtils.damp(this.previewFade,1,10,dt);
-      const valid=this.valid(this.hover);
-      for(const {mat} of this.ghostPalette)mat.opacity=this.previewFade*(valid?.78:.38);
-      this.previewLandMat.opacity=this.previewFade*.76;
-      this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-16*dt));
-      if(this.previewLand){this.previewLand.position.x=this.ghost.position.x;this.previewLand.position.z=this.ghost.position.z;}
+    if(this.ghost){
+      const valid=this.hover>=0&&this.valid(this.hover);
+      if(valid!==this.previewWanted)this.setHover(this.hover,true);
+      this.previewFade=T.MathUtils.damp(this.previewFade,this.previewWanted?1:0,18,realDt);
+      this.ghost.visible=this.previewFade>.002;
+      for(const {mat} of this.ghostPalette)mat.opacity=this.previewFade*.76;
+      this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-PLACEMENT_EASE*realDt));
       if(this.ghostModel){
         const difference=this.desiredGhostYaw-this.ghostModel.rotation.y;
-        this.ghostModel.rotation.y+=difference*(1-Math.exp(-16*dt));
-        if(Math.abs(difference)>.025&&this.time-this.lastRotationWake>.05&&this.valid(this.hover)){
+        this.ghostModel.rotation.y+=difference*(1-Math.exp(-18*realDt));
+        if(Math.abs(difference)>.025&&this.time-this.lastRotationWake>.10&&this.previewWanted){
           const angle=this.ghostModel.rotation.y,sign=Math.sign(difference),p=this.ghost.position;
-          this.environment.stir(p.x+Math.cos(angle)*.68,p.z+Math.sin(angle)*.68,-Math.sin(angle)*sign,Math.cos(angle)*sign,.32,.10);
+          this.environment.stir(p.x+Math.cos(angle)*.58,p.z+Math.sin(angle)*.58,-Math.sin(angle)*sign,Math.cos(angle)*sign,.18,.08);
           this.lastRotationWake=this.time;
         }
       }
@@ -620,12 +633,12 @@ export class World {
       b.time=Math.min(BUILD_END,b.time+dt);
       b.group.visible=b.time>=BUILD_START;
       if(b.time<BUILD_START)return true;
-      if(previous<BUILD_START+.28&&b.time>=BUILD_START+.28){this.burst(b.id);this.onPlacementSound(b.kind,cellPosition(b.id,LAND_Y+.2))}
+      if(previous<BUILD_END-.12&&b.time>=BUILD_END-.12){this.settlePlacement(b.id);this.onPlacementSound(b.kind,cellPosition(b.id,LAND_Y+.2))}
       const growth=easeBetween(b.time,BUILD_START,BUILD_END);
-      const bump=Math.sin(Math.PI*growth)*.14;
+      const settle=Math.sin(Math.PI*growth)*.018;
       const size=['house','manor','store','lumber','fisher','harbor'].includes(b.kind)?BUILDING_SCALE:['berry','farm'].includes(b.kind)?.75:1;
-      b.group.scale.set(Math.max(.01,(growth+bump)*size),Math.max(.01,(growth+bump*1.6)*size),Math.max(.01,(growth+bump)*size));
-      b.group.position.y=LAND_Y-.55*(1-growth);
+      b.group.scale.set((.92+.08*growth)*size,(.94+.06*growth+settle)*size,(.92+.08*growth)*size);
+      b.group.position.y=LAND_Y-b.rise*(1-growth);
       if(b.kind==='berry') b.group.children.forEach(child=>{
         if(child.userData.plantOrder!==undefined){
           const t=easeBetween(b.time,BUILD_START+child.userData.plantOrder*.018,BUILD_END);

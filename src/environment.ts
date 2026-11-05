@@ -46,7 +46,6 @@ export class Environment {
       const old=this.land.get(id);
       if(old){if(placed<0&&old.signature!==signature){old.surface.geometry.dispose();old.surface.geometry=terrainGeometry(id,board);old.signature=signature}continue}
       const center=position(id),root=new T.Group();root.position.set(center.x,id===placed?-1.1:0,center.z);
-      if(id===placed)root.scale.set(.35,1,.35);
       const surface=new T.Mesh(terrainGeometry(id,board),this.landMat);surface.castShadow=true;surface.receiveShadow=true;
       root.add(surface);
       if(id===CENTER){const sprig=new T.Group();sprig.position.set(.44,LAND_Y,-.37);tree(sprig,0,0,1,.47);root.add(sprig)}
@@ -116,7 +115,7 @@ export class Environment {
       const progress=easeBetween(tile.age,LAND_START,LAND_END);
       tile.root.visible=tile.age>=LAND_START;
       tile.root.position.y=-1.1*(1-progress);
-      tile.root.scale.set(.35+.65*progress,1,.35+.65*progress);
+      tile.root.scale.set(1,1,1);
     }
     const fencesReady=this.sinking.size===0&&[...this.land.values()].every(tile=>tile.age>=BUILD_END);
     if(fencesReady&&[...this.land.values()].some(tile=>tile.fence.hasPending))this.enqueueFences(time);

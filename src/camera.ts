@@ -94,7 +94,7 @@ export class CameraController {
     this.yaw = THREE.MathUtils.lerp(this.yaw, this.desiredYaw, motion);
     this.pitch = THREE.MathUtils.lerp(this.pitch, this.desiredPitch, motion);
     this.desiredTarget.copy(this.islandCenter);
-    this.target.lerp(this.islandCenter, motion);
+    if(!this.placement)this.target.lerp(this.islandCenter, motion);
     const nextZoom = THREE.MathUtils.lerp(this.camera.zoom, this.desiredZoom, zoom);
     if (Math.abs(nextZoom - this.camera.zoom) > 0.000001) {
       this.camera.zoom = nextZoom;
