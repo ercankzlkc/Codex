@@ -1,5 +1,6 @@
 import {terrainGeometry} from './scenery';
 import * as T from 'three';
+import {gameSpeed} from './game-speed';
 import {StaticInstances} from './static-instances';
 import {SeasonCycle} from './seasons';
 import {icon} from './icons';
@@ -542,8 +543,9 @@ export class World {
   }
   private frame=(now:number)=>{
     const timestamp=Number.isFinite(now)?now:performance.now();
-    const dt=Math.max(0,Math.min(.065,(timestamp-this.previousTime)/1000));this.previousTime=timestamp;this.time+=dt;
-    this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
+    const realDt=Math.max(0,Math.min(.065,(timestamp-this.previousTime)/1000));this.previousTime=timestamp;
+    const dt=this.game?.paused||document.hidden?0:realDt*gameSpeed.value;this.time+=dt;
+    this.cameraControl.update(realDt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     this.grid.update(dt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     if(this.ghost?.visible){
@@ -619,7 +621,11 @@ export class World {
       for(const piece of drop.pieces){const wx=drop.group.position.x+piece.mesh.position.x*.85-center.x,wz=drop.group.position.z+piece.mesh.position.z*.85-center.z,r=Math.hypot(wx,wz);if(r>.63){piece.mesh.position.x=(center.x+wx/r*.63-drop.group.position.x)/.85;piece.mesh.position.z=(center.z+wz/r*.63-drop.group.position.z)/.85;piece.velocity.x*=-.2;piece.velocity.z*=-.2}}
     }
     for(const decor of this.storageDecor.values()){const t=this.time-(decor.userData.upgradedAt??-99);decor.scale.setScalar(1+(t<1?Math.sin(t*Math.PI)*.13:0))}
-    if(!this.game?.paused)this.villagers.update(document.hidden?0:dt);
+    let remaining=dt,firstStep=true;
+    while(remaining>0){
+      const step=Math.min(.065,remaining);this.villagers.update(step,firstStep?2:0);
+      firstStep=false;remaining=Math.max(0,remaining-step);
+    }
     for(const [id,kind] of this.board)if(kind==='harbor'){
       const ship=this.buildings.get(id)?.getObjectByName('merchant');if(!ship||!this.game)continue;
       const t=this.game.tradeClock;

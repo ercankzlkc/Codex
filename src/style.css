@@ -338,3 +338,12 @@ button,a,[role=button],.kingdom-hud button.resource{cursor:var(--cursor-point)}
 #hand .card{cursor:var(--cursor-point)}
 button:disabled,#hand .card:disabled{cursor:var(--cursor-arrow)}
 body.is-dragging,body.is-dragging *,body.is-dragging canvas{cursor:var(--cursor-grab)!important}
+
+/* Time controls are interactive while the surrounding clock stays transparent to input. */
+#season-hud{width:278px}
+.season-remaining{width:94px;flex-basis:94px;padding-left:8px}
+.speed-controls{display:flex;justify-content:center;gap:2px;margin-top:4px;pointer-events:auto}
+.speed-controls button{display:grid;place-items:center;min-width:19px;height:17px;padding:0 2px;border:1px solid transparent;border-radius:3px;background:transparent;color:#75836c;font:600 9px/1 "Segoe UI",sans-serif}
+.speed-controls button:hover{background:#dce3cf;color:#365447}
+.speed-controls button[aria-pressed=true]{background:#365447;color:#fff8e3;border-color:#365447}
+.speed-controls button:focus-visible{outline:2px solid #9baf7a;outline-offset:2px}

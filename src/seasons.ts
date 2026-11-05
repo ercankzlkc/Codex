@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {gameSpeed} from './game-speed';
 import {climate,seasonalSurface} from './climate';
 import {coast,fromWorld,position,type ShoreEdge} from './hex';
 import {LAND_Y,SEA_Y} from './scenery';
@@ -45,8 +46,14 @@ export class SeasonCycle{
   private clearIceChips(){for(const chip of this.iceChips){this.scene.remove(chip.mesh);chip.mesh.material.dispose()}this.iceChips=[]}
   constructor(private scene:T.Scene,private sun:T.DirectionalLight,private ambient:T.HemisphereLight){
     this.hud=document.createElement('section');this.hud.id='season-hud';this.hud.setAttribute('aria-label','Gün ve mevsim');
-    this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><div class="season-copy"><small></small><strong></strong><span></span><div class="season-days"><i></i><i></i><i></i></div></div><div class="season-remaining"><b></b><small>Günün saati</small></div>';
+    this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><div class="season-copy"><small></small><strong></strong><span></span><div class="season-days"><i></i><i></i><i></i></div></div><div class="season-remaining"><b></b><div class="speed-controls" role="group" aria-label="Oyun hızı"><button type="button" data-speed="1" aria-label="Normal hız" aria-pressed="true">1×</button><button type="button" data-speed="2" aria-label="İki kat hız" aria-pressed="false">2×</button><button type="button" data-speed="3" aria-label="Üç kat hız" aria-pressed="false">3×</button><button type="button" data-speed="4" aria-label="Dört kat hız" aria-pressed="false">4×</button></div></div>';
     document.querySelector('#app')!.append(this.hud);
+    this.hud.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(button=>{
+      button.onclick=()=>{
+        gameSpeed.value=Number(button.dataset.speed);
+        this.hud.querySelectorAll('[data-speed]').forEach(option=>option.setAttribute('aria-pressed',String(option===button)));
+      };
+    });
     this.notice=document.createElement('aside');this.notice.id='season-notice';this.notice.setAttribute('role','status');document.querySelector('#app')!.append(this.notice);
     this.snowPositions=new Float32Array(240*3);
     for(let i=0;i<240;i++){this.snowPositions[i*3]=(Math.random()-.5)*18;this.snowPositions[i*3+1]=Math.random()*7;this.snowPositions[i*3+2]=(Math.random()-.5)*18}
@@ -55,7 +62,7 @@ export class SeasonCycle{
     this.snow.frustumCulled=false;scene.add(this.snow,this.ice);
   }
   setPalette(sky:string,sun:string){this.sky.set(sky);this.sunlight.set(sun)}
-  reset(){this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
+  reset(){gameSpeed.value=1;this.hud.querySelectorAll('[data-speed]').forEach(button=>button.setAttribute('aria-pressed',String((button as HTMLElement).dataset.speed==='1')));this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){
     this.scene.traverse(object=>{
       if(!(object instanceof T.Mesh)||object.userData.iceChip)return;
@@ -69,7 +76,7 @@ export class SeasonCycle{
     });
   }
   update(dt:number,board:ReadonlyMap<number,Kind>,focus:T.Vector3){
-    dt=Number.isFinite(dt)?Math.max(0,Math.min(.1,dt)):0;
+    dt=Number.isFinite(dt)?Math.max(0,Math.min(.26,dt)):0;
     if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=0;
     this.iceChips=this.iceChips.filter(chip=>{
       chip.age+=dt;const t=chip.age/chip.life;
@@ -139,7 +146,6 @@ export class SeasonCycle{
     // The daylight curve begins at dawn, so 06:00 is the start of each game day.
     const minutes=Math.floor((cycle*1440+360)%1440);
     this.hud.querySelector('.season-remaining b')!.textContent=`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
-    this.hud.querySelector('.season-remaining small')!.textContent=phase;
     this.hud.querySelectorAll<HTMLElement>('.season-days i').forEach((dot,i)=>{dot.classList.toggle('complete',i<day);dot.style.setProperty('--fill',`${i<day?100:i===day?cycle*100:0}%`)});
     if(season!==this.lastSeason){
       this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${current.hint}</p>`;

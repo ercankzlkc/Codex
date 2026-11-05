@@ -296,13 +296,13 @@ export class Villagers {
     if(previous<timing.land&&t>=timing.land)this.hooks.splash(water.x,water.z);
     if(t>timing.land&&t<timing.pull&&Math.floor(t/.9)!==Math.floor(previous/.9))this.hooks.splash(water.x,water.z);
   }
-  update(dt:number){
+  update(dt:number,navigationBudget=2){
     const g=this.game;if(!g||!this.nav)return;this.time+=dt;g.tick(dt);this.spawnClock-=dt;
     for(const event of g.takeMeals()){const c=this.citizens.find(c=>c.id===event.id);if(c){if(!c.job&&!c.path.length)c.eatUntil=this.time+1.5;c.hungry=!event.ate}}
     if(this.spawnClock<=0){for(const r of g.residents)if(!this.spawned.has(r.id)&&this.hooks.ready(r.home))this.spawn(r.id,r.home);this.spawnClock=.35}
     this.buckets.clear();for(const c of this.citizens){const k=`${Math.floor(c.root.position.x/.32)}:${Math.floor(c.root.position.z/.32)}`;if(!this.buckets.has(k))this.buckets.set(k,[]);this.buckets.get(k)!.push(c)}
     this.frameTargets=g.workTargets();
-    this.nav.process(2);
+    this.nav.process(navigationBudget);
     this.updateFlights(dt);
     for(const c of this.citizens){
       c.avoid=c.avoid.filter(p=>p.until>this.time);
