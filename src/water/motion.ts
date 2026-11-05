@@ -39,11 +39,11 @@ vec4 waterDisturbance(vec2 p) {
       if(abs(q)<3.5){
         float bell=exp(-q*q);
         float fade=smoothstep(0.,.085,age)*(1.-smoothstep(.65,1.6,age))*exp(-age*.85);
-        float amplitude=(.010+.016*energy)*energy*fade;
+        float amplitude=(.010+.016*energy)*energy*fade*uWakeDirs[i].w;
         // Crest plus the shallow return trough conserve the sense of displaced water.
         height+=amplitude*(1.-2.*q*q)*bell;
         slope+=radial/max(distance,.015)*amplitude*(4.*q*q*q-6.*q)*bell/width;
-        crest+=max(0.,(1.-2.*q*q)*bell)*energy*fade;
+        crest+=max(0.,(1.-2.*q*q)*bell)*energy*fade*uWakeDirs[i].w;
       }
     }
   }
@@ -74,7 +74,7 @@ export function sampleReefCurrent(uniforms:OceanUniforms,x:number,z:number,out:{
     const rx=dx-dir.x*along,rz=dz-dir.y*along,distance=Math.hypot(rx,rz),width=.055+age*.045;
     const q=(distance-(.025+age*(.46+.18*wake.w)))/width;if(Math.abs(q)>=3.5)continue;
     const fade=smooth(0,.085,age)*(1-smooth(.65,1.6,age))*Math.exp(-age*.85);
-    const gradient=(.010+.016*wake.w)*wake.w*fade*(4*q*q*q-6*q)*Math.exp(-q*q)/width/Math.max(distance,.015);
+    const gradient=(.010+.016*wake.w)*wake.w*fade*dir.w*(4*q*q*q-6*q)*Math.exp(-q*q)/width/Math.max(distance,.015);
     sx+=rx*gradient;sz+=rz*gradient;
   }
   const thaw=1-smooth(.1,.8,freeze),current=1-freeze*.85;

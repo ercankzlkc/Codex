@@ -184,8 +184,8 @@ export class TropicalWater {
   get opticalUniforms(){return this.uniforms}
   depthAt(x:number,z:number){return this.field.depthAt(x,z)}
   setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
-  stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){
-    if(![x,z,dx,dz,strength,length].every(Number.isFinite)||climate.winter.value>.8||this.depthAt(x,z)<.04)return false;
+  stir(x:number,z:number,dx:number,dz:number,strength:number,length:number,gain=1){
+    if(![x,z,dx,dz,strength,length,gain].every(Number.isFinite)||climate.winter.value>.8||this.depthAt(x,z)<.04)return false;
     // Never replace a visibly young wave. A bounded pool also limits rapid-pointer GPU work.
     let index=0;
     const wakes=this.uniforms.uWakes.value,now=this.uniforms.uTime.value;
@@ -193,7 +193,7 @@ export class TropicalWater {
     if(wakes[index].w>0&&now-wakes[index].z<WAKE_LIFE-.12)return false;
     const magnitude=Math.hypot(dx,dz),energy=.22+.62*Math.sqrt(T.MathUtils.clamp(strength,0,1));
     wakes[index].set(x,z,now,energy);
-    this.uniforms.uWakeDirs.value[index].set(magnitude>.001?dx/magnitude:1,magnitude>.001?dz/magnitude:0,T.MathUtils.clamp(length,0,.5),0);
+    this.uniforms.uWakeDirs.value[index].set(magnitude>.001?dx/magnitude:1,magnitude>.001?dz/magnitude:0,T.MathUtils.clamp(length,0,.5),T.MathUtils.clamp(gain,1,2));
     return true;
   }
   clearWakes(){for(const wake of this.uniforms.uWakes.value)wake.set(0,0,-10,0)}

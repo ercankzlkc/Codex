@@ -430,7 +430,7 @@ export class World {
     this.seaPointerSpeed=T.MathUtils.damp(this.seaPointerSpeed,distance/Math.max(.01,elapsed),9,elapsed);
     const strength=T.MathUtils.smoothstep(this.seaPointerSpeed,.08,5);
     const span=Math.min(distance,.5);
-    if(this.environment.stir(x,z,dx/distance,dz/distance,strength,span)){
+    if(this.environment.stir(x,z,dx/distance,dz/distance,strength,span,1.55)){
       // Sample the swept path too, so a passing stroke only startles fish it actually reaches.
       const samples=Math.max(1,Math.ceil(span/.18));
       for(let i=0;i<samples;i++){
