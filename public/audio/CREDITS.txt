@@ -32,3 +32,6 @@ Kaynak dosyalar aynen saklanır. Oyun, ses seviyesini dengeler ve kısa bölüml
 
 Üretim ve hasat efektlerinin kaynak/lisans eşlemeleri: HARVEST-CREDITS.txt.
 Karo yerleşim efektlerinin kaynak/lisans eşlemeleri: PLACEMENT-CREDITS.txt.
+
+Karo yerleştirme dalga sesleri: landing-wave-1.mp3 – landing-wave-6.mp3.
+Kullanıcının sağladığı Karo Dalga Sesi (1–6).mp3 kayıtları.

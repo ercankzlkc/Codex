@@ -36,7 +36,9 @@ export class TableSound {
   private clips=new Map<string,AudioBuffer>();
   private live=new Set<AudioScheduledSourceNode>();
   private noise:AudioBuffer|null=null;
-  private surfNoise:AudioBuffer|null=null;
+  private waveLoads:Promise<void>[]=[];
+  private lastLandingWave=-1;
+  private landingRequest=0;
   private pending=new Set<number>();
   private lastHover=0;
   private birdVoice:BirdVoice|null=null;
@@ -78,6 +80,11 @@ export class TableSound {
       for(const name of names){
         void fetch(new URL('audio/'+name+'.ogg',document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
           .then(b=>this.ctx!.decodeAudioData(b)).then(b=>this.clips.set(name,b)).catch(()=>{});
+      }
+      for(let i=1;i<=6;i++){
+        const name=`landing-wave-${i}`;
+        this.waveLoads.push(fetch(new URL(`audio/${name}.mp3`,document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
+          .then(data=>this.ctx!.decodeAudioData(data)).then(buffer=>{this.clips.set(name,buffer)}).catch(()=>{}));
       }
       for(const name of birdClips){
         void fetch(new URL(`audio/${name}.mp3`,document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
@@ -185,35 +192,25 @@ export class TableSound {
     if(this.lastWork.size>512)for(const [k,t] of this.lastWork)if(now-t>3)this.lastWork.delete(k);
   }
   placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}
-  /** Match the landing shader: gathering water, outward crest, then a soft retreat. */
-  landingWave(at:T.Vector3){
+  /** Use the supplied recordings without repeating the previous landing. */
+  async landingWave(at:T.Vector3){
     this.unlock();
+    const request=++this.landingRequest;
+    await Promise.all(this.waveLoads);
     const ctx=this.ctx;
-    if(!ctx||this.muted||document.hidden||!this.levels.master||!this.levels.sfx)return;
-    if(!this.surfNoise){
-      this.surfNoise=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*2.1),ctx.sampleRate);
-      const data=this.surfNoise.getChannelData(0);let smooth=0;
-      for(let i=0;i<data.length;i++){
-        smooth=(smooth+.035*(Math.random()*2-1))/1.035;
-        data[i]=smooth*4;
-      }
-    }
-    const now=ctx.currentTime,source=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain(),pan=ctx.createStereoPanner();
-    source.buffer=this.surfNoise;
-    filter.type='lowpass';filter.Q.value=.35;
-    filter.frequency.setValueAtTime(650,now);
-    filter.frequency.linearRampToValueAtTime(2400,now+.6);
-    filter.frequency.exponentialRampToValueAtTime(550,now+2.1);
-    // Remain audible at the normal table zoom without a sharp splash or a click.
-    const level=.65;
-    gain.gain.setValueAtTime(0,now);
-    gain.gain.linearRampToValueAtTime(level*.35,now+.25);
-    gain.gain.linearRampToValueAtTime(level,now+.6);
-    gain.gain.exponentialRampToValueAtTime(level*.32,now+1.25);
-    gain.gain.linearRampToValueAtTime(0,now+2.1);
+    if(!ctx||ctx.state!=='running'||request!==this.landingRequest||this.muted||document.hidden||!this.levels.master||!this.levels.sfx)return;
+    const available=Array.from({length:6},(_,i)=>i+1).filter(i=>this.clips.has(`landing-wave-${i}`));
+    const choices=available.length>1?available.filter(i=>i!==this.lastLandingWave):available;
+    if(!choices.length)return;
+    const choice=choices[Math.floor(Math.random()*choices.length)];this.lastLandingWave=choice;
+    const source=ctx.createBufferSource(),gain=ctx.createGain(),pan=ctx.createStereoPanner();
+    source.buffer=this.clips.get(`landing-wave-${choice}`)!;
+    const now=ctx.currentTime,duration=source.buffer.duration,fade=Math.min(.04,duration/4);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.8,now+fade);
+    gain.gain.setValueAtTime(.8,now+duration-fade);gain.gain.linearRampToValueAtTime(0,now+duration);
     if(this.viewCamera){this.clipPoint.copy(at).project(this.viewCamera);pan.pan.value=T.MathUtils.clamp(this.clipPoint.x*.65,-.65,.65)}
-    source.connect(filter).connect(gain).connect(pan).connect(this.buses.sfx!);
-    this.trackVoice(source,[filter,gain,pan]);source.start(now);source.stop(now+2.1);
+    source.connect(gain).connect(pan).connect(this.buses.sfx!);
+    this.trackVoice(source,[gain,pan]);source.start(now);source.stop(now+duration);
   }
   private workWeight(at:T.Vector3){
     const camera=this.viewCamera;if(!camera)return 0;
@@ -360,6 +357,7 @@ export class TableSound {
     if(bonus)later(()=>this.note(587.33,.025,.24),BUILD_END*1000);
   }
   cancel(){
+    this.landingRequest++;
     for(const voice of this.workLive){try{voice.stop()}catch{}}this.workLive.clear();
     for(const token of this.pending)clearTimeout(token);this.pending.clear();
     for(const source of this.live){try{source.stop()}catch{/* A voice may already have ended. */}}

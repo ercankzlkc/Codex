@@ -471,6 +471,7 @@ export class World {
   }
   sync(board:ReadonlyMap<number,Kind>,placed=-1,rotation=0,refresh=false) {
     const opening=this.buildings.size===0;
+    if(placed>=0&&!opening)this.seasons.breakIce(placed);
     this.board=board;this.villagers.refreshNavigation();
     if(this.trailPoints.some(p=>!board.has(p.tile))){
       const kept=this.trailPoints.filter(p=>board.has(p.tile));this.trailPoints=[];this.trailKeys.clear();this.trails.count=0;

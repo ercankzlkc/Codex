@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {climate,seasonalSurface} from './climate';
-import {coast,fromWorld,type ShoreEdge} from './hex';
+import {coast,fromWorld,position,type ShoreEdge} from './hex';
 import {LAND_Y,SEA_Y} from './scenery';
 import type {Kind} from './game';
 
@@ -24,6 +24,28 @@ export class SeasonCycle{
   private snow:T.Points;private snowPositions:Float32Array;
   private ice=new T.Group();private iceMat=new T.MeshStandardMaterial({color:0xc9ecf4,transparent:true,opacity:0,roughness:.3,depthWrite:false});
   private iceGeo=new T.BoxGeometry(1,.025,.34);private shoreKey='';private shore:ShoreEdge[]=[];
+  private iceChips:{mesh:T.Mesh<T.TetrahedronGeometry,T.MeshStandardMaterial>;velocity:T.Vector3;spin:T.Vector3;age:number;life:number}[]=[];
+  private chipGeo=new T.TetrahedronGeometry(1);
+  breakIce(id:number){
+    const strength=climate.winter.value;if(strength<.08)return;
+    const center=position(id);
+    for(const floe of this.ice.children){
+      const distance=Math.hypot(floe.position.x-center.x,floe.position.z-center.z);
+      if(distance>2.2||!floe.visible)continue;
+      floe.visible=false;
+      for(let i=0;i<7&&this.iceChips.length<180;i++){
+        const angle=Math.random()*Math.PI*2,r=.08+Math.random()*.24;
+        const mesh=new T.Mesh(this.chipGeo,new T.MeshStandardMaterial({color:0xc9ecf4,roughness:.27,transparent:true,opacity:strength*.9,depthWrite:false,flatShading:true}));
+        mesh.userData.iceChip=true;
+        mesh.position.copy(floe.position).add(new T.Vector3(Math.cos(angle)*r,.02,Math.sin(angle)*r));
+        mesh.scale.set(.07+Math.random()*.12,.025+Math.random()*.04,.07+Math.random()*.13);
+        mesh.rotation.set(Math.random(),angle,Math.random());this.scene.add(mesh);
+        const dx=mesh.position.x-center.x,dz=mesh.position.z-center.z,len=Math.max(.1,Math.hypot(dx,dz));
+        this.iceChips.push({mesh,velocity:new T.Vector3(dx/len*(.3+Math.random()*.5),.5+Math.random()*.6,dz/len*(.3+Math.random()*.5)),spin:new T.Vector3(Math.random()*3,Math.random()*2,Math.random()*3),age:0,life:1.6+Math.random()*.6});
+      }
+    }
+  }
+  private clearIceChips(){for(const chip of this.iceChips){this.scene.remove(chip.mesh);chip.mesh.material.dispose()}this.iceChips=[]}
   constructor(private scene:T.Scene,private sun:T.DirectionalLight,private ambient:T.HemisphereLight){
     this.hud=document.createElement('section');this.hud.id='season-hud';this.hud.setAttribute('aria-label','Gün ve mevsim');
     this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><div class="season-copy"><small></small><strong></strong><span></span><div class="season-days"><i></i><i></i><i></i></div></div><div class="season-remaining"><b></b><small>sonraki mevsim</small></div>';
@@ -36,10 +58,10 @@ export class SeasonCycle{
     this.snow.frustumCulled=false;scene.add(this.snow,this.ice);
   }
   setPalette(sky:string,sun:string){this.sky.set(sky);this.sunlight.set(sun)}
-  reset(){for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
+  reset(){this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){
     this.scene.traverse(object=>{
-      if(!(object instanceof T.Mesh))return;
+      if(!(object instanceof T.Mesh)||object.userData.iceChip)return;
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
         if(material instanceof T.MeshBasicMaterial&&material.color.getHex()===0xccbc95)this.paths.add(material);
         if(material instanceof T.MeshStandardMaterial||material instanceof T.MeshLambertMaterial)seasonalSurface(material);
@@ -52,6 +74,15 @@ export class SeasonCycle{
   update(dt:number,board:ReadonlyMap<number,Kind>,focus:T.Vector3){
     dt=Number.isFinite(dt)?Math.max(0,Math.min(.1,dt)):0;
     if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=0;
+    this.iceChips=this.iceChips.filter(chip=>{
+      chip.age+=dt;const t=chip.age/chip.life;
+      if(t>=1){this.scene.remove(chip.mesh);chip.mesh.material.dispose();return false}
+      chip.velocity.y-=dt*1.7;chip.mesh.position.addScaledVector(chip.velocity,dt);
+      chip.mesh.position.y=Math.max(SEA_Y-.06,chip.mesh.position.y);
+      chip.mesh.rotation.x+=chip.spin.x*dt;chip.mesh.rotation.y+=chip.spin.y*dt;chip.mesh.rotation.z+=chip.spin.z*dt;
+      chip.mesh.material.opacity=climate.winter.value*.9*(1-T.MathUtils.smoothstep(t,.45,1));
+      return true;
+    });
     this.elapsed+=dt;this.scanClock-=dt;if(this.scanClock<=0){this.scanClock=.5;this.scan()}
     const season=Math.floor(this.elapsed/SEASON_SECONDS)%4,part=this.elapsed%SEASON_SECONDS;
     const day=Math.floor(part/DAY_SECONDS),cycle=(part%DAY_SECONDS)/DAY_SECONDS;
