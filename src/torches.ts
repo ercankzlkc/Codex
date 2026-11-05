@@ -45,8 +45,8 @@ void main(){
   vec2 p=(vUv-.5)*2.;
   float radial=exp(-dot(p,p)*3.)*(1.-smoothstep(.55,1.,length(p)));
   float flicker=.95+.035*sin(uTime*3.2+vFire.g*20.)+.015*sin(uTime*5.7+vFire.g*43.);
-  float alpha=radial*flicker*vFire.r*.15;
-  gl_FragColor=vec4(vec3(1.,.42,.09),alpha);
+  float alpha=radial*flicker*vFire.r*.065;
+  gl_FragColor=vec4(vec3(1.,.72,.43),alpha);
 }`;
 /** Low-poly holders and layered flames, and a shared warm-light field, independent of fence count. */
 export class FenceTorches{

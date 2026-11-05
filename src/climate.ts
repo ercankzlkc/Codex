@@ -32,9 +32,10 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
       float torchInside=step(0.,torchUv.x)*step(0.,torchUv.y)*step(torchUv.x,1.)*step(torchUv.y,1.);
       float torchWarm=texture2D(uTorchField,clamp(torchUv,0.,1.)).r*torchInside;
       float torchHeight=exp(-max(0.,vSeasonPosition.y-.55)*1.3)*smoothstep(-.02,.10,vSeasonPosition.y);
-      outgoingLight+=diffuseColor.rgb*vec3(1.,.54,.20)*torchWarm*torchHeight*.72;
+      float torchSurface=.7+.3*max(0.,normalize(vSeasonNormal).y);
+      outgoingLight+=diffuseColor.rgb*vec3(1.,.88,.70)*torchWarm*torchHeight*torchSurface*.46;
       #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey=()=>key+'-season-surface-v4-uniform-torches';material.needsUpdate=true;
+  material.customProgramCacheKey=()=>key+'-season-surface-v5-soft-neutral';material.needsUpdate=true;
 }

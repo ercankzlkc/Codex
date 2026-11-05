@@ -106,7 +106,7 @@ export class TropicalWater {
         float bedTorchInside=step(0.,bedTorchUv.x)*step(0.,bedTorchUv.y)*step(bedTorchUv.x,1.)*step(bedTorchUv.y,1.);
         float bedTorch=texture2D(uBedTorchField,clamp(bedTorchUv,0.,1.)).g*bedTorchInside;
         float bedTransmission=exp(-max(0.,-.18-vReceiver.y)*.75);
-        outgoingLight+=diffuseColor.rgb*vec3(1.,.58,.27)*bedTorch*bedTransmission*.7*(1.-uFreeze*.8);
+        outgoingLight+=diffuseColor.rgb*vec3(1.,.86,.68)*bedTorch*bedTransmission*.45*(1.-uFreeze*.8);
         #include <opaque_fragment>
       `);
 
@@ -179,6 +179,7 @@ export class TropicalWater {
     if(this.stones.instanceColor)this.stones.instanceColor.needsUpdate=true;
     this.stones.computeBoundingSphere();
   }
+  get timeUniform(){return this.uniforms.uTime}
   depthAt(x:number,z:number){return this.field.depthAt(x,z)}
   setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){
