@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {climate} from './climate';
+import {gameSpeed} from './game-speed';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {fromWorld,position,coast,type ShoreEdge} from './hex';
@@ -12,7 +13,8 @@ export class Wildlife {
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number;opacity:number}[]=[];
   private swimmers:{root:T.Group;angle:number;speed:number;lane:number;opacity:number}[]=[];
-  private avoidance=new WeakMap<T.Group,T.Vector3>();
+  private swimMotion=new WeakMap<T.Group,{speed:number;heading:number}>();
+  private swimTime=0;
   private fear=new WeakMap<T.Group,{left:number;velocity:T.Vector3}>();
   private swimCenter=new T.Vector3();
   private swimRadius=2;
@@ -43,38 +45,43 @@ export class Wildlife {
     }
     for(let i=0;i<18;i++){
       const root=koiFish(.28,true,true);root.visible=false;this.root.add(root);
-      this.swimmers.push({root,angle:i*2.39996,speed:.18+Math.random()*.32,lane:i,opacity:0});
+      this.swimmers.push({root,angle:i*2.39996,speed:.10+Math.random()*.08,lane:i,opacity:0});
     }
   }
 
   /** Only pointer-made disturbances trigger fear, never the fish's own splashes. */
   frighten(x:number,z:number,strength:number,length:number){
     if(climate.winter.value>.6)return;
-    const radius=1.25+Math.min(1,strength)*.8+Math.min(.4,length);
+    const radius=.42+Math.min(1,strength)*.16+Math.min(.08,length*.2);
     for(const fish of [...this.swimmers,...this.fish]){
       const root=fish.root;if(!root.visible||root.position.y>SEA_Y+.12)continue;
       const dx=root.position.x-x,dz=root.position.z-z,distance=Math.hypot(dx,dz);
       if(distance>radius)continue;
       const angle=distance>.01?Math.atan2(dx,dz):root.rotation.y;
       const previous=this.fear.get(root),velocity=previous?.velocity??new T.Vector3();
-      velocity.lerp(new T.Vector3(Math.sin(angle),0,Math.cos(angle)),.8).normalize().multiplyScalar(2.4+strength*1.2);
-      this.fear.set(root,{left:1.6,velocity});
+      velocity.lerp(new T.Vector3(Math.sin(angle),0,Math.cos(angle)),.45).normalize().multiplyScalar(.55+Math.min(1,strength)*.18);
+      this.fear.set(root,{left:1.3,velocity});
     }
   }
   private fleeFish(root:T.Group,dt:number){
     const fear=this.fear.get(root);if(!fear||fear.left<=0)return false;
     fear.left=Math.max(0,fear.left-dt);
-    const heading=Math.atan2(fear.velocity.x,fear.velocity.z),speed=fear.velocity.length()*Math.min(1,.35+fear.left);
-    const step=Math.min(.16,speed*dt);
+    const motion=this.swimMotion.get(root)??{speed:.14,heading:root.rotation.y};
+    const target=Math.atan2(fear.velocity.x,fear.velocity.z);
+    const turn=T.MathUtils.euclideanModulo(target-motion.heading+Math.PI,Math.PI*2)-Math.PI;
+    motion.heading+=T.MathUtils.clamp(turn,-dt*3,dt*3);
+    motion.speed=T.MathUtils.damp(motion.speed,T.MathUtils.lerp(.16,fear.velocity.length(),Math.min(1,fear.left/.6)),4,dt);
+    this.swimMotion.set(root,motion);
+    const heading=motion.heading,step=Math.min(.055,motion.speed*dt);
     let moved=false;
     // Turn along the shore instead of entering land; test the full short move.
     for(const turn of [0,.4,-.4,.85,-.85,1.4,-1.4,Math.PI]){
       const a=heading+turn,dx=Math.sin(a)*step,dz=Math.cos(a)*step;
       if(![.5,1].every(t=>this.clearWater(root.position.x+dx*t,root.position.z+dz*t)))continue;
       root.position.x+=dx;root.position.z+=dz;
-      fear.velocity.set(Math.sin(a),0,Math.cos(a)).multiplyScalar(3);
+      motion.heading=a;
       const yaw=T.MathUtils.euclideanModulo(a-root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
-      root.rotation.y+=yaw*(1-Math.exp(-dt*14));moved=true;break;
+      root.rotation.y+=yaw*(1-Math.exp(-dt*6));moved=true;break;
     }
     if(!moved)fear.velocity.applyAxisAngle(new T.Vector3(0,1,0),dt*5);
     const depth=Math.max(.03,this.waterDepth(root.position.x,root.position.z)-.10);
@@ -95,7 +102,7 @@ export class Wildlife {
     this.center.set(points.reduce((n,p)=>n+p.x,0)/points.length,0,points.reduce((n,p)=>n+p.z,0)/points.length);
     this.radius=Math.max(3,...points.map(p=>Math.hypot(p.x-this.center.x,p.z-this.center.z)+1.7));
   }
-  reset(){this.fear=new WeakMap();this.avoidance=new WeakMap();this.swimReady=false;this.swimmers.forEach(f=>{f.root.visible=false;f.opacity=0});this.shore=[];for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
+  reset(){this.fear=new WeakMap();this.swimMotion=new WeakMap();this.swimTime=0;this.swimReady=false;this.swimmers.forEach(f=>{f.root.visible=false;f.opacity=0});this.shore=[];for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
   update(time:number,dt:number){
     this.fishVisibility=T.MathUtils.damp(this.fishVisibility,this.targetFishVisibility,3,dt);
     this.birds.forEach((bird,i)=>{
@@ -111,67 +118,72 @@ export class Wildlife {
       bird.root.rotation.z=T.MathUtils.lerp(bird.root.rotation.z,-bird.direction*.10+Math.sin(a+bird.phase)*.04,1-Math.exp(-3*dt));
       bird.mixer.update(dt*(bird.pace===1?1:1.15));
     });
-    // Separate elliptical lanes keep a body-width clearance even at different speeds.
+    // Ambient fish use real time: game fast-forward must not turn them into projectiles.
+    const fishDt=dt/Math.max(1,gameSpeed.value);this.swimTime+=fishDt;
     const targetRadius=Math.max(1.8,(this.radius-.7)/.88);
     if(!this.swimReady){this.swimCenter.copy(this.center);this.swimRadius=targetRadius;this.swimReady=true}
-    this.swimCenter.lerp(this.center,1-Math.exp(-dt*.8));
-    this.swimRadius=T.MathUtils.damp(this.swimRadius,targetRadius,.8,dt);
+    this.swimCenter.lerp(this.center,1-Math.exp(-fishDt*.8));
+    this.swimRadius=T.MathUtils.damp(this.swimRadius,targetRadius,.8,fishDt);
     for(const fish of this.swimmers){
-      const radius=this.swimRadius+fish.lane*.72;
-      const a=fish.angle;
-      // Constant individual cruising speed, no reversing at the end of a shore segment.
-      const tangentLength=radius*Math.hypot(Math.cos(a),Math.sin(a)*.88);
-      fish.angle+=dt*fish.speed/Math.max(1,tangentLength);
-      const angle=fish.angle,x=this.swimCenter.x+Math.sin(angle)*radius,z=this.swimCenter.z+Math.cos(angle)*radius*.88;
-      const depth=.18+Math.min(.6,fish.lane*.045);
-      const targetOpacity=this.shore.length
-        ?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12))*(1-climate.winter.value*.85):0;
-      fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,dt);
-      fish.root.visible=fish.opacity>.005;
-      if(this.fleeFish(fish.root,dt)){
-        this.avoidance.set(fish.root,new T.Vector3(fish.root.position.x-x,0,fish.root.position.z-z));
-        animateKoi(fish.root,dt*3.2,fish.opacity);continue;
+      let motion=this.swimMotion.get(fish.root);
+      if(!motion){
+        const radius=this.swimRadius+fish.lane*.72,a=fish.angle;
+        const x=this.swimCenter.x+Math.sin(a)*radius,z=this.swimCenter.z+Math.cos(a)*radius*.88;
+        fish.root.position.set(x,SEA_Y-.2,z);
+        motion={speed:fish.speed,heading:Math.atan2(Math.cos(a),-Math.sin(a)*.88)};
+        fish.root.rotation.y=motion.heading;this.swimMotion.set(fish.root,motion);
       }
-      const previousPosition=fish.root.position.clone();
-      fish.root.position.set(x,SEA_Y-Math.min(depth,Math.max(.03,this.waterDepth(x,z)-.10)),z);
-      const offset=this.avoidance.get(fish.root);if(offset){offset.multiplyScalar(Math.exp(-dt*.8));if(this.clearWater(x+offset.x,z+offset.z))fish.root.position.add(offset)}
-      if(!this.clearWater(fish.root.position.x,fish.root.position.z)&&this.clearWater(previousPosition.x,previousPosition.z))fish.root.position.copy(previousPosition);
-      const yaw=Math.atan2(Math.cos(angle),-Math.sin(angle)*.88);
-      const turn=T.MathUtils.euclideanModulo(yaw-fish.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
-      fish.root.rotation.y+=turn*(1-Math.exp(-2*dt));
-      animateKoi(fish.root,dt*(.65+fish.speed*1.8),fish.opacity);
+      const targetOpacity=this.shore.length?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12))*(1-climate.winter.value*.85):0;
+      fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,fishDt);fish.root.visible=fish.opacity>.005;
+      if(this.fleeFish(fish.root,fishDt)){animateKoi(fish.root,fishDt*(.5+motion.speed*2),fish.opacity);continue}
+      // Keep the actual escape position. Gently curve onwards, never spring back to an old lane.
+      motion.speed=T.MathUtils.damp(motion.speed,fish.speed,1.5,fishDt);
+      motion.heading+=Math.sin(this.swimTime*.18+fish.lane*2.4)*fishDt*.10;
+      let moved=false;
+      for(const turn of [0,.3,-.3,.65,-.65,1.2,-1.2]){
+        const heading=motion.heading+turn,step=motion.speed*fishDt;
+        const x=fish.root.position.x+Math.sin(heading)*step,z=fish.root.position.z+Math.cos(heading)*step;
+        if(!this.clearWater(x,z))continue;
+        fish.root.position.x=x;fish.root.position.z=z;motion.heading=heading;moved=true;break;
+      }
+      if(!moved)motion.heading+=fishDt*.8;
+      const depth=Math.min(.18+Math.min(.6,fish.lane*.045),Math.max(.03,this.waterDepth(fish.root.position.x,fish.root.position.z)-.10));
+      fish.root.position.y=T.MathUtils.damp(fish.root.position.y,SEA_Y-depth,2,fishDt);
+      const turn=T.MathUtils.euclideanModulo(motion.heading-fish.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
+      fish.root.rotation.y+=turn*(1-Math.exp(-fishDt*2.5));
+      animateKoi(fish.root,fishDt*(.4+motion.speed*2),fish.opacity);
     }
     for(const f of this.fish){
 
-      if(f.age>=f.duration&&this.fleeFish(f.root,dt)){
-        f.age+=dt;const fear=this.fear.get(f.root)!;f.direction.copy(fear.velocity).normalize().multiplyScalar(1.5);
-        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,dt);
-        animateKoi(f.root,dt*3.2,f.opacity);continue;
+      if(f.age>=f.duration&&this.fleeFish(f.root,fishDt)){
+        f.age+=fishDt;const fear=this.fear.get(f.root)!;f.direction.copy(fear.velocity).normalize().multiplyScalar(1.5);
+        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,fishDt);
+        animateKoi(f.root,fishDt*1.3,f.opacity);continue;
       }
       if(f.age>=f.duration){
         // Keep the same fish swimming from its actual splash-down position.
-        f.age+=dt;const swimAge=f.age-f.duration;
-        const heading=Math.atan2(f.direction.x,f.direction.z)+dt*.16;
+        f.age+=fishDt;const swimAge=f.age-f.duration;
+        const heading=Math.atan2(f.direction.x,f.direction.z)+fishDt*.16;
         f.direction.set(Math.sin(heading)*1.5,0,Math.cos(heading)*1.5);
-        const next=f.root.position.clone().addScaledVector(f.direction,dt*.2);
+        const next=f.root.position.clone().addScaledVector(f.direction,fishDt*.2);
         if(this.clearWater(next.x,next.z))f.root.position.copy(next);
-        else {f.direction.applyAxisAngle(new T.Vector3(0,1,0),dt*2);}
+        else {f.direction.applyAxisAngle(new T.Vector3(0,1,0),fishDt*2);}
         if(!this.clearWater(f.root.position.x,f.root.position.z)){
           // A newly placed tile can cover an existing route; swim toward open water.
           const outward=f.root.position.clone().sub(this.center).setY(0).normalize();
-          f.direction.lerp(outward.multiplyScalar(1.5),1-Math.exp(-dt*3));
-          f.root.position.addScaledVector(f.direction,dt*.4);
+          f.direction.lerp(outward.multiplyScalar(1.5),1-Math.exp(-fishDt*3));
+          f.root.position.addScaledVector(f.direction,fishDt*.4);
         }
-        f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-Math.min(.23,Math.max(.03,this.waterDepth(f.root.position.x,f.root.position.z)-.10)),3,dt);
-        f.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),heading),1-Math.exp(-3*dt));
-        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,dt);animateKoi(f.root,dt,f.opacity);
+        f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-Math.min(.23,Math.max(.03,this.waterDepth(f.root.position.x,f.root.position.z)-.10)),3,fishDt);
+        f.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),heading),1-Math.exp(-3*fishDt));
+        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,fishDt);animateKoi(f.root,fishDt,f.opacity);
         if(climate.winter.value<.35&&swimAge>20&&[.25,.5,.75,1].every(t=>this.clearWater(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t))){
           f.start.copy(f.root.position);f.start.y=SEA_Y;f.age=0;this.splash(f.start.x,f.start.z);
         }
         continue;
       }
       if(f.age<0){
-        f.wait-=dt;if(f.wait>0)continue;
+        f.wait-=fishDt;if(f.wait>0)continue;
         let found=false;
         for(let n=0;n<12;n++){
           const a=Math.random()*Math.PI*2,r=this.radius*(.75+Math.random()*.65),heading=a+Math.PI/2;
@@ -181,30 +193,30 @@ export class Wildlife {
         if(!found){f.wait=3;continue}
         f.age=0;f.root.visible=true;this.splash(f.start.x,f.start.z);
       }
-      f.opacity=T.MathUtils.damp(f.opacity,1,4,dt);animateKoi(f.root,dt,f.opacity);
-      f.age+=dt;const t=Math.min(1,f.age/f.duration);
+      f.opacity=T.MathUtils.damp(f.opacity,1,4,fishDt);animateKoi(f.root,fishDt,f.opacity);
+      f.age+=fishDt;const t=Math.min(1,f.age/f.duration);
       const nextJump=f.start.clone().addScaledVector(f.direction,t);
       if(!this.clearWater(nextJump.x,nextJump.z)){f.age=f.duration;continue}
       f.root.position.copy(nextJump);f.root.position.y+=Math.sin(t*Math.PI)*.65;
       const tangent=f.direction.clone();tangent.y=Math.cos(t*Math.PI)*Math.PI*.65;f.root.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tangent.normalize());
       if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.age=f.duration;f.root.position.y=SEA_Y;animateKoi(f.root,0,f.opacity)}
     }
-    const swimmers=new Set(this.swimmers.map(f=>f.root));
     const active=[...this.swimmers.map(f=>f.root),...this.fish.map(f=>f.root)].filter(root=>root.visible&&root.position.y<SEA_Y+.12);
     for(let pass=0;pass<3;pass++)for(let i=0;i<active.length;i++)for(let j=i+1;j<active.length;j++){
       const a=active[i],b=active[j],dx=a.position.x-b.position.x,dz=a.position.z-b.position.z,d=Math.hypot(dx,dz);
-      if(d>=.85)continue;
+      if(d>=.5)continue;
       const nx=d>.001?dx/d:Math.cos(i*2.4),nz=d>.001?dz/d:Math.sin(i*2.4);
-      const push=d<.48?(.48-d)*.5:(.85-d)*Math.min(.5,dt*3);
+      const push=Math.min(.012,(.5-d)*fishDt*1.2);
       for(const [root,sign] of [[a,1],[b,-1]] as const){
         const x=root.position.x+nx*push*sign,z=root.position.z+nz*push*sign;
         if(!this.clearWater(x,z))continue;
         root.position.x=x;root.position.z=z;
-        if(swimmers.has(root)){
-          const offset=this.avoidance.get(root)??new T.Vector3();offset.x+=nx*push*sign;offset.z+=nz*push*sign;this.avoidance.set(root,offset);
+        const motion=this.swimMotion.get(root);
+        if(motion){
+          motion.heading+=nx*sign*fishDt*.15;
         }else{
           const fish=this.fish.find(f=>f.root===root)!;
-          fish.direction.x+=nx*sign*dt;fish.direction.z+=nz*sign*dt;fish.direction.normalize().multiplyScalar(1.5);
+          fish.direction.x+=nx*sign*fishDt;fish.direction.z+=nz*sign*fishDt;fish.direction.normalize().multiplyScalar(1.5);
         }
       }
     }
