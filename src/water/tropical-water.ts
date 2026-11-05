@@ -20,7 +20,7 @@ export class TropicalWater {
   private transitionEnd=LAND_END;
   private pendingEdges:ShoreEdge[]|null=null;
   private readonly uniforms={
-    uNight:climate.night,uFreeze:climate.winter,
+    uNight:climate.night,uFreeze:climate.winter,uAutumn:climate.autumn,uSummer:climate.summer,
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
     uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},
     uCoastMix:{value:1},uPreviousCoast:{value:this.previousField.texture},
@@ -79,7 +79,7 @@ export class TropicalWater {
   private receiver(sand:boolean){
     const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,depthWrite:!sand});
     mat.onBeforeCompile=shader=>{
-      shader.uniforms.uNight=climate.night;shader.uniforms.uFreeze=climate.winter;
+      shader.uniforms.uNight=climate.night;shader.uniforms.uFreeze=climate.winter;shader.uniforms.uAutumn=climate.autumn;shader.uniforms.uSummer=climate.summer;
       shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
       shader.uniforms.uWakes=this.uniforms.uWakes;shader.uniforms.uWakeDirs=this.uniforms.uWakeDirs;shader.uniforms.uLanding=this.uniforms.uLanding;
       shader.vertexShader='varying vec3 vReceiver;\n'+shader.vertexShader;

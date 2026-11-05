@@ -2,7 +2,7 @@
 // Refraction shifts the surface image slightly away from the light on the bed.
 export const optics = /* glsl */ `
 uniform float uTime;
-uniform float uNight,uFreeze;
+uniform float uNight,uFreeze,uAutumn,uSummer;
 uniform sampler2D uLight;
 const mat2 turn = mat2(.891, .454, -.454, .891);
 vec2 current(vec2 p) {
@@ -121,6 +121,8 @@ void main() {
   pigment=mix(pigment,offshore,smoothstep(.88,3.15,depth));
   // Large, quiet colour variations in open water continue past the depth atlas.
   pigment*=.95+.10*weather.a;
+  pigment=mix(pigment,pigment*vec3(.86,1.06,1.08),uSummer*.45);
+  pigment=mix(pigment,pigment*vec3(1.12,.97,.85),uAutumn*.4);
   float age=uTime-uLanding.z;
   float radius=length(p-uLanding.xy);
   float ring=0.,arrivalFoam=0.;

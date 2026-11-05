@@ -541,6 +541,7 @@ export class World {
     const timestamp=Number.isFinite(now)?now:performance.now();
     const dt=Math.max(0,Math.min(.065,(timestamp-this.previousTime)/1000));this.previousTime=timestamp;this.time+=dt;
     this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
+    this.grid.update(dt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     if(this.ghost?.visible){
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-16*dt));

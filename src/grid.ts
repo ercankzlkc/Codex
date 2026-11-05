@@ -13,6 +13,8 @@ function outline(radius:number) {
 export class PlacementGrid {
   readonly root=new T.Group();
   private markers=new T.Group();
+  private visibility=0;
+  private available=false;
   private ray=new T.Raycaster();
   private plane=new T.Plane(new T.Vector3(0,1,0),-LAND_Y);
   private hit=new T.Vector3();
@@ -26,6 +28,8 @@ export class PlacementGrid {
   constructor(scene:T.Scene){this.root.add(this.markers,this.hover);this.hover.visible=false;scene.add(this.root)}
   rebuild(board:ReadonlyMap<number,unknown>){
     this.occupied=new Set(board.keys());this.markers.clear();
+    if(!this.available)this.visibility=0;
+    this.markers.visible=this.visibility>.001;
     for(const id of frontier(board)){
       const tile=new T.Group();tile.position.copy(cellPosition(id,SEA_Y+.055));tile.userData.id=id;
       const fill=new T.Mesh(this.fillGeo,this.fillMat),line=new T.LineLoop(this.rim,this.rimMat);
@@ -55,7 +59,14 @@ export class PlacementGrid {
     return best;
   }
   showAvailable(active:boolean,valid:(id:number)=>boolean){
-    this.markers.visible=active;this.markers.children.forEach(m=>m.visible=valid(m.userData.id));
+    this.available=active;
+    if(active)this.markers.children.forEach(m=>m.visible=valid(m.userData.id));
+  }
+  update(dt:number){
+    this.visibility=T.MathUtils.damp(this.visibility,this.available?1:0,10,dt);
+    this.markers.visible=this.visibility>.001;
+    this.fillMat.opacity=.16*this.visibility;this.rimMat.opacity=.9*this.visibility;
+    for(const marker of this.markers.children)marker.scale.setScalar(.94+.06*this.visibility);
   }
   setHover(id:number,valid:boolean,selected:boolean){
     this.hover.visible=selected&&id>=0;if(!this.hover.visible)return;
