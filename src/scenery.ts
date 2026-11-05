@@ -30,7 +30,7 @@ function groundSampler(id:number,board:ReadonlyMap<number,unknown>){
 }
 
 const APOTHEM=RADIUS*Math.cos(Math.PI/6);
-export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
+export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>,topOnly=false){
   const outer=adjacent(id).map(n=>!board.has(n));
   // Intersect neighboring offset edge lines. Shared edges always use zero offset,
   // so even at a concave shoreline both tiles produce the same seam endpoints.
@@ -56,8 +56,8 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
       color.push(shade.r,shade.g,shade.b);
     }
   };
-  const levels=[[-.095,LAND_Y],[-.035,.074],[.05,-.016],[.15,-.16],[.28,-.37],[.42,-.58]];
-  const tints=[0x91ab6c,0xa8b780,0xdcc796,0xe8cf9e,0xd7c397];
+  const levels=[[-.095,LAND_Y],[-.035,.074],[.05,-.016],[.15,-.16],[.21,-.25],[.28,-.34],[.36,-.43],[.45,-.51],[.56,-.58],[.69,-.64],[.84,-.69]];
+  const tints=[0x91ab6c,0xa8b780,0xdcc796,0xe8cf9e,0xe3cc9c,0xdbc79b,0xc9be98,0xb2b69a,0x9cab96,0x8b9f91];
   for(let k=0;k<6;k++){
     const layers=levels.map(([o,y])=>{
       const a=vertex(k,o,y),b=vertex(k+1,o,y);
@@ -78,7 +78,7 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
         tri(point(u,v),point(u+1,v),point(u,v+1),0xa4bb7f);
         if(u+v<steps-1)tri(point(u+1,v),point(u+1,v+1),point(u,v+1),0xa4bb7f);
       }
-      if(!outer[k])continue;
+      if(topOnly||!outer[k])continue;
       for(let l=0;l<levels.length-1;l++){
         const [a,b,c,d]=[layers[l][s],layers[l][s+1],layers[l+1][s],layers[l+1][s+1]];
         const shade=1+.035*Math.sin(id+k*1.7+s);
@@ -88,6 +88,15 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>){
   }
   const geometry=new T.BufferGeometry();geometry.setAttribute('position',new T.Float32BufferAttribute(pos,3));
   geometry.setAttribute('color',new T.Float32BufferAttribute(color,3));geometry.computeVertexNormals();
+  // Average normals across duplicate triangle vertices for a rounded coastal slope.
+  const normals=geometry.getAttribute('normal'),positions=geometry.getAttribute('position'),sums=new Map<string,T.Vector3>();
+  const keys:string[]=[];
+  for(let i=0;i<positions.count;i++){
+    const key=`${positions.getX(i).toFixed(5)},${positions.getY(i).toFixed(5)},${positions.getZ(i).toFixed(5)}`;keys.push(key);
+    const sum=sums.get(key)??new T.Vector3();sum.add(new T.Vector3(normals.getX(i),normals.getY(i),normals.getZ(i)));sums.set(key,sum);
+  }
+  for(const normal of sums.values())normal.normalize();
+  for(let i=0;i<normals.count;i++){const normal=sums.get(keys[i])!;normals.setXYZ(i,normal.x,normal.y,normal.z)}
   return geometry;
 }
 /** Scattered rooted blades, kept clear of model footprints and the shore. */

@@ -12,6 +12,7 @@ export class Wildlife {
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
   private swimmers:{root:T.Group;angle:number;speed:number;lane:number;opacity:number}[]=[];
+  private avoidance=new WeakMap<T.Group,T.Vector3>();
   private swimCenter=new T.Vector3();
   private swimRadius=2;
   private swimReady=false;
@@ -91,6 +92,7 @@ export class Wildlife {
       fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,dt);
       fish.root.visible=fish.opacity>.005&&this.clearWater(x,z);
       fish.root.position.set(x,SEA_Y-depth,z);
+      const offset=this.avoidance.get(fish.root);if(offset){offset.multiplyScalar(Math.exp(-dt*.8));if(this.clearWater(x+offset.x,z+offset.z))fish.root.position.add(offset)}
       const yaw=Math.atan2(Math.cos(angle),-Math.sin(angle)*.88);
       const turn=T.MathUtils.euclideanModulo(yaw-fish.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
       fish.root.rotation.y+=turn*(1-Math.exp(-2*dt));
@@ -133,6 +135,25 @@ export class Wildlife {
       f.root.position.copy(nextJump);f.root.position.y+=Math.sin(t*Math.PI)*.65;
       const tangent=f.direction.clone();tangent.y=Math.cos(t*Math.PI)*Math.PI*.65;f.root.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tangent.normalize());
       if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.age=f.duration;f.root.position.y=SEA_Y;animateKoi(f.root,0,.42*this.fishVisibility)}
+    }
+    const swimmers=new Set(this.swimmers.map(f=>f.root));
+    const active=[...this.swimmers.map(f=>f.root),...this.fish.map(f=>f.root)].filter(root=>root.visible&&root.position.y<SEA_Y+.12);
+    for(let pass=0;pass<3;pass++)for(let i=0;i<active.length;i++)for(let j=i+1;j<active.length;j++){
+      const a=active[i],b=active[j],dx=a.position.x-b.position.x,dz=a.position.z-b.position.z,d=Math.hypot(dx,dz);
+      if(d>=.85)continue;
+      const nx=d>.001?dx/d:Math.cos(i*2.4),nz=d>.001?dz/d:Math.sin(i*2.4);
+      const push=d<.48?(.48-d)*.5:(.85-d)*Math.min(.5,dt*3);
+      for(const [root,sign] of [[a,1],[b,-1]] as const){
+        const x=root.position.x+nx*push*sign,z=root.position.z+nz*push*sign;
+        if(!this.clearWater(x,z))continue;
+        root.position.x=x;root.position.z=z;
+        if(swimmers.has(root)){
+          const offset=this.avoidance.get(root)??new T.Vector3();offset.x+=nx*push*sign;offset.z+=nz*push*sign;this.avoidance.set(root,offset);
+        }else{
+          const fish=this.fish.find(f=>f.root===root)!;
+          fish.direction.x+=nx*sign*dt;fish.direction.z+=nz*sign*dt;fish.direction.normalize().multiplyScalar(1.5);
+        }
+      }
     }
   }
 }

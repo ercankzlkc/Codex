@@ -434,7 +434,7 @@ export class World {
     if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
     if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
       const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
-      this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
+      this.previewLand=new T.Mesh(terrainGeometry(i,preview,true),this.previewLandMat);
       this.previewLand.position.copy(this.ghost.position);this.previewLand.position.y=0;
       this.previewLand.castShadow=false;this.previewLand.receiveShadow=false;this.previewLand.renderOrder=3;this.scene.add(this.previewLand);
     }

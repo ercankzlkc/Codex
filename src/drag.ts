@@ -167,9 +167,10 @@ export class CardDrag {
     // A suspended card rotates until its centre of mass hangs below the grip.
     const resting=Math.hypot(dx,dy)>8?Math.atan2(dx,dy)*180/Math.PI:0;
     const error=((resting-gesture.visualTilt+540)%360)-180;
-    const torque=(ax*(gesture.anchorY-.5)-ay*(gesture.anchorX-.5))*.09;
+    const leverX=dx/Math.max(40,gesture.width),leverY=dy/Math.max(40,gesture.height);
+    const torque=(ax*leverY-ay*leverX)*.35+(vx*leverY-vy*leverX)*dt*.65;
     gesture.angularVelocity+=torque+error*35*dt;
-    gesture.angularVelocity*=Math.exp(-5*dt);
+    gesture.angularVelocity*=Math.exp(-3.2*dt);
     gesture.visualTilt+=gesture.angularVelocity*dt;
     gesture.ghost.style.transform=this.followTransform(gesture);
     this.animationFrame=requestAnimationFrame(()=>this.follow(gesture,now));

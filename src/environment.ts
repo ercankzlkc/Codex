@@ -15,7 +15,7 @@ export class Environment {
   readonly root=new T.Group();
   private readonly land=new Map<number,Patch>();
   private readonly water=new TropicalWater();
-  private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide});
+  private readonly landMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:false,side:T.DoubleSide});
 
   private audioShore:ShoreEdge[]=[];
   private shoreOpenings=new Map<number,number>();
