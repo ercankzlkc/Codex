@@ -10,7 +10,8 @@ import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld,corner,RADIUS,adjacent,type ShoreEdge} from './hex';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
-import { PlacementGrid, cellPosition, PLACEMENT_Y, PLACEMENT_EASE } from './grid';
+import { PlacementGrid, cellPosition, PLACEMENT_EASE } from './grid';
+import {terrainGeometry} from './scenery';
 import { model, resourceModel, part, box } from './models';
 import {Game,BUILDING_SCALE,cards,type Resource,type Card,type Kind,type Production} from './game';
 import {Villagers} from './villagers';
@@ -82,6 +83,8 @@ export class World {
   private demolitions:{id:number;group:T.Group;time:number}[]=[];
   private ghost:T.Group|null=null;
   private ghostModel:T.Group|null=null;
+  private previewLand:T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>|null=null;
+  private previewLandCell=-1;
   private placementModel:T.Group|null=null;
   private pendingModel:{kind:Kind;group:T.Group}|null=null;
   private desiredGhostYaw=0;
@@ -92,8 +95,6 @@ export class World {
   private placementQueued=false;
   private previewWanted=false;
   private previewFade=0;
-  private previewArrival=.34;
-  private readonly reducedPlacementMotion=matchMedia('(prefers-reduced-motion: reduce)');
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
@@ -448,14 +449,19 @@ export class World {
   private setHover(i:number,force=false){
     if(this.editing>=0&&!this.selected){this.grid.setHover(this.editing,true,true);return}
     if(!force&&i===this.hover)return;
-    const previousHover=this.hover;this.hover=i;
+    this.hover=i;
     const valid=i>=0&&this.valid(i);
-    if(valid&&i!==previousHover)this.previewArrival=0;
     this.grid.setHover(i,valid,!!this.selected&&(valid||this.board.has(i)));
     this.previewWanted=!!this.ghost&&valid&&!this.selected?.event;
     if(this.ghost&&this.previewWanted){
       if(this.selected&&['fisher','harbor'].includes(this.selected.id)&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
-      this.ghostTarget.copy(cellPosition(i,PLACEMENT_Y+.018));
+      if(this.previewLand&&this.previewLandCell!==i&&this.selected){
+        const plannedBoard=new Map(this.board);plannedBoard.set(i,this.selected.id);
+        this.previewLand.geometry.dispose();this.previewLand.geometry=terrainGeometry(i,plannedBoard);
+        this.previewLandCell=i;
+      }
+      // Terrain already contains its world height; only the model sits at LAND_Y.
+      this.ghostTarget.copy(cellPosition(i,0));
       if(this.previewFade<.02)this.ghost.position.copy(this.ghostTarget);
       this.ghost.visible=true;
     }
@@ -467,13 +473,16 @@ export class World {
     const targetYaw=same?this.desiredGhostYaw:0,currentYaw=same?(this.ghostModel?.rotation.y??targetYaw):0;
     this.cameraControl.setPlacement(!!card);
     if(this.ghost){this.scene.remove(this.ghost);this.ghost=null}
+    if(this.previewLand){this.previewLand.geometry.dispose();this.previewLand.material.dispose();this.previewLand=null}
+    this.previewLandCell=-1;
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
     this.previewFade=0;this.previewWanted=false;this.placementModel=null;
     this.selected=card;this.fisherOffset=same?this.fisherOffset:0;this.placementQueued=false;this.ghostModel=null;this.desiredGhostYaw=targetYaw;this.wheelRotation=0;
     this.renderer.domElement.style.cursor=card?'var(--cursor-grab)':'';
     if(card&&!card.event){
       this.ghost=new T.Group();this.ghostModel=model(card.id);this.placementModel=this.ghostModel.clone();this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);
-      this.ghost.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(card.id)?BUILDING_SCALE:['berry','farm'].includes(card.id)?.75:1);
+      this.ghostModel.position.y=LAND_Y;
+      this.ghostModel.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(card.id)?BUILDING_SCALE:['berry','farm'].includes(card.id)?.75:1);
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
         const cloneMaterial=(source:T.MeshStandardMaterial)=>{
           const mat=source.clone(),base=mat.color.clone();
@@ -485,6 +494,13 @@ export class World {
         o.material=Array.isArray(o.material)?o.material.map(m=>cloneMaterial(m as T.MeshStandardMaterial)):cloneMaterial(o.material as T.MeshStandardMaterial);
         o.castShadow=false;o.receiveShadow=false;o.renderOrder=4;o.userData.placementPreview=true;
       }});
+      const landMaterial=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:false,
+        transparent:true,opacity:0,depthWrite:true,side:T.DoubleSide,emissive:0x11180e,emissiveIntensity:.35});
+      landMaterial.forceSinglePass=true;seasonalSurface(landMaterial);
+      this.previewLand=new T.Mesh(new T.BufferGeometry(),landMaterial);
+      // Draw the full-size coastal base before water, so its submerged edge stays underwater.
+      this.previewLand.renderOrder=1;this.previewLand.receiveShadow=true;this.previewLand.userData.placementPreview=true;
+      this.ghost.add(this.previewLand);
       this.scene.add(this.ghost);this.ghost.visible=false;
     }
     this.grid.showAvailable(!!card&&!card.event,this.valid);this.setHover(-1,true);
@@ -600,10 +616,8 @@ export class World {
       if(valid!==this.previewWanted)this.setHover(this.hover,true);
       this.previewFade=T.MathUtils.damp(this.previewFade,this.previewWanted?1:0,18,realDt);
       this.ghost.visible=this.previewFade>.002;
-      for(const {mat} of this.ghostPalette)mat.opacity=this.previewFade*.76;
-      this.previewArrival=Math.min(.34,this.previewArrival+realDt);
-      const lift=this.reducedPlacementMotion.matches?0:Math.sin(this.previewArrival/.34*Math.PI)*.032;
-      this.ghostTarget.y=PLACEMENT_Y+.018+lift;
+      for(const {mat} of this.ghostPalette)mat.opacity=this.previewFade*.84;
+      if(this.previewLand)this.previewLand.material.opacity=this.previewFade*.92;
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-PLACEMENT_EASE*realDt));
       if(this.ghostModel){
         const difference=this.desiredGhostYaw-this.ghostModel.rotation.y;

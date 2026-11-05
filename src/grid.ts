@@ -42,8 +42,8 @@ void main(){
   float wash=inside*(.07+.045*exp(-max(0.,-distance)*5.));
   float glow=exp(-abs(distance+.025)*18.);
   float breath=1.+sin(uTime*1.8)*.018*uMotion;
-  float active=uFocus*uArrival;
-  float lightAlpha=(rim*mix(.53,.82,uFocus)+wash*mix(1.,1.55,uFocus)+glow*(.018+uFocus*.045+active*.09))*breath;
+  float focusPulse=uFocus*uArrival;
+  float lightAlpha=(rim*mix(.53,.82,uFocus)+wash*mix(1.,1.55,uFocus)+glow*(.018+uFocus*.045+focusPulse*.09))*breath;
   float inkAlpha=lip*mix(.22,.30,uFocus);
   float alpha=clamp(lightAlpha+inkAlpha,0.,.94)*uOpacity*vEnabled;
   if(alpha<.002)discard;
@@ -159,7 +159,7 @@ export class PlacementGrid{
     this.hoverWanted=selected&&id>=0;
     if(!this.hoverWanted){this.hoverId=-1;return}
     if(id!==this.hoverId){this.arrival.value=this.reducedMotion.matches?0:1;this.hoverId=id}
-    this.hoverTarget.copy(cellPosition(id,this.occupied.has(id)?LAND_Y+.015:PLACEMENT_Y+.004));
+    this.hoverTarget.copy(cellPosition(id,LAND_Y+.020));
     if(this.focusOpacity.value<.02)this.hover.position.copy(this.hoverTarget);
     this.focusColor.value.set(valid?'#fff0c8':'#e3ad98');
   }
