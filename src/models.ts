@@ -1,3 +1,4 @@
+import {koiFish} from './koi';
 import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries,mergeVertices} from 'three/addons/utils/BufferGeometryUtils.js';
@@ -53,6 +54,7 @@ function wheatTuft(){
 }
 const resourceTemplates=new Map<string,T.Group>();
 export function resourceModel(kind:string){
+  if(kind==='fish'){const group=new T.Group();for(let i=0;i<2;i++){const fish=koiFish(.19);fish.position.set((i-.5)*.065,.035,0);group.add(fish)}return group;}
   const cached=resourceTemplates.get(kind);if(cached)return cached.clone();
   const g=new T.Group();
   if(kind==='wood')for(let i=0;i<3;i++){
@@ -60,7 +62,6 @@ export function resourceModel(kind:string){
     const bark=part(log,new T.CylinderGeometry(.035,.035,.22,8),0x88603c);bark.rotation.x=Math.PI/2;
     for(const z of [-.112,.112]){const end=part(log,new T.CircleGeometry(.028,8),0xd6b17c,0,0,z);end.rotation.y=z<0?Math.PI:0}
   }
-  else if(kind==='fish')for(let i=0;i<2;i++){const fish=new T.Group();fish.position.set((i-.5)*.065,.035,0);const body=ball(fish,0x8fb9bf,0,0,0,.065);body.scale.set(.45,.5,1.4);const tail=part(fish,new T.ConeGeometry(.034,.052,3),0x588e9b,0,0,-.10);tail.rotation.x=Math.PI/2;ball(fish,0x243c3b,.022,.014,.055,.008);g.add(fish)}
   else if(kind==='wheat'){
     const bundle=wheatTuft();bundle.scale.setScalar(.55);bundle.position.y=-.025;bundle.rotation.z=.22;g.add(bundle);
     const tie=part(g,new T.TorusGeometry(.026,.005,4,8),0x9c7950,0,.07,0);tie.rotation.x=Math.PI/2;

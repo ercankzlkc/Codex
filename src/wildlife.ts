@@ -4,14 +4,14 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {clone} from 'three/addons/utils/SkeletonUtils.js';
 import {fromWorld,position,coast,type ShoreEdge} from './hex';
 import {SEA_Y} from './scenery';
-import {resourceUnitModel} from './models';
+import {koiFish,animateKoi} from './koi';
 /** Small shared meshes keep the coast alive without adding simulation workers. */
 export class Wildlife {
   readonly soundBirds:T.Object3D[]=[];
   private root=new T.Group();
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
-  private swimmers:{root:T.Group;materials:T.MeshStandardMaterial[];tail:T.Object3D;phase:number;edge:number}[]=[];
+  private swimmers:{root:T.Group;phase:number;edge:number}[]=[];
   private shore:ShoreEdge[]=[];
   private fishVisibility=0;
   private center=new T.Vector3();private radius=4;
@@ -32,22 +32,12 @@ export class Wildlife {
       }
     },undefined,error=>console.error('Martı modeli yüklenemedi',error));
     for(let i=0;i<2;i++){
-      const root=resourceUnitModel('fish');root.scale.setScalar(1.5);root.visible=false;this.root.add(root);
+      const root=koiFish(.30,true);root.visible=false;this.root.add(root);
       this.fish.push({root,start:new T.Vector3(),direction:new T.Vector3(),age:-1,wait:5+i*7,duration:1.25});
     }
-    // Use exactly the carried fish asset, retaining its silver body, darker tail and eye.
     for(let i=0;i<10;i++){
-      const root=resourceUnitModel('fish'),materials:T.MeshStandardMaterial[]=[];
-      root.scale.setScalar(1.45);
-      root.traverse(object=>{
-        if(!(object instanceof T.Mesh))return;
-        const material=(object.material as T.MeshStandardMaterial).clone();
-        material.transparent=true;material.opacity=0;material.depthWrite=false;
-        object.material=material;object.castShadow=false;object.renderOrder=3;materials.push(material);
-      });
-      const fish=root.children[0];fish.position.y=0;
-      const tail=fish.children[1];
-      root.visible=false;this.root.add(root);this.swimmers.push({root,materials,tail,phase:i*2.37,edge:i*7});
+      const root=koiFish(.28,true,true);root.visible=false;this.root.add(root);
+      this.swimmers.push({root,phase:i*2.37,edge:i*7});
     }
   }
 
@@ -88,8 +78,7 @@ export class Wildlife {
       fish.root.position.set(px,SEA_Y-.09,pz);
       fish.root.rotation.y=Math.atan2(dx,dz)+(Math.cos(time*.24+fish.phase)<0?Math.PI:0);
       fish.root.rotation.y+=Math.sin(time*4+fish.phase)*.08;
-      fish.tail.rotation.y=Math.sin(time*7+fish.phase)*.3;
-      fish.materials.forEach(material=>material.opacity=.65*this.fishVisibility);fish.root.visible=true;
+      animateKoi(fish.root,dt,.8*this.fishVisibility);fish.root.visible=true;
     }
     for(const f of this.fish){
       if(climate.winter.value>.35){f.root.visible=false;f.age=-1;continue;}
@@ -104,6 +93,7 @@ export class Wildlife {
         if(!found){f.wait=3;continue}
         f.age=0;f.root.visible=true;this.splash(f.start.x,f.start.z);
       }
+      animateKoi(f.root,dt);
       f.age+=dt;const t=Math.min(1,f.age/f.duration);
       f.root.position.copy(f.start).addScaledVector(f.direction,t);f.root.position.y+=Math.sin(t*Math.PI)*.65;
       const tangent=f.direction.clone();tangent.y=Math.cos(t*Math.PI)*Math.PI*.65;f.root.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tangent.normalize());
