@@ -1,141 +1,239 @@
 import * as T from 'three';
-import {torchField} from './torch-light';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import {torchField} from './torch-light';
 import {coast,fromWorld} from './hex';
 import {SEA_Y} from './scenery';
-import {gameSpeed} from './game-speed';
+import {optics} from './water/shaders';
+import {sampleReefCurrent,type OceanUniforms} from './water/motion';
 
-/** Keep submerged solids opaque while receiving the same attenuated warm light as the bed. */
-function underwaterLight(material:T.MeshStandardMaterial){
-  material.transparent=false;material.opacity=1;material.depthWrite=true;
+const hash=(seed:number)=>{const n=Math.sin(seed*127.1+17.7)*43758.5453;return n-Math.floor(n)};
+const CAPACITY=24;
+const palettes=[
+  ['#c888bd','#d999bd','#b5a0cf'], // sea fans
+  ['#ed9d83','#e89aaf','#dcb077'], // finger colonies
+  ['#a797c9','#b5a4d0','#dd9aab'], // ruffled rosettes
+  ['#78bbae','#95c6ae','#c1a0c8'], // soft polyps
+];
+
+/** Opaque solids are drawn below the water, receiving light without a glowing outline. */
+function underwaterLight(material:T.MeshStandardMaterial,uniforms:OceanUniforms){
   const previous=material.onBeforeCompile,key=material.customProgramCacheKey();
   material.onBeforeCompile=function(shader,renderer){
     previous.call(this,shader,renderer);
+    Object.assign(shader.uniforms,uniforms);
     shader.uniforms.uReefTorch=torchField.map;shader.uniforms.uReefTorchRegion=torchField.region;
-    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vReefWorld;');
-    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvReefWorld=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uReefTorch;uniform vec4 uReefTorchRegion;varying vec3 vReefWorld;');
+    shader.vertexShader='varying vec3 vReefWorld;\n'+shader.vertexShader;
+    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>',`
+      #include <project_vertex>
+      vReefWorld=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;
+    `);
+    shader.fragmentShader='varying vec3 vReefWorld;\nuniform sampler2D uReefTorch;uniform vec4 uReefTorchRegion;\n'+optics+'\n'+shader.fragmentShader;
+    shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`
+      #include <color_fragment>
+      float reefDepth=max(0.,-.18-vReefWorld.y);
+      vec2 reefFlow=current(vReefWorld.xz);
+      Lens reefLens=lightNet(vReefWorld.xz+reefDepth*vec2(.19,-.12),reefFlow,vec4(0.));
+      float reefDay=(1.-uNight)*(1.-uFreeze)*exp(-reefDepth*.7);
+      diffuseColor.rgb*=.97+(reefLens.thread*.17+reefLens.halo*.045)*reefDay;
+    `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
-      vec2 reefLightUv=(vReefWorld.xz-uReefTorchRegion.xy)/uReefTorchRegion.zw;
-      float reefInside=step(0.,reefLightUv.x)*step(0.,reefLightUv.y)*step(reefLightUv.x,1.)*step(reefLightUv.y,1.);
-      float reefWarm=texture2D(uReefTorch,clamp(reefLightUv,0.,1.)).g*reefInside;
-      outgoingLight+=diffuseColor.rgb*vec3(1.,.86,.68)*reefWarm*exp(-max(0.,-.18-vReefWorld.y)*.75)*.42;
+      vec2 reefUv=(vReefWorld.xz-uReefTorchRegion.xy)/uReefTorchRegion.zw;
+      float reefInside=step(0.,reefUv.x)*step(0.,reefUv.y)*step(reefUv.x,1.)*step(reefUv.y,1.);
+      float reefWarm=texture2D(uReefTorch,clamp(reefUv,0.,1.)).g*reefInside;
+      outgoingLight+=diffuseColor.rgb*(vec3(.012)*reefDay+vec3(1.,.86,.68)*reefWarm*.38*exp(-reefDepth*.75));
+      outgoingLight*=mix(vec3(1.),vec3(.73,.94,.98),1.-exp(-reefDepth*.45));
       #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey=()=>key+'-submerged-warm-solid-v1';
+  material.customProgramCacheKey=()=>key+'-reef-optics-v2';
 }
-const hash=(seed:number)=>{const n=Math.sin(seed*127.1+17.7)*43758.5453;return n-Math.floor(n)};
+
 function coralGeometry(type:number){
   const parts:T.BufferGeometry[]=[];
   const add=(geometry:T.BufferGeometry,shade=1)=>{
-    const values=new Float32Array(geometry.getAttribute('position').count*3);
-    for(let i=0;i<values.length;i+=3){values[i]=shade;values[i+1]=shade*.97;values[i+2]=shade}
-    geometry.setAttribute('color',new T.BufferAttribute(values,3));parts.push(geometry);
+    geometry.deleteAttribute('uv');
+    const pos=geometry.getAttribute('position'),color=new Float32Array(pos.count*3);
+    for(let i=0;i<pos.count;i++){
+      const tip=T.MathUtils.smoothstep(pos.getY(i),.08,.95);
+      color[i*3]=shade*(.80+.20*tip);color[i*3+1]=shade*(.74+.24*tip);color[i*3+2]=shade*(.81+.19*tip);
+    }
+    geometry.setAttribute('color',new T.BufferAttribute(color,3));parts.push(geometry);
+  };
+  const tube=(points:T.Vector3[],radius:number,shade:number)=>{
+    const curve=new T.CatmullRomCurve3(points);
+    const geometry=new T.TubeGeometry(curve,7,radius,5,false),pos=geometry.getAttribute('position');
+    // TubeGeometry supplies frames; taper each ring without losing the curved centreline.
+    for(let ring=0;ring<=7;ring++){
+      const t=ring/7,center=curve.getPointAt(t),taper=.18+.82*Math.pow(1-t,.65);
+      for(let side=0;side<=5;side++){
+        const i=ring*6+side;
+        pos.setXYZ(i,center.x+(pos.getX(i)-center.x)*taper,center.y+(pos.getY(i)-center.y)*taper,center.z+(pos.getZ(i)-center.z)*taper);
+      }
+    }
+    geometry.computeVertexNormals();add(geometry,shade);
+    const end=points[points.length-1];add(new T.IcosahedronGeometry(radius*.24,0).translate(end.x,end.y,end.z),1);
   };
   if(type===0){
-    // Broad fleshy brain-coral mound with interlocking rounded lobes, no trunk.
-    add(new T.IcosahedronGeometry(.48,1).scale(1,.63,.9).translate(0,.25,0),.76);
-    for(let i=0;i<12;i++){
-      const angle=i*2.39996,r=.13+.22*hash(i+3);
-      const lobe=new T.SphereGeometry(.14,7,4).scale(1,.65,1.35);
-      lobe.rotateY(angle);lobe.translate(Math.sin(angle)*r,.32+hash(i+8)*.12,Math.cos(angle)*r);add(lobe,.9+hash(i)*.1);
+    // A thin, scalloped sea-fan membrane with fine ribs, not a woody branching trunk.
+    const pos:number[]=[],indices:number[]=[];
+    const bands=3,sectors=12,base=.07;
+    for(let ring=0;ring<=bands;ring++)for(let j=0;j<=sectors;j++){
+      const angle=-1.15+j/sectors*2.3,t=ring/bands;
+      const edge=.78+.07*Math.sin(j*2.1)+.04*Math.cos(j*3.7),r=edge*t;
+      pos.push(Math.sin(angle)*r*.58,base+Math.cos(angle)*r,.018*Math.sin(j*1.5)*t+.035*t*t);
+    }
+    for(let r=0;r<bands;r++)for(let j=0;j<sectors;j++){
+      const a=r*(sectors+1)+j,b=a+sectors+1;
+      indices.push(a,b,a+1,a+1,b,b+1);
+    }
+    const fan=new T.BufferGeometry();fan.setAttribute('position',new T.Float32BufferAttribute(pos,3));fan.setIndex(indices);fan.computeVertexNormals();add(fan,.93);
+    for(let j=0;j<=sectors;j+=2){
+      const a=-1.15+j/sectors*2.3,r=.78+.07*Math.sin(j*2.1)+.04*Math.cos(j*3.7);
+      tube([new T.Vector3(0,.025,0),new T.Vector3(Math.sin(a)*r*.3,.07+Math.cos(a)*r*.55,.018),new T.Vector3(Math.sin(a)*r*.58,.07+Math.cos(a)*r,.018*Math.sin(j*1.5)+.035)],.012,.88);
     }
   }else if(type===1){
-    // Slender, tapered soft-coral fingers; curved bodies, closed tips, no pipe openings.
-    for(let i=0;i<7;i++){
-      const a=i*2.4,r=i===0?0:.16,x=Math.sin(a)*r,z=Math.cos(a)*r,h=.65+hash(i+31)*.55;
-      const geometry=new T.CylinderGeometry(.012,.034,h,6,7);
-      const vertices=geometry.getAttribute('position');
-      for(let j=0;j<vertices.count;j++){
-        const y=vertices.getY(j)+h/2,t=y/h;
-        vertices.setXYZ(j,vertices.getX(j)+x+Math.sin(t*1.8+a)*.085*t,y,vertices.getZ(j)+z+Math.cos(t*1.4+a)*.055*t);
-      }
-      geometry.computeVertexNormals();add(geometry,.88+hash(i+7)*.12);
-      add(new T.IcosahedronGeometry(.018,1).translate(x+Math.sin(1.8+a)*.085,h,z+Math.cos(1.4+a)*.055),1);
+    for(let i=0;i<6;i++){
+      const a=i*2.39996,r=i===0?0:.13,h=.64+hash(i+31)*.40;
+      const x=Math.sin(a)*r,z=Math.cos(a)*r,lean=Math.sin(a+.7)*.12;
+      const middle=new T.Vector3(x+lean*.4,h*.54,z+.025);
+      tube([new T.Vector3(x*.7,0,z*.7),middle,new T.Vector3(x+lean,h,z+Math.cos(a)*.09)],.027,.92+hash(i+11)*.08);
+      const side=new T.Vector3(x+lean*.4+Math.cos(a)*.12,h*.78,z+.025+Math.sin(a)*.09);
+      tube([middle.clone().multiply(new T.Vector3(1,.88,1)),middle.clone().lerp(side,.5),side],.017,.95);
     }
   }else if(type===2){
-    // Overlapping scalloped plates: wide, thin shelves rather than bare branches.
+    // Thin curled plates grow upward around a small centre, like an underwater rosette.
     for(let layer=0;layer<4;layer++){
-      const r=.27-layer*.035,geometry=new T.CylinderGeometry(r,r*.9,.045,14,1);
-      const vertices=geometry.getAttribute('position');
-      for(let i=0;i<vertices.count;i++){
-        const x=vertices.getX(i),z=vertices.getZ(i),a=Math.atan2(z,x),distance=Math.hypot(x,z);
-        vertices.setY(i,vertices.getY(i)+Math.sin(a*5+layer)*.035*distance/r);
+      const pos:number[]=[],indices:number[]=[],segments=16,rings=3,radius=.27-layer*.027;
+      for(let r=0;r<=rings;r++)for(let j=0;j<=segments;j++){
+        const a=j/segments*Math.PI*2,t=r/rings,rim=1+.10*Math.sin(a*5+layer*1.7);
+        pos.push(Math.cos(a)*radius*t*rim,.045+layer*.105+.075*t*t+.022*Math.sin(a*5+layer)*t,Math.sin(a)*radius*t*rim);
       }
-      geometry.computeVertexNormals();geometry.rotateY(layer*.8);geometry.translate(Math.sin(layer*2)*.06,.10+layer*.17,Math.cos(layer*2)*.05);add(geometry,.78+layer*.065);
+      for(let r=0;r<rings;r++)for(let j=0;j<segments;j++){const a=r*(segments+1)+j,b=a+segments+1;indices.push(a,a+1,b,a+1,b+1,b)}
+      const plate=new T.BufferGeometry();plate.setAttribute('position',new T.Float32BufferAttribute(pos,3));plate.setIndex(indices);plate.computeVertexNormals();
+      plate.rotateY(layer*.9);plate.translate(Math.sin(layer*2)*.035,0,Math.cos(layer*2)*.025);add(plate,.84+layer*.045);
     }
   }else{
-    // A cushion of soft bulb-tipped polyps, thick enough to read as living coral.
-    add(new T.IcosahedronGeometry(.33,1).scale(1,.4,1).translate(0,.10,0),.64);
-    for(let i=0;i<9;i++){
-      const a=i*2.39996,r=i===0?0:.22,x=Math.sin(a)*r,z=Math.cos(a)*r,h=.55+hash(i+91)*.5;
-      const stalk=new T.CylinderGeometry(.014,.032,h,6,6);stalk.rotateZ(Math.sin(a)*.18);stalk.translate(x,h/2,z);add(stalk,.9);
-      add(new T.IcosahedronGeometry(.035,1).scale(1,.75,1).translate(x,h,z),1);
+    add(new T.IcosahedronGeometry(.17,1).scale(1,.20,1).translate(0,.025,0),.78);
+    for(let i=0;i<13;i++){
+      const a=i*2.39996,r=.04+.09*hash(i+71),h=.28+hash(i+91)*.24;
+      const start=new T.Vector3(Math.sin(a)*r,.025,Math.cos(a)*r);
+      tube([start,new T.Vector3(start.x*1.2,h*.5,start.z*1.2),new T.Vector3(start.x+Math.sin(a+.6)*.065,h,start.z+Math.cos(a+.6)*.065)],.020,.93+hash(i+32)*.07);
     }
   }
   const flat=parts.map(part=>part.index?part.toNonIndexed():part),geometry=mergeGeometries(flat,false)!;
-  flat.forEach((part,i)=>{part.dispose();if(part!==parts[i])parts[i].dispose()});geometry.computeBoundingBox();return geometry;
+  flat.forEach((part,i)=>{part.dispose();if(part!==parts[i])parts[i].dispose()});
+  geometry.computeBoundingBox();geometry.computeBoundingSphere();geometry.boundingSphere!.radius+=.18;
+  return geometry;
 }
+
+type Colony={key:string;variant:number;index:number;x:number;z:number;yaw:number;phase:number;birth:number;flow:T.Vector2};
 export class CoralGardens{
-  private meshes:T.InstancedMesh[]=[];private clock={value:0};private last=0;
+  private meshes:T.InstancedMesh[]=[];
+  private motions:T.InstancedBufferAttribute[]=[];
+  private colonies:Colony[]=[];
   private rocks:T.InstancedMesh;
-  private matrix=new T.Matrix4();private rotation=new T.Quaternion();private scale=new T.Vector3();private point=new T.Vector3();
-  constructor(scene:T.Scene,private depthAt:(x:number,z:number)=>number,private waveClock:{value:number}){
+  private lastTime=0;
+  private current=new T.Vector2();
+  constructor(scene:T.Scene,private depthAt:(x:number,z:number)=>number,private uniforms:OceanUniforms){
     for(let variant=0;variant<4;variant++){
-      const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,flatShading:true,roughness:.88});
+      const geometry=coralGeometry(variant),height=Math.max(.1,geometry.boundingBox!.max.y);
+      const motion=new T.InstancedBufferAttribute(new Float32Array(CAPACITY*4),4);motion.setUsage(T.DynamicDrawUsage);
+      geometry.setAttribute('aReefMotion',motion);this.motions.push(motion);
+      const material=new T.MeshStandardMaterial({color:0xffffff,vertexColors:true,side:T.DoubleSide,flatShading:true,roughness:.92});
+      const flex=variant===2?.28:variant===0?.65:1;
       material.onBeforeCompile=shader=>{
-        shader.uniforms.uReefTime=this.clock;shader.uniforms.uReefSeaTime=this.waveClock;
-        shader.vertexShader='uniform float uReefTime,uReefSeaTime;\n'+shader.vertexShader;
-        shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`#include <begin_vertex>
-          vec2 reefWorld=instanceMatrix[3].xz;
-          float reefPhase=reefWorld.x*.71+reefWorld.y*.53;
-          float reefBend=pow(max(position.y,0.),1.5);
-          float reefWave=.65*sin(dot(reefWorld,vec2(.88,1.31))-uReefSeaTime*1.05)+.35*sin(dot(reefWorld,vec2(1.93,-.62))+uReefSeaTime*.81);
-          transformed.x+=reefWave*reefBend*${variant===1||variant===3?'.13':'.035'};
-          transformed.z+=sin(uReefTime*.65+reefPhase)*reefBend*.045;`);
-        shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=diffuseColor.rgb*.055;');
+        shader.uniforms.uTime=this.uniforms.uTime;
+        shader.vertexShader=`
+          uniform float uTime;
+          attribute vec4 aReefMotion;
+          vec2 reefBend(float y){
+            float t=clamp(y/${height.toFixed(5)},0.,1.);
+            return aReefMotion.xy*t*t*${flex.toFixed(3)};
+          }
+        `+shader.vertexShader;
+        shader.vertexShader=shader.vertexShader.replace('#include <beginnormal_vertex>',`
+          #include <beginnormal_vertex>
+          float reefHeight=clamp(position.y/${height.toFixed(5)},0.,1.);
+          objectNormal.y-=dot(objectNormal.xz,aReefMotion.xy)*2.*reefHeight*${(flex/height).toFixed(5)};
+        `);
+        shader.vertexShader=shader.vertexShader.replace('#include <begin_vertex>',`
+          #include <begin_vertex>
+          transformed.xz+=reefBend(position.y);
+          float reefAppear=smoothstep(0.,1.25,uTime-aReefMotion.z);
+          transformed*=max(.001,reefAppear);
+        `);
       };
-      material.customProgramCacheKey=()=>`reef-species-${variant}-v3-slender`;
-      underwaterLight(material);
-      const mesh=new T.InstancedMesh(coralGeometry(variant),material,24);
-      mesh.count=0;mesh.castShadow=false;mesh.receiveShadow=true;mesh.userData.underwater=true;scene.add(mesh);this.meshes.push(mesh);
+      material.customProgramCacheKey=()=>`cozy-reef-${variant}-v4`;
+      underwaterLight(material,this.uniforms);
+      const mesh=new T.InstancedMesh(geometry,material,CAPACITY);
+      mesh.count=0;mesh.receiveShadow=true;mesh.userData.underwater=true;scene.add(mesh);this.meshes.push(mesh);
     }
-    this.rocks=new T.InstancedMesh(new T.IcosahedronGeometry(.5,1),new T.MeshStandardMaterial({color:0x91a6a0,roughness:1,flatShading:true}),48);
-    underwaterLight(this.rocks.material as T.MeshStandardMaterial);
+    const material=new T.MeshStandardMaterial({color:0x9ba8a0,roughness:1,flatShading:true});
+    underwaterLight(material,this.uniforms);
+    this.rocks=new T.InstancedMesh(new T.IcosahedronGeometry(.5,0),material,48);
     this.rocks.count=0;this.rocks.receiveShadow=true;this.rocks.userData.underwater=true;scene.add(this.rocks);
   }
   sync(board:ReadonlyMap<number,unknown>){
-    const counts=[0,0,0,0],placed:{x:number;z:number}[]=[],colors=['#ff7859','#e45fa8','#f4b752','#4cc9b0','#9b71e0','#eb8ab3'];
-    let rocks=0;
+    const previous=new Map(this.colonies.map(c=>[c.key,c])),candidates:{key:string;seed:number;x:number;z:number;variant:number}[]=[];
     for(const edge of coast(board)){
-      const seed=edge.id*13+edge.side*101;if(hash(seed)<.30)continue;
-      const dx=edge.bx-edge.ax,dz=edge.bz-edge.az,len=Math.max(.001,Math.hypot(dx,dz)),midX=(edge.ax+edge.bx)/2,midZ=(edge.az+edge.bz)/2;
-      const sign=board.has(fromWorld(midX-dz/len*.35,midZ+dx/len*.35))?-1:1;
+      const seed=edge.id*13+edge.side*101;if(hash(seed)<.22)continue;
+      const dx=edge.bx-edge.ax,dz=edge.bz-edge.az,len=Math.max(.001,Math.hypot(dx,dz));
+      const mx=(edge.ax+edge.bx)/2,mz=(edge.az+edge.bz)/2;
+      const sign=board.has(fromWorld(mx-dz/len*.35,mz+dx/len*.35))?-1:1;
       for(let member=0;member<3;member++){
-        const n=seed+member*37,along=.12+hash(n+1)*.76,offset=.65+hash(n+2)*1.1;
+        const n=seed+member*37,along=.18+hash(n+1)*.64,offset=.72+hash(n+2)*1.12;
         const x=edge.ax+dx*along-dz/len*offset*sign,z=edge.az+dz*along+dx/len*offset*sign,depth=this.depthAt(x,z);
-        if(!Number.isFinite(depth)||depth<.52||depth>1.65||board.has(fromWorld(x,z)))continue;
-        if(placed.some(p=>Math.hypot(p.x-x,p.z-z)<.48))continue;
-        const variant=Math.floor(hash(n+3)*4);if(counts[variant]>=24)continue;
-        placed.push({x,z});const size=.48+hash(n+4)*.22;
-        const height=this.meshes[variant].geometry.boundingBox!.max.y;
-        const sy=Math.min(size*(1.35+hash(n+14)*.3),(depth-.10)/Math.max(.1,height));
-        this.point.set(x,SEA_Y-depth+.012,z);this.rotation.setFromAxisAngle(new T.Vector3(0,1,0),hash(n+5)*Math.PI*2);
-        this.matrix.compose(this.point,this.rotation,this.scale.set(size*(.55+hash(n+7)*.16),sy,size*.65));
-        const index=counts[variant]++;this.meshes[variant].setMatrixAt(index,this.matrix);
-        this.meshes[variant].setColorAt(index,new T.Color(colors[Math.floor(hash(n+6)*colors.length)]));
-        if(member===0&&rocks<48){
-          const rx=x+.24,rz=z+.13,d=this.depthAt(rx,rz);
-          if(!board.has(fromWorld(rx,rz))&&d>.3){
-            this.point.set(rx,SEA_Y-d+.05,rz);this.matrix.compose(this.point,this.rotation,this.scale.set(.24,.13,.19));this.rocks.setMatrixAt(rocks++,this.matrix);
-          }
+        if(!Number.isFinite(depth)||depth<.38||depth>1.50||board.has(fromWorld(x,z)))continue;
+        candidates.push({key:`${edge.id}:${edge.side}:${member}`,seed:n,x,z,variant:Math.floor(hash(n+3)*4)});
+      }
+    }
+    // Preserve surviving gardens as the map expands, then fill remaining slots by stable seed.
+    candidates.sort((a,b)=>Number(previous.has(b.key))-Number(previous.has(a.key))||hash(a.seed+97)-hash(b.seed+97));
+    const counts=[0,0,0,0],colonies:Colony[]=[],o=new T.Object3D();let rocks=0;
+    const now=this.uniforms.uTime.value as number,initial=previous.size===0;
+    for(const c of candidates){
+      if(counts[c.variant]>=CAPACITY||colonies.some(p=>Math.hypot(p.x-c.x,p.z-c.z)<.38))continue;
+      const size=.53+hash(c.seed+4)*.20;
+      // Bury the foot slightly on sloping seabeds; the tallest tip stays below the trough.
+      const depth=Math.max(this.depthAt(c.x,c.z),this.depthAt(c.x+.12,c.z),this.depthAt(c.x-.12,c.z),this.depthAt(c.x,c.z+.12),this.depthAt(c.x,c.z-.12));
+      const geometry=this.meshes[c.variant].geometry,height=geometry.boundingBox!.max.y;
+      const sy=Math.min(size*(c.variant===2?1.0:1.35),(depth-.15)/height);
+      if(sy<.18)continue;
+      const yaw=hash(c.seed+5)*Math.PI*2,index=counts[c.variant]++;
+      o.position.set(c.x,SEA_Y-depth+.006,c.z);o.rotation.set(0,yaw,0);o.scale.set(size*.72,sy,size*(c.variant===0?.6:.72));o.updateMatrix();
+      this.meshes[c.variant].setMatrixAt(index,o.matrix);
+      const palette=palettes[c.variant],color=new T.Color(palette[Math.floor(hash(c.seed+6)*palette.length)]);
+      color.offsetHSL((hash(c.seed+19)-.5)*.025,0,(hash(c.seed+20)-.5)*.035);this.meshes[c.variant].setColorAt(index,color);
+      const old=previous.get(c.key),birth=old?.birth??(initial?now-2:now);
+      const colony:Colony={...c,index,yaw,phase:hash(c.seed+9)*6.28,birth,flow:old?.flow??new T.Vector2()};
+      colonies.push(colony);this.motions[c.variant].setXYZW(index,colony.flow.x,colony.flow.y,birth,colony.phase);
+      if(hash(c.seed+8)<.45&&rocks<48){
+        const x=c.x+.19,z=c.z+.13,d=this.depthAt(x,z);
+        if(d>.28&&!board.has(fromWorld(x,z))){
+          o.position.set(x,SEA_Y-d+.035,z);o.scale.set(.15,.095,.12);o.updateMatrix();this.rocks.setMatrixAt(rocks++,o.matrix);
         }
       }
     }
-    this.meshes.forEach((mesh,i)=>{mesh.count=counts[i];mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere()});
+    this.colonies=colonies;
+    this.meshes.forEach((mesh,i)=>{
+      mesh.count=counts[i];mesh.instanceMatrix.needsUpdate=true;this.motions[i].needsUpdate=true;
+      if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();
+    });
     this.rocks.count=rocks;this.rocks.instanceMatrix.needsUpdate=true;this.rocks.computeBoundingSphere();
   }
-  update(time:number){this.clock.value+=Math.max(0,Math.min(.26,time-this.last))/Math.max(1,gameSpeed.value);this.last=time}
-  reset(){this.clock.value=0;for(const mesh of this.meshes)mesh.count=0;this.rocks.count=0}
+  update(){
+    const now=this.uniforms.uTime.value as number,dt=Math.max(0,Math.min(.065,now-this.lastTime));this.lastTime=now;
+    if(dt<=0)return;
+    for(const c of this.colonies){
+      sampleReefCurrent(this.uniforms,c.x,c.z,this.current);
+      const depth=this.depthAt(c.x,c.z),damping=Math.exp(-depth*.35);
+      const cos=Math.cos(c.yaw),sin=Math.sin(c.yaw);
+      const x=(cos*this.current.x-sin*this.current.y)*damping,z=(sin*this.current.x+cos*this.current.y)*damping;
+      const response=1-Math.exp(-dt*(2.4+.4*Math.sin(c.phase)));
+      c.flow.x+=(x-c.flow.x)*response;c.flow.y+=(z-c.flow.y)*response;
+      this.motions[c.variant].setXYZW(c.index,c.flow.x,c.flow.y,c.birth,c.phase);
+    }
+    this.motions.forEach((a,i)=>{if(this.meshes[i].count)a.needsUpdate=true});
+  }
+  reset(){this.colonies=[];this.lastTime=this.uniforms.uTime.value;for(const mesh of this.meshes)mesh.count=0;this.rocks.count=0}
 }

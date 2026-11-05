@@ -14,10 +14,12 @@ export function koiFish(length:number,animated=false,underwater=false){
       if(!(object instanceof T.Mesh))return;
       object.frustumCulled=false;object.castShadow=false;
       if(underwater){
+        object.userData.underwater=true;
         object.material=Array.isArray(object.material)?object.material.map(m=>m.clone()):object.material.clone();
-        for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=0;material.depthWrite=false;
-          if(material instanceof T.MeshStandardMaterial){material.color.lerp(new T.Color('#438e97'),.38);material.roughness=.85}}
-        object.renderOrder=3;
+        for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=0;material.depthWrite=true;material.alphaTest=.01;
+          if(material instanceof T.MeshStandardMaterial){material.color.lerp(new T.Color('#438e97'),.16);material.roughness=.85}}
+        // Draw before the surface: the water covers submerged fish; jumping bodies occlude it.
+        object.renderOrder=1;
       }
     });
     if(animated&&gltf.animations.length){

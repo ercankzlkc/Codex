@@ -95,7 +95,9 @@ export class World {
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
+  private readonly waterSunDirection=new T.Vector3();
   private lastSea:{x:number;z:number;time:number}|null=null;
+  private seaPointerSpeed=0;
   private board:ReadonlyMap<number,Kind>=new Map();
   private sun=new T.DirectionalLight(SUN.color,SUN.intensity);
   private ghostPalette:{mat:T.MeshStandardMaterial;base:T.Color}[]=[];
@@ -168,6 +170,8 @@ export class World {
     const resize=()=>{const {clientWidth:w,clientHeight:h}=el;this.renderer.setSize(w,h);this.cameraControl.resize(w,h)};
     new ResizeObserver(resize).observe(el);resize();
     const canvas=this.renderer.domElement;
+    canvas.addEventListener('wheel',()=>{this.lastSea=null;this.seaPointerSpeed=0},{passive:true});
+    canvas.addEventListener('pointerdown',()=>{this.lastSea=null;this.seaPointerSpeed=0});
     canvas.addEventListener('pointermove',e=>{if(this.selected&&!e.buttons)this.point(e.clientX,e.clientY)});
     canvas.addEventListener('pointerleave',()=>{this.detailPointer=null;this.detailTile=-1;this.setHover(-1);this.lastSea=null;this.onInspect(-1,0,0,null)});
     canvas.addEventListener('pointermove',e=>{this.stirSea(e);this.inspectPointer(e)});
@@ -405,18 +409,35 @@ export class World {
     this.setHover(i);return i;
   }
   private stirSea(event:PointerEvent){
-    if(event.buttons||this.selected||event.pointerType==='touch'){this.lastSea=null;return}
+    if(event.buttons||this.selected||this.editing>=0||this.game?.paused||document.hidden||document.querySelector('dialog[open]')||event.pointerType==='touch'){
+      this.lastSea=null;this.seaPointerSpeed=0;return;
+    }
     const r=this.renderer.domElement.getBoundingClientRect();
+    if(r.width<=0||r.height<=0)return;
     this.seaRay.setFromCamera(new T.Vector2((event.clientX-r.left)/r.width*2-1,1-(event.clientY-r.top)/r.height*2),this.cameraControl.camera);
-    if(!this.seaRay.ray.intersectPlane(this.seaPlane,this.seaPoint)||this.board.has(fromWorld(this.seaPoint.x,this.seaPoint.z))){this.lastSea=null;return}
+    if(!this.seaRay.ray.intersectPlane(this.seaPlane,this.seaPoint)||this.board.has(fromWorld(this.seaPoint.x,this.seaPoint.z))){
+      this.lastSea=null;this.seaPointerSpeed=0;return;
+    }
     const {x,z}=this.seaPoint,now=performance.now()/1000,previous=this.lastSea;
-    if(previous&&now-previous.time<.04)return;
+    if(!previous||now-previous.time>.24){
+      this.lastSea={x,z,time:now};this.seaPointerSpeed=0;return;
+    }
+    const elapsed=now-previous.time,dx=x-previous.x,dz=z-previous.z,distance=Math.hypot(dx,dz);
+    if(distance>1.5){this.lastSea={x,z,time:now};this.seaPointerSpeed=0;return}
+    // Accumulate small movements instead of losing them on high-rate mice.
+    if(elapsed<.105||distance<.018)return;
     this.lastSea={x,z,time:now};
-    if(!previous||now-previous.time>.25)return;
-    const dx=x-previous.x,dz=z-previous.z,distance=Math.hypot(dx,dz);
-    if(distance<.025||distance>2)return;
-    this.environment.stir(x,z,dx/distance,dz/distance,Math.min(1,distance/(now-previous.time)/12),distance);
-    this.environment.frightenFish(x,z,Math.min(1,distance/(now-previous.time)/12),distance);
+    this.seaPointerSpeed=T.MathUtils.damp(this.seaPointerSpeed,distance/Math.max(.01,elapsed),9,elapsed);
+    const strength=T.MathUtils.smoothstep(this.seaPointerSpeed,.08,5);
+    const span=Math.min(distance,.5);
+    if(this.environment.stir(x,z,dx/distance,dz/distance,strength,span)){
+      // Sample the swept path too, so a passing stroke only startles fish it actually reaches.
+      const samples=Math.max(1,Math.ceil(span/.18));
+      for(let i=0;i<samples;i++){
+        const offset=span*i/samples;
+        this.environment.frightenFish(x-dx/distance*offset,z-dz/distance*offset,strength,span/samples);
+      }
+    }
   }
   private setHover(i:number,force=false) {
     if(this.editing>=0&&!this.selected){this.grid.setHover(this.editing,true,true);return}
@@ -552,6 +573,7 @@ export class World {
     this.cameraControl.update(realDt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     this.grid.update(dt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
+    this.environment.setSun(this.waterSunDirection.subVectors(this.sun.position,this.sun.target.position));
     if(this.game){
       const anchors=this.torches.selectAnchors(this.environment.torchAnchors);
       if(dt>0)this.game.updateTorches(climate.night.value>.12,this.seasons.torchNight,[...new Set(anchors.map(anchor=>anchor.id))].sort((a,b)=>Number(b===CENTER)-Number(a===CENTER)||a-b));

@@ -1,3 +1,5 @@
+import {seaWaves,wakeField} from './motion';
+
 // The optical field is sampled in world XZ on the sand, stones and water.
 // Refraction shifts the surface image slightly away from the light on the bed.
 export const optics = /* glsl */ `
@@ -10,42 +12,10 @@ vec2 current(vec2 p) {
   vec2 crossFlow = texture2D(uLight, p*.136 - vec2(.11,.64) + uTime*vec2(-.00735,.00455)).ab - .5;
   return longFlow*.72 + crossFlow*.31;
 }
-uniform vec3 uLanding;
-uniform vec4 uWakes[12],uWakeDirs[12];
-vec4 waterDisturbance(vec2 p){
-  float wake=0.;vec2 displacement=vec2(0.);
-  for(int i=0;i<12;i++){
-    float elapsed=uTime-uWakes[i].z;
-    if(elapsed>=0.&&elapsed<1.5&&uWakes[i].w>0.){
-      float speed=uWakes[i].w,seed=uWakeDirs[i].w*6.28318;
-      vec2 dir=uWakeDirs[i].xy;
-      vec2 delta=p-uWakes[i].xy-dir*elapsed*.12*speed;
-      float radius=length(delta),theta=atan(delta.y,delta.x);
-      float travel=.07+elapsed*(.50+1.05*speed);
-      float front=radius-travel+.009*sin(theta*3.+seed+elapsed*2.);
-      float width=.065+.035*speed;
-      float crest=exp(-pow(front/width,2.));
-      float trough=exp(-pow((front+.09)/(.085+.02*speed),2.));
-      float second=exp(-pow((radius-travel*.70-.015)/width,2.))*.30;
-      float fade=exp(-elapsed*(2.2+.4*speed))*speed;
-      float shape=crest-trough*.30+second;
-      wake+=shape*fade;
-      displacement+=delta/max(radius,.02)*(crest-trough)*fade*.30;
-    }
-  }
-  float age=uTime-uLanding.z;
-  if(age>=0.&&age<2.1){
-    vec2 delta=p-uLanding.xy;float r=length(delta);
-    float front=r-(.65+max(0.,age-.3)*.95);
-    float pulse=exp(-front*front*38.)*sin(front*17.)*(1.-smoothstep(.6,2.1,age));
-    displacement+=delta/max(r,.02)*pulse*.25;
-    wake+=pulse*.3;
-  }
-  return vec4(displacement,wake,clamp(length(displacement)*3.8,0.,1.));
-}
+` + wakeField + /* glsl */ `
 struct Lens {float thread; float halo; float knot;};
 Lens lightNet(vec2 p,vec2 flow,vec4 disturbance) {
-  p+=disturbance.xy;
+  p+=disturbance.xy*.12;
   vec2 largeUV=turn*p*.123 + flow*.175 + uTime*vec2(.0084,-.005775);
   vec2 smallBend=texture2D(uLight,largeUV*1.91+vec2(.28,.61)).ba-.5;
   vec4 field=texture2D(uLight,largeUV+smallBend*.067);
@@ -53,19 +23,8 @@ Lens lightNet(vec2 p,vec2 flow,vec4 disturbance) {
   float aa=clamp(fwidth(field.r)*.65,.004,.032);
   float core=1.-smoothstep(max(.0,width-aa),width+aa+.021,field.r);
   float halo=1.-smoothstep(.0,.19+field.g*.065,field.r);
-  float visibility=smoothstep(.18,.76,field.a)*(.51+.49*field.b)*(1.-disturbance.w*.70);
+  float visibility=smoothstep(.18,.76,field.a)*(.51+.49*field.b)*(1.-disturbance.w*.25);
   return Lens(core*visibility,halo*halo*visibility,field.g*field.g*core);
-}
-`;
-// Height and analytic derivatives share exactly the same wave phases.
-const waves = /* glsl */ `
-vec3 seaWave(vec2 p) {
-  vec2 a=vec2(.88,1.31), b=vec2(1.93,-.62), c=vec2(-2.7,3.8), d=vec2(5.2,2.1);
-  float pa=dot(p,a)-uTime*1.05, pb=dot(p,b)+uTime*.81;
-  float pc=dot(p,c)-uTime*1.47, pd=dot(p,d)+uTime*1.92;
-  float height=.027*sin(pa)+.016*sin(pb)+.007*sin(pc)+.003*sin(pd);
-  vec2 gradient=.027*cos(pa)*a+.016*cos(pb)*b+.007*cos(pc)*c+.003*cos(pd)*d;
-  return vec3(height,gradient)*(1.-uFreeze);
 }
 `;
 export const waterVertex = /* glsl */ `
@@ -73,7 +32,7 @@ export const waterVertex = /* glsl */ `
 #include <shadowmap_pars_vertex>
 uniform float uTime;
 uniform float uFreeze;
-` + waves + /* glsl */ `
+` + seaWaves + /* glsl */ `
 varying vec3 vWorld;
 void main() {
   vWorld=(modelMatrix*vec4(position,1.)).xyz;
@@ -90,12 +49,12 @@ export const waterFragment = /* glsl */ `
 uniform bool receiveShadow;
 #include <shadowmap_pars_fragment>
 #include <shadowmask_pars_fragment>
-` + optics + waves + /* glsl */ `
+` + optics + seaWaves + /* glsl */ `
 uniform sampler2D uCoast,uPreviousCoast;
 uniform float uCoastMix;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
-uniform vec3 uSunDirection,uReflectionEye;
+uniform vec3 uSunDirection,uViewDirection;
 uniform vec4 uTorchLights[4];
 uniform sampler2D uTorchField;uniform vec4 uTorchRegion;
 // Smooth, nonperiodic roughness. No high-frequency sine bars or screen-space streaks.
@@ -125,7 +84,7 @@ void main() {
   pigment*=.95+.10*weather.a;
   pigment=mix(pigment,pigment*vec3(.86,1.06,1.08),uSummer*.45);
   pigment=mix(pigment,pigment*vec3(1.12,.97,.85),uAutumn*.4);
-  float age=uTime-uLanding.z;
+  float age=uSceneTime-uLanding.z;
   float radius=length(p-uLanding.xy);
   float ring=0.,arrivalFoam=0.;
   if(age>=0.&&age<2.1){
@@ -145,8 +104,8 @@ void main() {
   }
   vec4 disturbance=waterDisturbance(p);
   float shoreImpulse=disturbance.z;
-  float shoreWarp=clamp(shoreImpulse*.22,-.12,.12)*(1.-uFreeze);
-  float wake=disturbance.z;vec2 wakeSlope=disturbance.xy*.24;
+  float shoreWarp=clamp(shoreImpulse*2.1,-.085,.085);
+  float wake=disturbance.z;vec2 wakeSlope=disturbance.xy;
   float seaGate=smoothstep(.06,.38,shore);
   wake*=seaGate;wakeSlope*=seaGate;
   vec2 distorted=p+.055*flow+vec2(.013,-.017)*sin(uTime*.42+p.y+flow.x);
@@ -157,15 +116,14 @@ void main() {
   float sunlight=(.48+.44*weather.a)*sunVisibility;
   float focus=(lens.thread*.45+lens.halo*.20+lens.knot*.095)*sunlight;
   // Most refracted light is on the bed. The surface carries a fainter echo offshore.
-  pigment+=vec3(.16,.30,.27)*focus*(.18+.22*shelf);
+  pigment+=vec3(.16,.30,.27)*focus*(.025+.12*shelf);
   pigment*=mix(vec3(.61,.72,.76),vec3(1.),sunVisibility);
-  vec2 rippleUV=p*2.7+uTime*vec2(-.065,.04);
-  vec2 microRipples=(vec2(waterNoise(rippleUV),waterNoise(rippleUV+vec2(19.7,5.2)))-.5)*.038;
-  vec2 slope=seaWave(p).yz*.65+flow*.018+wakeSlope+microRipples;
+  vec2 rippleUV=p*2.7+uTime*vec2(-.035,.022);
+  vec2 microRipples=(vec2(waterNoise(rippleUV),waterNoise(rippleUV+vec2(19.7,5.2)))-.5)*.024*(1.-uFreeze);
+  vec2 slope=seaWave(p).yz*.8+flow*.012*(1.-uFreeze)+wakeSlope+microRipples;
   vec3 normal=normalize(vec3(-slope.x,1.,-slope.y));
-  // The orthographic camera may move back to keep its near plane above water.
-  // A fixed-distance reflection eye avoids scaling a giant glare patch with that move.
-  vec3 eye=normalize(uReflectionEye-vWorld);
+  // Orthographic rays are parallel; reflections must not change with camera distance.
+  vec3 eye=normalize(uViewDirection);
   float fresnel=.025+.975*pow(1.-max(dot(normal,eye),0.),5.);
   vec3 sky=mix(vec3(.22,.48,.65),vec3(.53,.79,.87),max(eye.y,0.));
   pigment=mix(pigment,sky,fresnel*.45);
@@ -179,26 +137,28 @@ void main() {
   pigment=mix(pigment,vec3(1.,.96,.83),clamp(reflection,0.,.23));
   // The beach crosses sea level at roughly .16 units beyond an exposed hex edge.
   float gate=smoothstep(-.07,.065,shore);
-  float drift=.5+.5*sin(uTime*1.25+flow.y*7.+dot(p,vec2(.49,.71)));
-  float wash=.205+.083*drift+.070*flow.x;
+  float drift=.5+.5*sin(uTime*.84+flow.y*3.+dot(p,vec2(.49,.71)));
+  float wash=.195+.075*drift+.035*flow.x;
   float surfDistance=abs(shore-wash-shoreWarp);
   float aa=max(.006,fwidth(shore)*.68);
-  float rim=1.-smoothstep(.010,.029+aa,surfDistance);
+  float rim=1.-smoothstep(.008,.022+aa,surfDistance);
   float lace=texture2D(uLight,turn*p*.29+flow*.13+uTime*vec2(.003,-.004)).r;
-  float gaps=smoothstep(.10,.66,drift*.4+weather.a*.6+flow.y*.55+abs(shoreImpulse)*.18);
+  float gaps=smoothstep(.10,.66,drift*.4+weather.a*.6+flow.y*.55+abs(shoreImpulse)*2.);
   float fringe=(1.-smoothstep(.012,.081,lace))*(1.-smoothstep(.025,.105,surfDistance));
     // Scalloped arcs peel off in short patches as a wash retreats.
   float retreat=.28+.27*drift+.11*flow.y;
   float tornEdge=abs(shore-retreat-shoreWarp*.75-.048*sin(dot(p,vec2(3.1,-2.2))+flow.x*4.));
   float backwash=(1.-smoothstep(.003,.021+aa,tornEdge))*smoothstep(.48,.82,weather.a+flow.x*.56)*drift;
-  float foam=gate*clamp(rim*(.32+.63*gaps)+fringe*gaps*.42+backwash*.49,0.,1.);
-  pigment=mix(pigment,vec3(.86,.93,.87)*mix(.75,1.,sunVisibility),foam*.72);
+  float foam=gate*clamp(rim*(.25+.48*gaps)+fringe*gaps*.28+backwash*.27,0.,1.);
+  pigment=mix(pigment,vec3(.86,.93,.87)*mix(.75,1.,sunVisibility),foam*.58);
   pigment+=max(ring,0.)*vec3(.21,.32,.29);
   pigment=mix(pigment,vec3(.73,.93,.88),clamp(arrivalFoam*gate,0.,.5));
-  pigment+=max(wake,0.)*vec3(.10,.17,.16);
+  // A faint sky catch makes a slow stroke readable even away from the sun highlight.
+  pigment=mix(pigment,vec3(.64,.85,.84),clamp(disturbance.w*.045+max(wake,0.)*.8,0.,.08));
+  pigment+=max(wake,0.)*vec3(.22,.32,.30);
   pigment*=1.+min(wake,0.)*.07;
   float opticalDepth=max(0.,depth-.25)/max(.50,eye.y);
-  float opacity=1.-.78*exp(-1.25*opticalDepth);
+  float opacity=1.-.88*exp(-.86*opticalDepth);
   opacity=mix(opacity,1.,smoothstep(2.38,3.25,depth));
   opacity=mix(opacity,.94,foam);
   // Freeze the entire visible ocean, with stable fine cracks and a gradual frost front.
@@ -225,13 +185,13 @@ void main() {
       vec3 lightDir=normalize(delta),halfDir=normalize(lightDir+eye);
       float specular=pow(max(dot(normal,halfDir),0.),48.);
       float gentleScatter=.012*max(dot(normal,lightDir),0.);
-      pigment+=vec3(1.,.43,.12)*(specular*.6+gentleScatter)*uTorchLights[i].w/(1.+distance2*2.5)*(1.-uFreeze*.9);
+      pigment+=vec3(1.,.69,.38)*(specular*.43+gentleScatter)*uTorchLights[i].w/(1.+distance2*2.5)*(1.-uFreeze*.9);
     }
   }
   vec2 warmUv=(p-uTorchRegion.xy)/uTorchRegion.zw;
   float warmInside=step(0.,warmUv.x)*step(0.,warmUv.y)*step(warmUv.x,1.)*step(warmUv.y,1.);
   float shoreWarm=texture2D(uTorchField,clamp(warmUv,0.,1.)).g*warmInside;
-  pigment+=vec3(1.,.40,.12)*shoreWarm*(.12+.15*fresnel)/max(.3,opacity)*(1.-uFreeze*.9);
+  pigment+=vec3(1.,.67,.36)*shoreWarm*(.09+.11*fresnel)/max(.4,opacity)*(1.-uFreeze*.9);
   gl_FragColor=vec4(pigment,opacity);
   #include <colorspace_fragment>
 }`;
@@ -246,7 +206,7 @@ export const receiverLight = /* glsl */ `
   Lens sunprint=lightNet(projected*1.24,refraction,disturbance);
   float transmission=exp(-immersion*.98);
   float concentration=sunprint.thread*.64 + sunprint.halo*.32 + sunprint.knot*.18;
-  diffuseColor.rgb*=.92 + transmission*(.05+concentration*mix(.40,.12,uSolidReceiver));
+  diffuseColor.rgb*=.94 + transmission*(.04+concentration*mix(.30,.10,uSolidReceiver)*(1.-uNight)*(1.-uFreeze));
   diffuseColor.rgb+=vec3(.21,.37,.30)*concentration*transmission*(1.-uSolidReceiver*.85)*(1.-uNight)*(1.-uFreeze);
 `;
 

@@ -13,7 +13,7 @@ export class Wildlife {
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number;opacity:number}[]=[];
   private swimmers:{root:T.Group;angle:number;speed:number;lane:number;opacity:number}[]=[];
-  private swimMotion=new WeakMap<T.Group,{speed:number;heading:number}>();
+  private swimMotion=new WeakMap<T.Group,{speed:number;heading:number;home?:{x:number;z:number}}>();
   private swimTime=0;
   private fear=new WeakMap<T.Group,{left:number;velocity:T.Vector3}>();
   private swimCenter=new T.Vector3();
@@ -52,15 +52,15 @@ export class Wildlife {
   /** Only pointer-made disturbances trigger fear, never the fish's own splashes. */
   frighten(x:number,z:number,strength:number,length:number){
     if(climate.winter.value>.6)return;
-    const radius=.42+Math.min(1,strength)*.16+Math.min(.08,length*.2);
+    const radius=.32+Math.min(1,strength)*.12+Math.min(.04,length*.12);
     for(const fish of [...this.swimmers,...this.fish]){
       const root=fish.root;if(!root.visible||root.position.y>SEA_Y+.12)continue;
       const dx=root.position.x-x,dz=root.position.z-z,distance=Math.hypot(dx,dz);
       if(distance>radius)continue;
       const angle=distance>.01?Math.atan2(dx,dz):root.rotation.y;
       const previous=this.fear.get(root),velocity=previous?.velocity??new T.Vector3();
-      velocity.lerp(new T.Vector3(Math.sin(angle),0,Math.cos(angle)),.45).normalize().multiplyScalar(.55+Math.min(1,strength)*.18);
-      this.fear.set(root,{left:1.3,velocity});
+      velocity.lerp(new T.Vector3(Math.sin(angle),0,Math.cos(angle)),.45).normalize().multiplyScalar(.44+Math.min(1,strength)*.18);
+      this.fear.set(root,{left:1.25,velocity});
     }
   }
   private fleeFish(root:T.Group,dt:number){
@@ -83,10 +83,24 @@ export class Wildlife {
       const yaw=T.MathUtils.euclideanModulo(a-root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
       root.rotation.y+=yaw*(1-Math.exp(-dt*6));moved=true;break;
     }
+    const home=this.swimMotion.get(root)?.home;if(home){home.x=root.position.x;home.z=root.position.z}
     if(!moved)fear.velocity.applyAxisAngle(new T.Vector3(0,1,0),dt*5);
     const depth=Math.max(.03,this.waterDepth(root.position.x,root.position.z)-.10);
     root.position.y=T.MathUtils.damp(root.position.y,SEA_Y-Math.min(.28,depth),6,dt);
     return true;
+  }
+  private shoreHome(lane:number){
+    const count=this.shore.length;if(!count)return null;
+    for(let attempt=0;attempt<Math.min(18,count*3);attempt++){
+      const edge=this.shore[(Math.floor(lane*count/18)+attempt*7)%count];
+      const dx=edge.bx-edge.ax,dz=edge.bz-edge.az,len=Math.max(.001,Math.hypot(dx,dz));
+      const t=.25+((lane*7+attempt*3)%11)/22,mx=edge.ax+dx*t,mz=edge.az+dz*t;
+      const sign=this.board.has(fromWorld(mx-dz/len*.3,mz+dx/len*.3))?-1:1;
+      const offset=.82+((lane+attempt)%5)*.18;
+      const x=mx-dz/len*offset*sign,z=mz+dx/len*offset*sign,depth=this.waterDepth(x,z);
+      if(depth>.24&&depth<1.7&&this.clearWater(x,z))return {x,z,heading:Math.atan2(dx,dz)+(lane%2?Math.PI:0)};
+    }
+    return null;
   }
   private clearWater(x:number,z:number){
     if(this.board.has(fromWorld(x,z)))return false;
@@ -129,16 +143,37 @@ export class Wildlife {
       if(!motion){
         const radius=this.swimRadius+fish.lane*.72,a=fish.angle;
         const x=this.swimCenter.x+Math.sin(a)*radius,z=this.swimCenter.z+Math.cos(a)*radius*.88;
-        fish.root.position.set(x,SEA_Y-.2,z);
-        motion={speed:fish.speed,heading:Math.atan2(Math.cos(a),-Math.sin(a)*.88)};
+        const home=this.shoreHome(fish.lane);
+        fish.root.position.set(home?.x??x,SEA_Y-.2,home?.z??z);
+        motion={speed:fish.speed,heading:home?.heading??Math.atan2(Math.cos(a),-Math.sin(a)*.88),home:home??{x,z}};
         fish.root.rotation.y=motion.heading;this.swimMotion.set(fish.root,motion);
       }
-      const targetOpacity=this.shore.length?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12))*(1-climate.winter.value*.85):0;
+      const waterDepth=this.waterDepth(fish.root.position.x,fish.root.position.z);
+      const open=this.clearWater(fish.root.position.x,fish.root.position.z);
+      const shelfVisibility=1-T.MathUtils.smoothstep(waterDepth,1.3,2.7);
+      const targetOpacity=this.shore.length&&open?this.fishVisibility*.92*shelfVisibility*(1-climate.winter.value*.96):0;
       fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,fishDt);fish.root.visible=fish.opacity>.005;
+      if(!open){
+        // New land may cover a swimmer. Leave below the surface while hidden, never jump through it.
+        const home=this.shoreHome(fish.lane);
+        if(home){
+          motion.home=home;const dx=home.x-fish.root.position.x,dz=home.z-fish.root.position.z,d=Math.hypot(dx,dz);
+          const step=Math.min(d,fishDt*.28);
+          if(d>.001){fish.root.position.x+=dx/d*step;fish.root.position.z+=dz/d*step;motion.heading=Math.atan2(dx,dz)}
+        }
+        animateKoi(fish.root,fishDt,fish.opacity);continue;
+      }
       if(this.fleeFish(fish.root,fishDt)){animateKoi(fish.root,fishDt*(.5+motion.speed*2),fish.opacity);continue}
       // Keep the actual escape position. Gently curve onwards, never spring back to an old lane.
       motion.speed=T.MathUtils.damp(motion.speed,fish.speed,1.5,fishDt);
       motion.heading+=Math.sin(this.swimTime*.18+fish.lane*2.4)*fishDt*.10;
+      if(motion.home){
+        const dx=motion.home.x-fish.root.position.x,dz=motion.home.z-fish.root.position.z,d=Math.hypot(dx,dz);
+        if(d>1.15){
+          const target=Math.atan2(dx,dz),turn=T.MathUtils.euclideanModulo(target-motion.heading+Math.PI,Math.PI*2)-Math.PI;
+          motion.heading+=T.MathUtils.clamp(turn,-fishDt*.22,fishDt*.22)*T.MathUtils.smoothstep(d,1.15,2.4);
+        }
+      }
       let moved=false;
       for(const turn of [0,.3,-.3,.65,-.65,1.2,-1.2]){
         const heading=motion.heading+turn,step=motion.speed*fishDt;
@@ -157,7 +192,7 @@ export class Wildlife {
 
       if(f.age>=f.duration&&this.fleeFish(f.root,fishDt)){
         f.age+=fishDt;const fear=this.fear.get(f.root)!;f.direction.copy(fear.velocity).normalize().multiplyScalar(1.5);
-        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,fishDt);
+        f.opacity=T.MathUtils.damp(f.opacity,.88*this.fishVisibility*(1-climate.winter.value*.96),3,fishDt);
         animateKoi(f.root,fishDt*1.3,f.opacity);continue;
       }
       if(f.age>=f.duration){
@@ -176,7 +211,7 @@ export class Wildlife {
         }
         f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-Math.min(.23,Math.max(.03,this.waterDepth(f.root.position.x,f.root.position.z)-.10)),3,fishDt);
         f.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),heading),1-Math.exp(-3*fishDt));
-        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,fishDt);animateKoi(f.root,fishDt,f.opacity);
+        f.opacity=T.MathUtils.damp(f.opacity,.88*this.fishVisibility*(1-climate.winter.value*.96),3,fishDt);animateKoi(f.root,fishDt,f.opacity);
         if(climate.winter.value<.35&&swimAge>20&&[.25,.5,.75,1].every(t=>this.clearWater(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t))){
           f.start.copy(f.root.position);f.start.y=SEA_Y;f.age=0;this.splash(f.start.x,f.start.z);
         }

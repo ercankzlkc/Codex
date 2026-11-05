@@ -32,7 +32,7 @@ export class Environment {
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
     this.atmosphere=new Atmosphere(scene);this.root.add(this.water.root);this.wildlife=new Wildlife(scene,(x,z)=>this.stir(x,z,1,0,.35,.1),(x,z)=>this.water.depthAt(x,z));
-    this.corals=new CoralGardens(scene,(x,z)=>this.water.depthAt(x,z),this.water.timeUniform);
+    this.corals=new CoralGardens(scene,(x,z)=>this.water.depthAt(x,z),this.water.opticalUniforms);
   }
 
   sync(board:ReadonlyMap<number,unknown>,placed:number){
@@ -108,9 +108,9 @@ export class Environment {
   get soundBirds(){return this.wildlife.soundBirds}
   fitWaterView(camera:T.OrthographicCamera,focus:T.Vector3){this.water.fitView(camera,focus);this.wildlife.setView(camera,window.innerHeight)}
   frightenFish(x:number,z:number,strength:number,length:number){this.wildlife.frighten(x,z,strength,length)}
-  stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
+  stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){return this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
-    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.corals.update(time);this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));
+    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.corals.update();this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));
     for(const tile of this.land.values())if(tile.age<BUILD_END){
       tile.age=Math.min(BUILD_END,tile.age+dt);
       const progress=easeBetween(tile.age,LAND_START,LAND_END);

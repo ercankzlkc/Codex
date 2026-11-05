@@ -1,6 +1,8 @@
 import * as T from 'three';
 import {torchLight,torchField} from '../torch-light';
 import {climate} from '../climate';
+import {gameSpeed} from '../game-speed';
+import {WAKE_COUNT,WAKE_LIFE} from './motion';
 import { coast, position, type ShoreEdge } from '../hex';
 import {LAND_START,LAND_END,SINK_START,SINK_END,easeBetween} from '../emergence';
 import { SEA_Y } from '../scenery';
@@ -23,12 +25,12 @@ export class TropicalWater {
   private readonly uniforms={
     uTorchLights:torchLight,uTorchField:torchField.map,uTorchRegion:torchField.region,
     uNight:climate.night,uFreeze:climate.winter,uAutumn:climate.autumn,uSummer:climate.summer,
-    uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
-    uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},
+    uWakes:{value:Array.from({length:WAKE_COUNT},()=>new T.Vector4(0,0,-10,0))},
+    uWakeDirs:{value:Array.from({length:WAKE_COUNT},()=>new T.Vector4(1,0,0,0))},
     uCoastMix:{value:1},uPreviousCoast:{value:this.previousField.texture},
     uSunDirection:{value:SUN.offset.clone().normalize()},
-    uReflectionEye:{value:new T.Vector3(7,9,7)},
-    uTime:{value:0},uLight:{value:lightField()},uCoast:{value:this.field.texture},
+    uViewDirection:{value:new T.Vector3(0,1,0)},
+    uTime:{value:0},uSceneTime:{value:0},uLight:{value:lightField()},uCoast:{value:this.field.texture},
     uRegion:{value:this.field.region},uLanding:{value:new T.Vector3(0,0,-10)},
     // Artist palette in sRGB; Three converts to linear for lighting and blending.
     uMint:{value:new T.Color('#87efd4')},uTurquoise:{value:new T.Color('#20d0c6')},
@@ -39,7 +41,7 @@ export class TropicalWater {
   /** Cover all four sea intersections, including wide, low orthographic views. */
   fitView(camera:T.OrthographicCamera,focus:T.Vector3){
     camera.getWorldDirection(this.viewDirection);
-    this.uniforms.uReflectionEye.value.copy(focus).addScaledVector(this.viewDirection,-14);
+    this.uniforms.uViewDirection.value.copy(this.viewDirection).negate();
     if(this.viewDirection.y>=-.01)return;
     let minX=Infinity,maxX=-Infinity,minZ=Infinity,maxZ=-Infinity;
     for(const x of [-1,1])for(const y of [-1,1]){
@@ -50,7 +52,7 @@ export class TropicalWater {
     this.surface.position.set((minX+maxX)/2,SEA_Y,(minZ+maxZ)/2);
     this.surface.scale.set(Math.max(1,(maxX-minX+16)/160),Math.max(1,(maxZ-minZ+16)/160),1);
   }
-  private nextWake=0;
+  private lastSceneTime=0;
   private readonly sandGeometry=new T.PlaneGeometry(1,1,SAND_STEPS,SAND_STEPS).rotateX(-Math.PI/2);
   private readonly sandStart=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2),1);
   private readonly sandStartTint=new T.Float32BufferAttribute(new Float32Array((SAND_STEPS+1)**2*3),3);
@@ -59,7 +61,7 @@ export class TropicalWater {
   private readonly surface:T.Mesh;
   private readonly silhouettes=new T.IcosahedronGeometry(1,0);
   constructor(){
-    const surface=new T.Mesh(new T.PlaneGeometry(160,160,180,180),new T.ShaderMaterial({
+    const surface=new T.Mesh(new T.PlaneGeometry(160,160,112,112),new T.ShaderMaterial({
       uniforms:{...T.UniformsUtils.clone(T.UniformsLib.lights),...this.uniforms},vertexShader:waterVertex,fragmentShader:waterFragment,lights:true,
       transparent:true,depthWrite:false,toneMapped:false,
     }));
@@ -70,7 +72,7 @@ export class TropicalWater {
     this.sandGeometry.setAttribute('aTintStart',this.sandStartTint);
     const sand=new T.Mesh(this.sandGeometry,this.receiver(true));sand.receiveShadow=true;
     this.stones=new T.InstancedMesh(this.silhouettes,this.receiver(false),192);
-    this.stones.count=0;this.stones.receiveShadow=true;
+    this.stones.count=0;this.stones.receiveShadow=true;this.stones.userData.underwater=true;
     this.root.add(sand,this.stones,surface);
   }
 
@@ -83,7 +85,7 @@ export class TropicalWater {
     mat.onBeforeCompile=shader=>{
       shader.uniforms.uBedTorchField=torchField.map;shader.uniforms.uBedTorchRegion=torchField.region;shader.uniforms.uSolidReceiver={value:sand?0:1};
       shader.uniforms.uNight=climate.night;shader.uniforms.uFreeze=climate.winter;shader.uniforms.uAutumn=climate.autumn;shader.uniforms.uSummer=climate.summer;
-      shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
+      shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;shader.uniforms.uSceneTime=this.uniforms.uSceneTime;
       shader.uniforms.uWakes=this.uniforms.uWakes;shader.uniforms.uWakeDirs=this.uniforms.uWakeDirs;shader.uniforms.uLanding=this.uniforms.uLanding;
       shader.vertexShader='varying vec3 vReceiver;\n'+shader.vertexShader;
       if(sand){
@@ -111,7 +113,7 @@ export class TropicalWater {
       `);
 
     };
-    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v4-lit':'lagoon-rock-disturbance-v4-solid';
+    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v5-cozy':'lagoon-rock-disturbance-v5-cozy-solid';
     return mat;
   }
 
@@ -124,12 +126,12 @@ export class TropicalWater {
     this.transitionStart=removed>=0?SINK_START:LAND_START;this.transitionEnd=removed>=0?SINK_END:LAND_END;
     this.previousField.rebuild(animate?this.previousBoard:board,animate?coast(this.previousBoard):edges,this.field.region);
     this.uniforms.uCoastMix.value=animate?0:1;
-    this.transitionAt=animate?this.uniforms.uTime.value:-10;
+    this.transitionAt=animate?this.uniforms.uSceneTime.value:-10;
     this.shapeBed();
     if(animate)this.pendingEdges=edges;
     else {this.placeStones(edges);this.pendingEdges=null}
     this.previousBoard=new Map(board);
-    if(changed>=0){const p=position(changed);this.uniforms.uLanding.value.set(p.x,p.z,this.uniforms.uTime.value)}
+    if(changed>=0){const p=position(changed);this.uniforms.uLanding.value.set(p.x,p.z,this.uniforms.uSceneTime.value)}
     else this.uniforms.uLanding.value.z=-10;
   }
 
@@ -179,17 +181,25 @@ export class TropicalWater {
     if(this.stones.instanceColor)this.stones.instanceColor.needsUpdate=true;
     this.stones.computeBoundingSphere();
   }
-  get timeUniform(){return this.uniforms.uTime}
+  get opticalUniforms(){return this.uniforms}
   depthAt(x:number,z:number){return this.field.depthAt(x,z)}
   setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){
-    const i=this.nextWake;this.nextWake=(i+1)%12;
-    this.uniforms.uWakes.value[i].set(x,z,this.uniforms.uTime.value,.15+.85*strength);
-    this.uniforms.uWakeDirs.value[i].set(dx,dz,Math.min(length,1.2),(this.uniforms.uTime.value*1.37+i*.618)%1);
+    if(![x,z,dx,dz,strength,length].every(Number.isFinite)||climate.winter.value>.8||this.depthAt(x,z)<.04)return false;
+    // Never replace a visibly young wave. A bounded pool also limits rapid-pointer GPU work.
+    let index=0;
+    const wakes=this.uniforms.uWakes.value,now=this.uniforms.uTime.value;
+    for(let i=1;i<WAKE_COUNT;i++)if(wakes[i].z<wakes[index].z)index=i;
+    if(wakes[index].w>0&&now-wakes[index].z<WAKE_LIFE-.12)return false;
+    const magnitude=Math.hypot(dx,dz),energy=.22+.62*Math.sqrt(T.MathUtils.clamp(strength,0,1));
+    wakes[index].set(x,z,now,energy);
+    this.uniforms.uWakeDirs.value[index].set(magnitude>.001?dx/magnitude:1,magnitude>.001?dz/magnitude:0,T.MathUtils.clamp(length,0,.5),0);
+    return true;
   }
   clearWakes(){for(const wake of this.uniforms.uWakes.value)wake.set(0,0,-10,0)}
   update(time:number){
-    this.uniforms.uTime.value=time;
+    const dt=Math.max(0,Math.min(.26,time-this.lastSceneTime));this.lastSceneTime=time;
+    this.uniforms.uTime.value+=dt/Math.max(1,gameSpeed.value);this.uniforms.uSceneTime.value=time;
     this.uniforms.uCoastMix.value=easeBetween(time-this.transitionAt,this.transitionStart,this.transitionEnd);
     if(this.pendingEdges&&this.uniforms.uCoastMix.value>=1){this.placeStones(this.pendingEdges);this.pendingEdges=null}
   }
