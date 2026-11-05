@@ -251,7 +251,7 @@ export class World {
       if(resource==='wood'){
         this.fallLeaves(tree,12);
         const group=new T.Group();group.position.copy(tree.getWorldPosition(new T.Vector3()));group.position.z-=.12;
-        const logs=resourceModel('wood');group.add(logs);logs.scale.setScalar(1.65);
+        const logs=resourceModel('wood');group.add(logs);logs.scale.setScalar(.85);
         const pieces=logs.children.map(mesh=>({mesh,velocity:new T.Vector3((Math.random()-.5)*.14,1+Math.random()*.35,(Math.random()-.5)*.14),spin:new T.Vector3(Math.random()*3,Math.random()*2,Math.random()*3)}));
         group.visible=false;this.scene.add(group);this.drops.set(key,{group,age:0,claimed:false,pieces});
       }
@@ -608,7 +608,7 @@ export class World {
         if(d>0&&d<.07&&Math.abs(a.mesh.position.y-b.mesh.position.y)<.055){const push=(.07-d)*.5;a.mesh.position.x-=dx/d*push;b.mesh.position.x+=dx/d*push;a.mesh.position.z-=dz/d*push;b.mesh.position.z+=dz/d*push}
       }
       const center=position(id);
-      for(const piece of drop.pieces){const wx=drop.group.position.x+piece.mesh.position.x*1.65-center.x,wz=drop.group.position.z+piece.mesh.position.z*1.65-center.z,r=Math.hypot(wx,wz);if(r>.63){piece.mesh.position.x=(center.x+wx/r*.63-drop.group.position.x)/1.65;piece.mesh.position.z=(center.z+wz/r*.63-drop.group.position.z)/1.65;piece.velocity.x*=-.2;piece.velocity.z*=-.2}}
+      for(const piece of drop.pieces){const wx=drop.group.position.x+piece.mesh.position.x*.85-center.x,wz=drop.group.position.z+piece.mesh.position.z*.85-center.z,r=Math.hypot(wx,wz);if(r>.63){piece.mesh.position.x=(center.x+wx/r*.63-drop.group.position.x)/.85;piece.mesh.position.z=(center.z+wz/r*.63-drop.group.position.z)/.85;piece.velocity.x*=-.2;piece.velocity.z*=-.2}}
     }
     for(const decor of this.storageDecor.values()){const t=this.time-(decor.userData.upgradedAt??-99);decor.scale.setScalar(1+(t<1?Math.sin(t*Math.PI)*.13:0))}
     if(!this.game?.paused)this.villagers.update(document.hidden?0:dt);

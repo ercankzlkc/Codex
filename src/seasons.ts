@@ -45,7 +45,7 @@ export class SeasonCycle{
   private clearIceChips(){for(const chip of this.iceChips){this.scene.remove(chip.mesh);chip.mesh.material.dispose()}this.iceChips=[]}
   constructor(private scene:T.Scene,private sun:T.DirectionalLight,private ambient:T.HemisphereLight){
     this.hud=document.createElement('section');this.hud.id='season-hud';this.hud.setAttribute('aria-label','Gün ve mevsim');
-    this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><div class="season-copy"><small></small><strong></strong><span></span><div class="season-days"><i></i><i></i><i></i></div></div><div class="season-remaining"><b></b><small>sonraki mevsim</small></div>';
+    this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><div class="season-copy"><small></small><strong></strong><span></span><div class="season-days"><i></i><i></i><i></i></div></div><div class="season-remaining"><b></b><small>Günün saati</small></div>';
     document.querySelector('#app')!.append(this.hud);
     this.notice=document.createElement('aside');this.notice.id='season-notice';this.notice.setAttribute('role','status');document.querySelector('#app')!.append(this.notice);
     this.snowPositions=new Float32Array(240*3);
@@ -131,13 +131,15 @@ export class SeasonCycle{
     const phase=cycle<.08?'Şafak':cycle<.42?'Gündüz':cycle<.55?'Gün batımı':'Gece';
     this.hud.style.setProperty('--season-color',current.color);this.hud.style.setProperty('--day-progress',String(cycle));
     this.hud.querySelector('.clock-orbit')!.textContent=night>.5?'☾':'☀';
-    (this.hud.querySelector('.clock-orbit') as HTMLElement).style.transform=`rotate(${cycle*360}deg) translateY(-22px) rotate(${-cycle*360}deg)`;
+    (this.hud.querySelector('.clock-orbit') as HTMLElement).style.transform=`rotate(${cycle*360}deg) translateY(-14px) rotate(${-cycle*360}deg)`;
     this.hud.querySelector('.clock-center')!.textContent=current.symbol;
     this.hud.querySelector('.season-copy small')!.textContent=`YIL ${Math.floor(this.elapsed/YEAR_SECONDS)+1} · GÜN ${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
     this.hud.querySelector('.season-copy strong')!.textContent=current.name;
-    this.hud.querySelector('.season-copy>span')!.textContent=`${day+1}. gün / 3 · ${day+1}. ay · ${phase}`;
-    const remaining=Math.ceil(SEASON_SECONDS-part);
-    this.hud.querySelector('.season-remaining b')!.textContent=`${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}`;
+    this.hud.querySelector('.season-copy>span')!.textContent=`${day+1}. gün / 3 · ${day+1}. ay`;
+    // The daylight curve begins at dawn, so 06:00 is the start of each game day.
+    const minutes=Math.floor((cycle*1440+360)%1440);
+    this.hud.querySelector('.season-remaining b')!.textContent=`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
+    this.hud.querySelector('.season-remaining small')!.textContent=phase;
     this.hud.querySelectorAll<HTMLElement>('.season-days i').forEach((dot,i)=>{dot.classList.toggle('complete',i<day);dot.style.setProperty('--fill',`${i<day?100:i===day?cycle*100:0}%`)});
     if(season!==this.lastSeason){
       this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${current.hint}</p>`;

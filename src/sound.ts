@@ -193,6 +193,18 @@ export class TableSound {
     if(this.spatialClip(harvestAudio[cue],at))this.lastWork.set(key,now);
     if(this.lastWork.size>512)for(const [k,t] of this.lastWork)if(now-t>3)this.lastWork.delete(k);
   }
+  async dragCard(kind:Kind){
+    this.unlock();const ctx=this.ctx;if(!ctx)return;
+    if(ctx.state==='suspended')await ctx.resume().catch(()=>{});
+    const cue=placementAudio[kind];
+    await Promise.all(cue.files.map(async name=>{
+      if(this.clips.has(name))return;
+      try{const response=await fetch(new URL(`audio/${name}.ogg`,document.baseURI));if(!response.ok)return;
+        this.clips.set(name,await ctx.decodeAudioData(await response.arrayBuffer()));
+      }catch{/* A missing clip must not interrupt dragging. */}
+    }));
+    this.spatialClip(cue,this.ear,true);
+  }
   delivery(at:T.Vector3){this.spatialClip(harvestAudio.berryPick,at)}
   placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}
   /** Use the supplied recordings without repeating the previous landing. */
@@ -222,9 +234,9 @@ export class TableSound {
     const distance=Math.hypot(this.clipPoint.x,this.clipPoint.y);
     return (1-.55*T.MathUtils.smoothstep(distance,.35,1.45))*(.7+.3*T.MathUtils.smoothstep(camera.zoom,.8,2.2));
   }
-  private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number];fullLength?:boolean},at:T.Vector3){
+  private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number];fullLength?:boolean},at:T.Vector3,preview=false){
     const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.sfx||this.workLive.size>=12)return false;
-    const focusGain=this.workWeight(at);if(focusGain<.012)return false;
+    const focusGain=preview?1:this.workWeight(at);if(focusGain<.012)return false;
     const key=cue.files.join(','),loaded=cue.files.filter(name=>this.clips.has(name));
     const choices=loaded.length>1?loaded.filter(name=>name!==this.lastSpatialClip.get(key)):loaded;
     if(!choices.length)return false;
@@ -237,7 +249,7 @@ export class TableSound {
     const now=ctx.currentTime,duration=Math.min(cue.fullLength?buffer.duration:2.5,buffer.duration/source.playbackRate.value);
     gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(cue.volume*2,now+.008);gain.gain.setValueAtTime(cue.volume*2,now+Math.max(.01,duration-.04));gain.gain.linearRampToValueAtTime(0,now+duration);
     const viewGain=ctx.createGain();viewGain.gain.value=focusGain;
-    source.connect(filter).connect(panner).connect(gain).connect(viewGain).connect(this.buses.sfx!);this.workLive.add(source);this.workViews.set(source,{at:at.clone(),gain:viewGain});
+    source.connect(filter).connect(panner).connect(gain).connect(viewGain).connect(this.buses.sfx!);this.workLive.add(source);if(!preview)this.workViews.set(source,{at:at.clone(),gain:viewGain});
     source.onended=()=>{this.workLive.delete(source);this.workViews.delete(source);source.disconnect();filter.disconnect();panner.disconnect();gain.disconnect();viewGain.disconnect()};
     source.start(now);source.stop(now+duration);return true;
   }

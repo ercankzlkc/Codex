@@ -125,7 +125,7 @@ hand.addEventListener('pointerover',event=>{
 });
 const drag=new CardDrag(hand,{
   canStart:i=>!handBusy&&pendingPlacement===null&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
-  start:i=>select(game.hand[i],true),
+  start:i=>{const card=game.hand[i];select(card,true);void sound.dragCard(card.id)},
   move:(x,y)=>world.valid(dragPosition(x,y)),
   drop:(x,y)=>commit(dragPosition(x,y)),
   cancel:()=>select(null),
