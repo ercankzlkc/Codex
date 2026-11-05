@@ -42,6 +42,7 @@ export class TableSound {
   private landingRequest=0;
   private pending=new Set<number>();
   private lastHover=0;
+  private lastPlacementFocus=-1;
   private birdVoice:BirdVoice|null=null;
   private birdClipIndex=0;
   private nextBirdAt=3;
@@ -204,6 +205,22 @@ export class TableSound {
       }catch{/* A missing clip must not interrupt dragging. */}
     }));
     this.spatialClip(cue,this.ear,true);
+  }
+  /** A quiet, positional pluck confirms entering a cell, never every pointer event. */
+  placementFocus(at:T.Vector3,cell:number,bonus=false){
+    if(!this.canVoice())return;
+    const ctx=this.ctx!,now=ctx.currentTime;
+    if(now-this.lastPlacementFocus<.15)return;this.lastPlacementFocus=now;
+    const notes=[293.66,329.63,392,440,493.88],frequency=notes[(cell+(bonus?2:0))%notes.length];
+    const voice=ctx.createOscillator(),gain=ctx.createGain(),filter=ctx.createBiquadFilter(),pan=ctx.createStereoPanner();
+    voice.type='triangle';voice.frequency.setValueAtTime(frequency*.985,now);
+    voice.frequency.exponentialRampToValueAtTime(frequency,now+.025);
+    filter.type='lowpass';filter.frequency.value=1400;filter.Q.value=.4;
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(bonus?.07:.055,now+.009);
+    gain.gain.exponentialRampToValueAtTime(.0001,now+.19);
+    if(this.viewCamera){this.clipPoint.copy(at).project(this.viewCamera);pan.pan.value=T.MathUtils.clamp(this.clipPoint.x*.6,-.6,.6)}
+    voice.connect(filter).connect(gain).connect(pan).connect(this.buses.sfx!);
+    this.trackVoice(voice,[filter,gain,pan]);voice.start(now);voice.stop(now+.21);
   }
   delivery(at:T.Vector3){this.spatialClip(harvestAudio.berryPick,at)}
   placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}

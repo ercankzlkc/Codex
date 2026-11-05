@@ -24,7 +24,7 @@ void main(){
   gl_Position=projectionMatrix*modelViewMatrix*point;
 }`;
 const markerFragment=/* glsl */ `
-uniform float uOpacity,uFocus,uTime,uNight;
+uniform float uOpacity,uFocus,uTime,uNight,uWinter,uArrival,uMotion;
 uniform vec3 uColor;
 varying vec2 vLocal;
 varying float vEnabled;
@@ -32,20 +32,29 @@ void main(){
   vec2 p=abs(vLocal);
   float radius=${RADIUS.toFixed(5)},apothem=radius*.8660254;
   float distance=max(p.x,p.x*.5+p.y*.8660254)-apothem;
-  float aa=max(.003,fwidth(distance)*.8);
-  float edge=1.-smoothstep(.004,.012+aa,abs(distance+.012));
-  float cornerDistance=min(length(p-vec2(apothem,radius*.5)),length(p-vec2(0.,radius)));
-  float corners=1.-smoothstep(radius*.13,radius*.29,cornerDistance);
-  float inside=1.-smoothstep(-aa,aa,distance);
-  float mist=exp(-abs(distance)*22.)*.10+inside*.025;
-  float alpha=mix(edge*corners*.28,edge*.52+mist,uFocus);
-  alpha*=uOpacity*vEnabled*(.96+.04*sin(uTime*1.5));
+  // A complete, screen-readable border: the dark lip survives bright water and ice.
+  float aa=max(.002,fwidth(distance));
+  float width=max(.007,aa*.72);
+  float rimDistance=abs(distance+.020);
+  float rim=1.-smoothstep(width,width+aa,rimDistance);
+  float lip=(1.-smoothstep(width+aa,width+aa*2.8,rimDistance))*(1.-rim);
+  float inside=1.-smoothstep(-aa,aa,distance+.020);
+  float wash=inside*(.07+.045*exp(-max(0.,-distance)*5.));
+  float glow=exp(-abs(distance+.025)*18.);
+  float breath=1.+sin(uTime*1.8)*.018*uMotion;
+  float active=uFocus*uArrival;
+  float lightAlpha=(rim*mix(.53,.82,uFocus)+wash*mix(1.,1.55,uFocus)+glow*(.018+uFocus*.045+active*.09))*breath;
+  float inkAlpha=lip*mix(.22,.30,uFocus);
+  float alpha=clamp(lightAlpha+inkAlpha,0.,.94)*uOpacity*vEnabled;
   if(alpha<.002)discard;
-  gl_FragColor=vec4(uColor*mix(1.,.72,uNight),alpha);
+  vec3 paper=mix(uColor,vec3(.25,.48,.47),uWinter*.72)*mix(1.,.64,uNight);
+  vec3 ink=mix(vec3(.055,.24,.24),vec3(.24,.39,.38),uNight*.35);
+  vec3 color=mix(ink,paper,lightAlpha/max(.001,lightAlpha+inkAlpha));
+  gl_FragColor=vec4(color,alpha);
   #include <colorspace_fragment>
 }`;
 
-/** One batched set of quiet corner marks and one easing active outline. */
+/** All valid cells stay legible in one draw; the active cell has a soft arrival glow. */
 export class PlacementGrid{
   readonly root=new T.Group();
   private cells:{id:number;point:T.Vector3}[]=[];
@@ -53,11 +62,15 @@ export class PlacementGrid{
   private geometry=new T.PlaneGeometry((RADIUS+.09)*2,(RADIUS+.09)*2).rotateX(-Math.PI/2);
   private enabled=new T.InstancedBufferAttribute(new Float32Array(this.capacity),1);
   private clock={value:0};
+  private arrival={value:0};
+  private motion={value:1};
+  private readonly reducedMotion=matchMedia('(prefers-reduced-motion: reduce)');
+  private hoverId=-1;
   private visibility=0;
   private available=false;
   private markerOpacity={value:0};
   private focusOpacity={value:0};
-  private focusColor={value:new T.Color('#d6f0db')};
+  private focusColor={value:new T.Color('#fff0c8')};
   private markerMaterial=this.material(false);
   private markers=new T.InstancedMesh(this.geometry,this.markerMaterial,this.capacity);
   private hoverMaterial=this.material(true);
@@ -73,7 +86,7 @@ export class PlacementGrid{
   private material(focus:boolean){
     return new T.ShaderMaterial({
       uniforms:{uOpacity:focus?this.focusOpacity:this.markerOpacity,uFocus:{value:focus?1:0},
-        uTime:this.clock,uNight:climate.night,uColor:focus?this.focusColor:{value:new T.Color('#d6e9dc')}},
+        uTime:this.clock,uNight:climate.night,uWinter:climate.winter,uArrival:focus?this.arrival:{value:0},uMotion:this.motion,uColor:focus?this.focusColor:{value:new T.Color('#dcefe3')}},
       vertexShader:markerVertex,fragmentShader:markerFragment,
       transparent:true,depthWrite:false,depthTest:true,toneMapped:false,
     });
@@ -134,17 +147,20 @@ export class PlacementGrid{
     if(active){this.cells.forEach((c,i)=>this.enabled.setX(i,valid(c.id)?1:0));this.enabled.needsUpdate=true}
   }
   update(dt:number){
-    this.clock.value+=dt;
-    this.visibility=T.MathUtils.damp(this.visibility,this.available?1:0,12,dt);
+    this.clock.value+=dt;this.motion.value=this.reducedMotion.matches?0:1;
+    this.arrival.value=this.reducedMotion.matches?0:T.MathUtils.damp(this.arrival.value,0,7,dt);
+    this.visibility=T.MathUtils.damp(this.visibility,this.available?1:0,this.available?18:10,dt);
     this.markerOpacity.value=this.visibility;this.markers.visible=this.visibility>.002;
     this.focusOpacity.value=T.MathUtils.damp(this.focusOpacity.value,this.hoverWanted?1:0,18,dt);
     this.hover.visible=this.focusOpacity.value>.002;
     this.hover.position.lerp(this.hoverTarget,1-Math.exp(-PLACEMENT_EASE*dt));
   }
   setHover(id:number,valid:boolean,selected:boolean){
-    this.hoverWanted=selected&&id>=0;if(!this.hoverWanted)return;
+    this.hoverWanted=selected&&id>=0;
+    if(!this.hoverWanted){this.hoverId=-1;return}
+    if(id!==this.hoverId){this.arrival.value=this.reducedMotion.matches?0:1;this.hoverId=id}
     this.hoverTarget.copy(cellPosition(id,this.occupied.has(id)?LAND_Y+.015:PLACEMENT_Y+.004));
     if(this.focusOpacity.value<.02)this.hover.position.copy(this.hoverTarget);
-    this.focusColor.value.set(valid?'#d6f0db':'#d9a491');
+    this.focusColor.value.set(valid?'#fff0c8':'#e3ad98');
   }
 }

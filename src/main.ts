@@ -36,12 +36,14 @@ world.onFenceBreak=()=>sound.play('fenceBreak');
 let game=createDemoGame();
 let selected:Card|null=null,settleTimer:number|undefined,toastTimer:number|undefined,locked=false;
 let pendingPlacement:number|null=null;
+let previewCell=-1;
 let editedTile=-1;
 let handBusy=false,handMotion=0;
 
 function affordable(c:Card) { return game.canAfford(c); }
 function select(c:Card|null,carrying=false) {
   if(!c)pendingPlacement=null;
+  previewCell=-1;
   selected=c;document.body.classList.toggle('is-placing',!!c);get('#event-target').hidden=!c?.event;world.setSelection(c,carrying);
   hand.classList.toggle('choosing',!!c);
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{
@@ -61,14 +63,15 @@ function label(text:string){
 }
 world.valid=i=>!!selected&&i>=0&&game.valid(selected,i);
 world.onHover=i=>{
-  if(!selected){label('');return}
-  if(i<0){placement.dataset.valid='true';label(selected.event?'Mevcut bir karoya bırak':'Kıyıda boş bir yer seç');return}
-  if(!world.valid(i)){label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Liman ve balıkçı kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
+  if(!selected){previewCell=-1;label('');return}
+  if(i<0){previewCell=-1;placement.dataset.valid='true';label(selected.event?'Mevcut bir karoya bırak':'Kıyıda boş bir yer seç');return}
+  if(!world.valid(i)){previewCell=-1;label(selected.event?'Mevcut karaya bırak':game.wouldSealFishery(i)?'Liman ve balıkçı kıyısı açık kalmalı':'Yalnızca kıyıdaki boş bir altıgene bırak');placement.dataset.valid='false';return}
   placement.dataset.valid='true';
   if(selected.event){label(selected.desc);return}
   const p=game.preview(selected,i)!;
   const effects=[p.stone&&`+${p.stone} taş / teslimat`,p.wood&&`+${p.wood} odun / teslimat`,p.food&&`+${p.food} yiyecek / teslimat`,p.happy&&`+${p.happy} refah / teslimat`,p.people&&`+${p.people} nüfus`].filter(Boolean);
   const adjacentBonus=p.localBonus||p.neighbors.length>0;
+  if(previewCell!==i){previewCell=i;const point=position(i);sound.placementFocus(new Vector3(point.x,0,point.z),i,!!adjacentBonus)}
   label((adjacentBonus?'Komşuluk · ':'')+(effects.join('  ·  ')||'Yerleşime uygun'));
 };
 function toast(text:string) {
@@ -83,7 +86,7 @@ function commit(i:number) {
   const production=game.play(card,i);
   if(!production)return false;
   locked=true;
-  sound.play('hover',true);select(null);world.sync(game.board,card.event?-1:i,rotation);
+  sound.play('drop',true);select(null);world.sync(game.board,card.event?-1:i,rotation);
   if(!card.event){const p=position(i);sound.landingWave(new Vector3(p.x,0,p.z))}
   if(card.event){world.burst(i);const p=position(i);sound.placement(card.id,new Vector3(p.x,.3,p.z))}
   render(true);

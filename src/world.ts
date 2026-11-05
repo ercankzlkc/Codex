@@ -92,6 +92,8 @@ export class World {
   private placementQueued=false;
   private previewWanted=false;
   private previewFade=0;
+  private previewArrival=.34;
+  private readonly reducedPlacementMotion=matchMedia('(prefers-reduced-motion: reduce)');
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
@@ -446,8 +448,9 @@ export class World {
   private setHover(i:number,force=false){
     if(this.editing>=0&&!this.selected){this.grid.setHover(this.editing,true,true);return}
     if(!force&&i===this.hover)return;
-    this.hover=i;
+    const previousHover=this.hover;this.hover=i;
     const valid=i>=0&&this.valid(i);
+    if(valid&&i!==previousHover)this.previewArrival=0;
     this.grid.setHover(i,valid,!!this.selected&&(valid||this.board.has(i)));
     this.previewWanted=!!this.ghost&&valid&&!this.selected?.event;
     if(this.ghost&&this.previewWanted){
@@ -598,6 +601,9 @@ export class World {
       this.previewFade=T.MathUtils.damp(this.previewFade,this.previewWanted?1:0,18,realDt);
       this.ghost.visible=this.previewFade>.002;
       for(const {mat} of this.ghostPalette)mat.opacity=this.previewFade*.76;
+      this.previewArrival=Math.min(.34,this.previewArrival+realDt);
+      const lift=this.reducedPlacementMotion.matches?0:Math.sin(this.previewArrival/.34*Math.PI)*.032;
+      this.ghostTarget.y=PLACEMENT_Y+.018+lift;
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-PLACEMENT_EASE*realDt));
       if(this.ghostModel){
         const difference=this.desiredGhostYaw-this.ghostModel.rotation.y;
