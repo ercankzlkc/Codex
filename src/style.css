@@ -319,7 +319,7 @@ html,body,#app,#app *,.drag-card,.drag-card *{user-select:none;-webkit-user-sele
 #app input,#app textarea{user-select:text;-webkit-user-select:text}
 
 /* Accelerated calendar preview. */
-#season-hud{position:absolute;left:24px;top:100px;z-index:8;display:flex;align-items:center;gap:14px;min-width:290px;padding:14px 17px;border:1px solid #fff8dfbd;border-radius:18px;background:linear-gradient(135deg,#fff9e9ed,#eee9d7e8);box-shadow:0 6px 24px #153b3830;color:#304f47;user-select:none}
+#season-hud{position:absolute;left:22px;top:22px;z-index:8;display:flex;align-items:center;gap:14px;min-width:290px;padding:14px 17px;border:1px solid #fff8dfbd;border-radius:18px;background:linear-gradient(135deg,#fff9e9ed,#eee9d7e8);box-shadow:0 6px 24px #153b3830;color:#304f47;user-select:none}
 .season-clock{position:relative;width:58px;height:58px;border:2px solid #bdc6ad;border-radius:50%;background:conic-gradient(var(--season-color) calc(var(--day-progress)*360deg),#dce3d150 0);display:grid;place-items:center;box-shadow:inset 0 0 0 5px #f4f1e4}
 .clock-center{font-size:28px;color:#65876a}.clock-orbit{position:absolute;left:19px;top:19px;font-size:18px;line-height:18px;color:#a57e33;text-shadow:0 0 7px #fff8df;z-index:1}
 .season-copy{min-width:106px}.season-copy small{display:block;font-size:8px;letter-spacing:1.4px;color:#78846c}.season-copy strong{display:block;font:600 22px Georgia,serif;margin:3px 0}.season-copy>span{font-size:10px;color:#6a7d70}
@@ -327,9 +327,3 @@ html,body,#app,#app *,.drag-card,.drag-card *{user-select:none;-webkit-user-sele
 .season-remaining{margin-left:auto;padding-left:12px;border-left:1px solid #a4b29e55;text-align:right}.season-remaining b{display:block;font:600 18px Georgia,serif}.season-remaining small{display:block;max-width:55px;font-size:8px;line-height:1.4;color:#738371;margin-top:4px}
 #season-notice{position:absolute;z-index:9;top:110px;left:50%;transform:translateX(-50%);text-align:center;pointer-events:none;color:#fff8e5;text-shadow:0 2px 12px #123f47;opacity:0}
 #season-notice>span{display:block;font-size:40px;margin-bottom:6px}#season-notice small{display:block;font-size:9px;letter-spacing:4px}#season-notice strong{display:block;font:500 38px Georgia,serif;margin:6px 0}#season-notice p{font-size:12px;margin:0}
-
-#performance-hud{position:absolute;top:22px;right:22px;z-index:20;display:flex;gap:18px;padding:10px 15px;background:#132d35df;border:1px solid #cce7dc55;border-radius:11px;box-shadow:0 3px 14px #132d3526;color:#edf6e8;pointer-events:none;font-variant-numeric:tabular-nums}
-#performance-hud>span{display:flex;flex-direction:column;gap:4px;min-width:42px}#performance-hud small{font-size:8px;letter-spacing:1.4px;color:#b4cbbb}#performance-hud b{font:600 17px/1.1 "Segoe UI",sans-serif}#performance-hud[data-health=good] [data-fps]{color:#a5e7b3}#performance-hud[data-health=fair] [data-fps]{color:#f1d18b}#performance-hud[data-health=low] [data-fps]{color:#f0a38d}
-
-#performance-hud{display:grid;grid-template-columns:auto auto;gap:8px 16px;padding:10px 13px}
-#performance-hud b{font-size:14px}

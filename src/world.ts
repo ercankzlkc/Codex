@@ -1,6 +1,5 @@
 import * as T from 'three';
 import {StaticInstances} from './static-instances';
-import {PerformanceHud} from './performance-hud';
 import {SeasonCycle} from './seasons';
 import {icon} from './icons';
 import {SUN} from './lighting';
@@ -48,7 +47,6 @@ function villageHouse() {
 }
 
 export class World {
-  private readonly performanceHud=new PerformanceHud();
   readonly scene=new T.Scene();
   private readonly staticInstances=new StaticInstances(this.scene);
   readonly renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
@@ -539,7 +537,6 @@ export class World {
     for(const {mesh} of this.rings){this.scene.remove(mesh);(mesh.material as T.Material).dispose()}this.rings=[];
   }
   private frame=(now:number)=>{
-    const frameStart=performance.now();
     const timestamp=Number.isFinite(now)?now:performance.now();
     const dt=Math.max(0,Math.min(.065,(timestamp-this.previousTime)/1000));this.previousTime=timestamp;this.time+=dt;
     this.cameraControl.update(dt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
@@ -676,9 +673,7 @@ export class World {
       if(f.life<=0)f.el.remove();return f.life>0;
     });
     this.staticInstances.sync(this.buildings,this.board);this.staticInstances.update();
-    const drawStart=performance.now();
     this.renderer.render(this.scene,this.cameraControl.camera);
-    this.performanceHud.update(this.renderer,drawStart-frameStart,performance.now()-drawStart);
   };
   thumbnails() {
     const images:Record<string,string>={};

@@ -11,11 +11,11 @@ const seasons=[
   {name:'Kış',symbol:'❄',color:'#a3d8ee',tint:'#edf6fb',hint:'Kar ve donmuş kıyılar'},
 ] as const;
 const mix=(a:number,b:number,t:number)=>a+(b-a)*t;
-const DAY_SECONDS=10, DAYS_PER_SEASON=3;
+const DAY_SECONDS=200, DAYS_PER_SEASON=3;
 const SEASON_SECONDS=DAY_SECONDS*DAYS_PER_SEASON, YEAR_SECONDS=SEASON_SECONDS*4;
 /** Three days per season; each day represents a month. */
 export class SeasonCycle{
-  private elapsed=SEASON_SECONDS*2+DAY_SECONDS*2;private lastSeason=-1;private lastPhase='';private scanClock=0;private hudClock=0;
+  private elapsed=0;private lastSeason=-1;private lastPhase='';private scanClock=0;private hudClock=0;
   private sky=new T.Color('#93bfcb');private sunlight=new T.Color('#fff2da');
   private materials=new Map<T.MeshStandardMaterial,{base:T.Color;foliage:boolean;ground:boolean;window:boolean}>();
   private paths=new Set<T.MeshBasicMaterial>();
@@ -55,7 +55,7 @@ export class SeasonCycle{
     this.snow.frustumCulled=false;scene.add(this.snow,this.ice);
   }
   setPalette(sky:string,sun:string){this.sky.set(sky);this.sunlight.set(sun)}
-  reset(){this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=SEASON_SECONDS*2+DAY_SECONDS*2;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
+  reset(){this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){
     this.scene.traverse(object=>{
       if(!(object instanceof T.Mesh)||object.userData.iceChip)return;
@@ -70,7 +70,7 @@ export class SeasonCycle{
   }
   update(dt:number,board:ReadonlyMap<number,Kind>,focus:T.Vector3){
     dt=Number.isFinite(dt)?Math.max(0,Math.min(.1,dt)):0;
-    if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=SEASON_SECONDS*2+DAY_SECONDS*2;
+    if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=0;
     this.iceChips=this.iceChips.filter(chip=>{
       chip.age+=dt;const t=chip.age/chip.life;
       if(t>=1){this.scene.remove(chip.mesh);chip.mesh.material.dispose();return false}
@@ -88,7 +88,9 @@ export class SeasonCycle{
     const from=progress<.5?(season+3)%4:season,to=progress<.5?season:(season+1)%4;
     const blend=T.MathUtils.smoothstep(progress<.5?progress+.5:progress-.5,0,1);
     const weights=[0,0,0,0];weights[from]=1-blend;weights[to]=blend;
+    if(this.elapsed<SEASON_SECONDS*.5){weights[3]=0;weights[0]=1;}
     this.tint.set(seasons[from].tint).lerp(new T.Color(seasons[to].tint),blend);
+    if(this.elapsed<SEASON_SECONDS*.5)this.tint.set(seasons[0].tint);
     const winter=weights[3],autumn=weights[2],summer=weights[1];
     // Dawn at the beginning of each day; warmer edges, a readable blue moonlit night.
     const elevation=Math.sin(cycle*Math.PI*2),daylight=T.MathUtils.smoothstep(elevation,-.18,.4),night=1-daylight;
@@ -134,7 +136,8 @@ export class SeasonCycle{
     this.hud.querySelector('.season-copy small')!.textContent=`YIL ${Math.floor(this.elapsed/YEAR_SECONDS)+1} · GÜN ${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
     this.hud.querySelector('.season-copy strong')!.textContent=current.name;
     this.hud.querySelector('.season-copy>span')!.textContent=`${day+1}. gün / 3 · ${day+1}. ay · ${phase}`;
-    this.hud.querySelector('.season-remaining b')!.textContent=`${Math.ceil(SEASON_SECONDS-part)} sn`;
+    const remaining=Math.ceil(SEASON_SECONDS-part);
+    this.hud.querySelector('.season-remaining b')!.textContent=`${Math.floor(remaining/60)}:${String(remaining%60).padStart(2,'0')}`;
     this.hud.querySelectorAll<HTMLElement>('.season-days i').forEach((dot,i)=>{dot.classList.toggle('complete',i<day);dot.style.setProperty('--fill',`${i<day?100:i===day?cycle*100:0}%`)});
     if(season!==this.lastSeason){
       this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${current.hint}</p>`;
