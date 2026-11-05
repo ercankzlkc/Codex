@@ -76,6 +76,7 @@ function commit(i:number) {
   if(!production)return false;
   locked=true;
   sound.play('hover',true);select(null);world.sync(game.board,card.event?-1:i,rotation);
+  if(!card.event){const p=position(i);sound.landingWave(new Vector3(p.x,0,p.z))}
   if(card.event){world.burst(i);const p=position(i);sound.placement(card.id,new Vector3(p.x,.3,p.z))}
   render(true);
   toast(card.event?`${card.name} uygulandı`:`${card.name} · yerleşim hazırlanıyor`);

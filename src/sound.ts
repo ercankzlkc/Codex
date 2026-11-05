@@ -36,6 +36,7 @@ export class TableSound {
   private clips=new Map<string,AudioBuffer>();
   private live=new Set<AudioScheduledSourceNode>();
   private noise:AudioBuffer|null=null;
+  private surfNoise:AudioBuffer|null=null;
   private pending=new Set<number>();
   private lastHover=0;
   private birdVoice:BirdVoice|null=null;
@@ -184,6 +185,36 @@ export class TableSound {
     if(this.lastWork.size>512)for(const [k,t] of this.lastWork)if(now-t>3)this.lastWork.delete(k);
   }
   placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}
+  /** Match the landing shader: gathering water, outward crest, then a soft retreat. */
+  landingWave(at:T.Vector3){
+    this.unlock();
+    const ctx=this.ctx;
+    if(!ctx||this.muted||document.hidden||!this.levels.master||!this.levels.sfx)return;
+    if(!this.surfNoise){
+      this.surfNoise=ctx.createBuffer(1,Math.ceil(ctx.sampleRate*2.1),ctx.sampleRate);
+      const data=this.surfNoise.getChannelData(0);let smooth=0;
+      for(let i=0;i<data.length;i++){
+        smooth=(smooth+.035*(Math.random()*2-1))/1.035;
+        data[i]=smooth*4;
+      }
+    }
+    const now=ctx.currentTime,source=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain(),pan=ctx.createStereoPanner();
+    source.buffer=this.surfNoise;
+    filter.type='lowpass';filter.Q.value=.35;
+    filter.frequency.setValueAtTime(650,now);
+    filter.frequency.linearRampToValueAtTime(2400,now+.6);
+    filter.frequency.exponentialRampToValueAtTime(550,now+2.1);
+    // Remain audible at the normal table zoom without a sharp splash or a click.
+    const level=.65;
+    gain.gain.setValueAtTime(0,now);
+    gain.gain.linearRampToValueAtTime(level*.35,now+.25);
+    gain.gain.linearRampToValueAtTime(level,now+.6);
+    gain.gain.exponentialRampToValueAtTime(level*.32,now+1.25);
+    gain.gain.linearRampToValueAtTime(0,now+2.1);
+    if(this.viewCamera){this.clipPoint.copy(at).project(this.viewCamera);pan.pan.value=T.MathUtils.clamp(this.clipPoint.x*.65,-.65,.65)}
+    source.connect(filter).connect(gain).connect(pan).connect(this.buses.sfx!);
+    this.trackVoice(source,[filter,gain,pan]);source.start(now);source.stop(now+2.1);
+  }
   private workWeight(at:T.Vector3){
     const camera=this.viewCamera;if(!camera)return 0;
     this.clipPoint.copy(at).project(camera);
