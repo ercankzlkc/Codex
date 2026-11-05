@@ -27,7 +27,7 @@ export class SeasonCycle{
   private iceChips:{mesh:T.Mesh<T.TetrahedronGeometry,T.MeshStandardMaterial>;velocity:T.Vector3;spin:T.Vector3;age:number;life:number}[]=[];
   private chipGeo=new T.TetrahedronGeometry(1);
   breakIce(id:number){
-    const strength=climate.winter.value;if(strength<.08)return;
+    const strength=climate.winter.value;if(strength<.08)return false;
     const center=position(id);
     for(const floe of this.ice.children)if(Math.hypot(floe.position.x-center.x,floe.position.z-center.z)<1.4)floe.visible=false;
     // Break the frozen surface inside the new hex, including open water away from shore floes.
@@ -40,6 +40,7 @@ export class SeasonCycle{
       mesh.rotation.set(0,angle,0);this.scene.add(mesh);
       this.iceChips.push({mesh,velocity:new T.Vector3(Math.cos(angle)*(.4+Math.random()*.45),.22+Math.random()*.4,Math.sin(angle)*(.4+Math.random()*.45)),spin:new T.Vector3(Math.random()*2,Math.random(),Math.random()*2),age:0,life:.65+Math.random()*.35});
     }
+    return true;
   }
   private clearIceChips(){for(const chip of this.iceChips){this.scene.remove(chip.mesh);chip.mesh.material.dispose()}this.iceChips=[]}
   constructor(private scene:T.Scene,private sun:T.DirectionalLight,private ambient:T.HemisphereLight){

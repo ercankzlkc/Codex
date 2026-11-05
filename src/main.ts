@@ -262,9 +262,10 @@ let deliveryHudFrame=0;
 const deliveryPulses=new Map<Resource,number>();
 world.onDelivery=(source,store,resource,amount)=>{
   const accepted=game.deliver(source,store,resource,amount);if(!accepted)return 0;
+  const deliveryPoint=position(store);sound.delivery(new Vector3(deliveryPoint.x,.3,deliveryPoint.z));
   if(!deliveryHudFrame)deliveryHudFrame=requestAnimationFrame(()=>{deliveryHudFrame=0;renderHud()});
   const now=performance.now();if(now-(deliveryPulses.get(resource)??-999)<140)return accepted;deliveryPulses.set(resource,now);
-  sound.play('reward');if(document.querySelectorAll('.delivery-spark').length>=24)return accepted;
+  if(document.querySelectorAll('.delivery-spark').length>=24)return accepted;
   const target=get(`[data-resource="${resource}"]`),rect=target.getBoundingClientRect(),from=world.screenPoint(store,.6);
   const spark=document.createElement('div');spark.className=`delivery-spark ${resource}`;spark.innerHTML=`${icon(resource==='food'?(game.board.get(source)==='fisher'?'fish':game.board.get(source)==='farm'?'wheat':'berry'):resource)}<b>+${accepted}</b>`;document.body.append(spark);
   const endX=rect.left+rect.width/2,endY=rect.top+rect.height/2;

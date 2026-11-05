@@ -38,3 +38,5 @@ Kullanıcının sağladığı Karo Dalga Sesi (1–6).mp3 kayıtları.
 
 Kullanıcının sağladığı hasat kayıtları: wood-hit-1–4, stone-hit-1–4, stone-break-1–3, wood-fall-1–4, wood-land-1–4 (MP3).
 wood-fall: Ağaç Yere DÜşme Sesi; wood-land: Ağaç Düşme Sesi (yere temas ve odunlar).
+
+Kullanıcının sağladığı çilek toplama (berry-pick-1–5), buğday toplama (wheat-pick-1–4) ve buz kırılma (ice-break-1–3) MP3 kayıtları. Depoya ürün bırakma çilek kayıtlarını kullanır.

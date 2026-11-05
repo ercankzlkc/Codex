@@ -5,8 +5,9 @@ export const harvestAudio = {
   woodLand: { files: ['wood-land-1','wood-land-2','wood-land-3','wood-land-4'], volume: 0.38, rate: [1,1], fullLength:true },
   stoneHit: { files: ['stone-hit-1','stone-hit-2','stone-hit-3','stone-hit-4'], volume: 0.34, rate: [1,1], fullLength:true },
   stoneBreak: { files: ['stone-break-1','stone-break-2','stone-break-3'], volume: 0.40, rate: [1,1], fullLength:true },
-  berryPick: { files: ['harvest-leaves-1', 'harvest-leaves-2'], volume: 0.18, rate: [1.12, 1.28] },
-  wheatHarvest: { files: ['harvest-wheat-cut'], volume: 0.16, rate: [0.83, 0.96] },
+  berryPick: { files: ['berry-pick-1','berry-pick-2','berry-pick-3','berry-pick-4','berry-pick-5'], volume: 0.36, rate: [1,1], fullLength:true },
+  wheatHarvest: { files: ['wheat-pick-1','wheat-pick-2','wheat-pick-3','wheat-pick-4'], volume: 0.36, rate: [1,1], fullLength:true },
+  iceBreak: { files: ['ice-break-1','ice-break-2','ice-break-3'], volume: 0.60, rate: [1,1], fullLength:true },
 } as const;
 
 export type HarvestCue = keyof typeof harvestAudio;

@@ -79,7 +79,7 @@ export class TableSound {
       merge.connect(this.seaFilter).connect(this.seaPan).connect(sea).connect(this.buses.ambience!);
       const names=new Set([...Object.values(cues).flatMap(([files])=>[...files]),...Object.values(harvestAudio).flatMap(c=>[...c.files]),...Object.values(placementAudio).flatMap(c=>[...c.files])]);
       for(const name of names){
-        const extension=/^(wood-hit|wood-fall|wood-land|stone-hit|stone-break)-/.test(name)?'.mp3':'.ogg';
+        const extension=/^(wood-hit|wood-fall|wood-land|stone-hit|stone-break|berry-pick|wheat-pick|ice-break)-/.test(name)?'.mp3':'.ogg';
         void fetch(new URL('audio/'+name+extension,document.baseURI)).then(r=>{if(!r.ok)throw Error(name);return r.arrayBuffer()})
           .then(b=>this.ctx!.decodeAudioData(b)).then(b=>this.clips.set(name,b)).catch(()=>{});
       }
@@ -193,6 +193,7 @@ export class TableSound {
     if(this.spatialClip(harvestAudio[cue],at))this.lastWork.set(key,now);
     if(this.lastWork.size>512)for(const [k,t] of this.lastWork)if(now-t>3)this.lastWork.delete(k);
   }
+  delivery(at:T.Vector3){this.spatialClip(harvestAudio.berryPick,at)}
   placement(kind:Kind,at:T.Vector3){this.spatialClip(placementAudio[kind],at)}
   /** Use the supplied recordings without repeating the previous landing. */
   async landingWave(at:T.Vector3){
