@@ -197,7 +197,8 @@ void main() {
   pigment=mix(pigment,vec3(.73,.93,.88),clamp(arrivalFoam*gate,0.,.5));
   pigment+=max(wake,0.)*vec3(.10,.17,.16);
   pigment*=1.+min(wake,0.)*.07;
-  float opacity=1.-.78*exp(-1.25*max(0.,depth-.25));
+  float opticalDepth=max(0.,depth-.25)/max(.50,eye.y);
+  float opacity=1.-.78*exp(-1.25*opticalDepth);
   opacity=mix(opacity,1.,smoothstep(2.38,3.25,depth));
   opacity=mix(opacity,.94,foam);
   // Freeze the entire visible ocean, with stable fine cracks and a gradual frost front.
@@ -229,8 +230,8 @@ void main() {
   }
   vec2 warmUv=(p-uTorchRegion.xy)/uTorchRegion.zw;
   float warmInside=step(0.,warmUv.x)*step(0.,warmUv.y)*step(warmUv.x,1.)*step(warmUv.y,1.);
-  float shoreWarm=texture2D(uTorchField,clamp(warmUv,0.,1.)).r*warmInside;
-  pigment+=vec3(1.,.40,.12)*shoreWarm*(.045+.09*fresnel)*(1.-uFreeze*.9);
+  float shoreWarm=texture2D(uTorchField,clamp(warmUv,0.,1.)).g*warmInside;
+  pigment+=vec3(1.,.40,.12)*shoreWarm*(.12+.15*fresnel)/max(.3,opacity)*(1.-uFreeze*.9);
   gl_FragColor=vec4(pigment,opacity);
   #include <colorspace_fragment>
 }`;
@@ -245,8 +246,8 @@ export const receiverLight = /* glsl */ `
   Lens sunprint=lightNet(projected*1.24,refraction,disturbance);
   float transmission=exp(-immersion*.98);
   float concentration=sunprint.thread*.64 + sunprint.halo*.32 + sunprint.knot*.18;
-  diffuseColor.rgb*=.90 + transmission*(.09+concentration*.49);
-  diffuseColor.rgb+=vec3(.21,.37,.30)*concentration*transmission*(1.-uNight)*(1.-uFreeze);
+  diffuseColor.rgb*=.92 + transmission*(.05+concentration*mix(.40,.12,uSolidReceiver));
+  diffuseColor.rgb+=vec3(.21,.37,.30)*concentration*transmission*(1.-uSolidReceiver*.85)*(1.-uNight)*(1.-uFreeze);
 `;
 
 

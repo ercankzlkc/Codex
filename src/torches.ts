@@ -122,7 +122,11 @@ export class FenceTorches{
       mesh.count=mesh===this.flames?anchors.length*2:anchors.length;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
     }
     this.fieldClock-=dt;
-    if(this.fieldClock<=0){this.fieldClock=.08;updateTorchField(candidates.map(c=>({x:c.anchor.position.x,z:c.anchor.position.z,level:c.level})))}
+    if(this.fieldClock<=0){this.fieldClock=.08;updateTorchField(candidates.flatMap(c=>{
+      const tile=position(c.anchor.id),dx=c.anchor.position.x-tile.x,dz=c.anchor.position.z-tile.z,length=Math.max(.001,Math.hypot(dx,dz));
+      return [{x:c.anchor.position.x,z:c.anchor.position.z,level:c.level,water:false},
+        {x:c.anchor.position.x+dx/length*.65,z:c.anchor.position.z+dz/length*.65,level:c.level*.9,water:true}];
+    }))}
     candidates.sort((a,b)=>a.distance-b.distance);
     this.lights.forEach((light,i)=>{
       const candidate=candidates[i];if(!candidate){light.intensity=0;torchLight.value[i].set(0,0,0,0);return}

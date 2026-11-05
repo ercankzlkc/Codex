@@ -1,9 +1,30 @@
 import * as T from 'three';
+import {torchField} from './torch-light';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
 import {coast,fromWorld} from './hex';
 import {SEA_Y} from './scenery';
 import {gameSpeed} from './game-speed';
 
+/** Keep submerged solids opaque while receiving the same attenuated warm light as the bed. */
+function underwaterLight(material:T.MeshStandardMaterial){
+  material.transparent=false;material.opacity=1;material.depthWrite=true;
+  const previous=material.onBeforeCompile,key=material.customProgramCacheKey();
+  material.onBeforeCompile=function(shader,renderer){
+    previous.call(this,shader,renderer);
+    shader.uniforms.uReefTorch=torchField.map;shader.uniforms.uReefTorchRegion=torchField.region;
+    shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vReefWorld;');
+    shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvReefWorld=(modelMatrix*instanceMatrix*vec4(transformed,1.)).xyz;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uReefTorch;uniform vec4 uReefTorchRegion;varying vec3 vReefWorld;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+      vec2 reefLightUv=(vReefWorld.xz-uReefTorchRegion.xy)/uReefTorchRegion.zw;
+      float reefInside=step(0.,reefLightUv.x)*step(0.,reefLightUv.y)*step(reefLightUv.x,1.)*step(reefLightUv.y,1.);
+      float reefWarm=texture2D(uReefTorch,clamp(reefLightUv,0.,1.)).g*reefInside;
+      outgoingLight+=diffuseColor.rgb*vec3(1.,.58,.27)*reefWarm*exp(-max(0.,-.18-vReefWorld.y)*.75)*.65;
+      #include <opaque_fragment>
+    `);
+  };
+  material.customProgramCacheKey=()=>key+'-submerged-warm-solid-v1';
+}
 const hash=(seed:number)=>{const n=Math.sin(seed*127.1+17.7)*43758.5453;return n-Math.floor(n)};
 function coralGeometry(type:number){
   const parts:T.BufferGeometry[]=[];
@@ -69,10 +90,12 @@ export class CoralGardens{
         shader.fragmentShader=shader.fragmentShader.replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=diffuseColor.rgb*.055;');
       };
       material.customProgramCacheKey=()=>`reef-species-${variant}-v2`;
+      underwaterLight(material);
       const mesh=new T.InstancedMesh(coralGeometry(variant),material,24);
       mesh.count=0;mesh.castShadow=false;mesh.receiveShadow=true;mesh.userData.underwater=true;scene.add(mesh);this.meshes.push(mesh);
     }
     this.rocks=new T.InstancedMesh(new T.IcosahedronGeometry(.5,1),new T.MeshStandardMaterial({color:0x91a6a0,roughness:1,flatShading:true}),48);
+    underwaterLight(this.rocks.material as T.MeshStandardMaterial);
     this.rocks.count=0;this.rocks.receiveShadow=true;this.rocks.userData.underwater=true;scene.add(this.rocks);
   }
   sync(board:ReadonlyMap<number,unknown>){

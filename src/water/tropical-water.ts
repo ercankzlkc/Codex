@@ -79,8 +79,9 @@ export class TropicalWater {
   }
 
   private receiver(sand:boolean){
-    const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,depthWrite:!sand});
+    const mat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:sand,transparent:sand,opacity:1,depthWrite:!sand,flatShading:!sand});
     mat.onBeforeCompile=shader=>{
+      shader.uniforms.uBedTorchField=torchField.map;shader.uniforms.uBedTorchRegion=torchField.region;shader.uniforms.uSolidReceiver={value:sand?0:1};
       shader.uniforms.uNight=climate.night;shader.uniforms.uFreeze=climate.winter;shader.uniforms.uAutumn=climate.autumn;shader.uniforms.uSummer=climate.summer;
       shader.uniforms.uLight=this.uniforms.uLight;shader.uniforms.uTime=this.uniforms.uTime;
       shader.uniforms.uWakes=this.uniforms.uWakes;shader.uniforms.uWakeDirs=this.uniforms.uWakeDirs;shader.uniforms.uLanding=this.uniforms.uLanding;
@@ -98,10 +99,19 @@ export class TropicalWater {
         #endif
         vReceiver=(modelMatrix*receiverLocal).xyz;
         #include <project_vertex>`);
-      shader.fragmentShader='varying vec3 vReceiver;\n'+optics+'\n'+shader.fragmentShader;
+      shader.fragmentShader='varying vec3 vReceiver;\nuniform sampler2D uBedTorchField;uniform vec4 uBedTorchRegion;uniform float uSolidReceiver;\n'+optics+'\n'+shader.fragmentShader;
       shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>\n'+receiverLight+(sand?'\ndiffuseColor.a *= 1. - smoothstep(.65, 1.65, max(0., -.18-vReceiver.y));':'' ));
+      shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+        vec2 bedTorchUv=(vReceiver.xz-uBedTorchRegion.xy)/uBedTorchRegion.zw;
+        float bedTorchInside=step(0.,bedTorchUv.x)*step(0.,bedTorchUv.y)*step(bedTorchUv.x,1.)*step(bedTorchUv.y,1.);
+        float bedTorch=texture2D(uBedTorchField,clamp(bedTorchUv,0.,1.)).g*bedTorchInside;
+        float bedTransmission=exp(-max(0.,-.18-vReceiver.y)*.75);
+        outgoingLight+=diffuseColor.rgb*vec3(1.,.58,.27)*bedTorch*bedTransmission*.7*(1.-uFreeze*.8);
+        #include <opaque_fragment>
+      `);
+
     };
-    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v3':'lagoon-rock-disturbance-v3';
+    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v4-lit':'lagoon-rock-disturbance-v4-solid';
     return mat;
   }
 
@@ -157,11 +167,11 @@ export class TropicalWater {
       for(let j=0;j<amount&&index<this.stones.instanceMatrix.count;j++){
         const t=along+(rand()-.5)*.25,off=offset+j*.075;
         const px=lerp(edge.ax,edge.bx,t)+nx*off,pz=lerp(edge.az,edge.bz,t)+nz*off;
-        const depth=this.field.depthAt(px,pz),r=size/(1+j*.64);
+        const depth=this.field.depthAt(px,pz),r=Math.min(size/(1+j*.64),Math.max(.015,(depth-.10)/1.25));
         o.position.set(px,SEA_Y-depth+r*.25,pz);o.rotation.set(rand()*.32,rand()*6.28,rand()*.26);
         o.scale.set(r*(1.25+rand()*.45),r*(.60+rand()*.18),r);o.updateMatrix();
         this.stones.setMatrixAt(index,o.matrix);
-        color.copy(warm).lerp(blue,T.MathUtils.smoothstep(depth,.31,1.03)*.84+.09)
+        color.copy(warm).lerp(blue,T.MathUtils.smoothstep(depth,.31,1.03)*.40+.08)
           .multiplyScalar(.88+rand()*.2);this.stones.setColorAt(index++,color);
       }
     }
