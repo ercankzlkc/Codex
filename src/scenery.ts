@@ -56,8 +56,9 @@ export function terrainGeometry(id:number,board:ReadonlyMap<number,unknown>,topO
       color.push(shade.r,shade.g,shade.b);
     }
   };
-  const levels=[[-.095,LAND_Y],[-.035,.074],[.05,-.016],[.15,-.16],[.21,-.25],[.28,-.34],[.36,-.43],[.45,-.51],[.56,-.58],[.69,-.64],[.84,-.69]];
-  const tints=[0x91ab6c,0xa8b780,0xdcc796,0xe8cf9e,0xe3cc9c,0xdbc79b,0xc9be98,0xb2b69a,0x9cab96,0x8b9f91];
+  // Only the short shoreline belongs to tiles; the continuous seabed owns deeper sand.
+  const levels=[[-.095,LAND_Y],[-.035,.074],[.05,-.016],[.12,-.11],[.18,-.23],[.22,-.36]];
+  const tints=[0x91ab6c,0xa8b780,0xdcc796,0xe3ce9e,0xc7bd9b];
   for(let k=0;k<6;k++){
     const layers=levels.map(([o,y])=>{
       const a=vertex(k,o,y),b=vertex(k+1,o,y);

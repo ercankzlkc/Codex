@@ -1,5 +1,6 @@
 import * as T from 'three';
 import {fromWorld,position} from './hex';
+import {climate} from './climate';
 export const windForce={value:.35};
 type Streak={mesh:T.Mesh;age:number;duration:number;delay:number};
 /** Brief, translucent ribbons, rather than permanent stripes across the scene. */
@@ -35,7 +36,7 @@ export class Atmosphere{
     let force=.35;
     this.streaks=this.streaks.filter(streak=>{
       streak.age+=dt;const t=(streak.age-streak.delay)/streak.duration,fade=t>0&&t<1?Math.sin(t*Math.PI)**1.5:0;
-      force=Math.max(force,.35+fade*.65);(streak.mesh.material as T.MeshBasicMaterial).opacity=fade*.19;
+      force=Math.max(force,.35+fade*.65);(streak.mesh.material as T.MeshBasicMaterial).opacity=fade*.19*(1-climate.night.value*.8);
       streak.mesh.position.addScaledVector(this.direction,dt*.8);
       const head=Math.min(28,Math.max(0,Math.ceil(t*40))),tail=Math.max(0,Math.floor(t*40-17));streak.mesh.geometry.setDrawRange(tail*6,Math.max(0,head-tail)*6);
       if(t>=1){this.root.remove(streak.mesh);streak.mesh.geometry.dispose();(streak.mesh.material as T.Material).dispose();return false}return true;

@@ -45,7 +45,7 @@ export class LagoonField {
         // Broad sand tongues and channels vary the shelf width along the coast.
         const bank=.5+.25*Math.sin(x*.79+z*.36)+.18*Math.cos(z*.94-x*.51)+.07*Math.sin(x*1.41-z*.88);
         const shelf=smooth(.18,2.2+2.3*bank,d);
-        const depth=.31+.23*smooth(.24,1.65,d)+shelf*(1.15+.43*(1-bank))+1.55*smooth(2.9,6.9,d);
+        const depth=.07+.47*smooth(0,1.65,d)+shelf*(1.15+.43*(1-bank))+1.55*smooth(2.9,6.9,d);
         const packed=Math.round(65535*Math.max(0,Math.min(1,(d+1)/(SHORE_RANGE+1))));
         const k=(j*FIELD_SIZE+i)*4;
         this.pixels[k]=packed>>8;this.pixels[k+1]=packed&255;

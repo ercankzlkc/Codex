@@ -42,7 +42,7 @@ function fencePanel(a:T.Vector3,b:T.Vector3,center:T.Vector3){
 export type FenceEdge={side:number;a:T.Vector3;b:T.Vector3};
 type Spec=ReturnType<typeof fencePlan>[number];
 type Panel={mesh:T.Mesh<T.BufferGeometry,T.MeshStandardMaterial>;spec:Spec;age:number;delay:number;removing:boolean;smoked:boolean;initialScale:number};
-type Puff={mesh:T.Mesh<T.IcosahedronGeometry,T.MeshBasicMaterial>;velocity:T.Vector3;age:number};
+type Puff={mesh:T.Mesh<T.IcosahedronGeometry,T.MeshLambertMaterial>;velocity:T.Vector3;age:number};
 const timber=new T.MeshStandardMaterial({vertexColors:true,roughness:.95,flatShading:true});
 const puffGeometry=new T.IcosahedronGeometry(.055,1);
 /** Reconcile only changed edges; keep disappearing wood alive until its dust burst finishes. */
@@ -72,7 +72,7 @@ export class ShoreFence {
   }
   private dust(spec:Spec){
     for(let i=0;i<5&&this.puffs.length<48;i++){
-      const mat=new T.MeshBasicMaterial({color:i%2?0xded5b9:0xf1e8cf,transparent:true,opacity:0,depthWrite:false});
+      const mat=new T.MeshLambertMaterial({color:i%2?0xded5b9:0xf1e8cf,transparent:true,opacity:0,depthWrite:false});
       const mesh=new T.Mesh(puffGeometry,mat),spread=(i-2)*.17,angle=spec.side*Math.PI/3;
       mesh.position.set(spec.midpoint.x-Math.sin(angle)*spread,LAND_Y+.09,spec.midpoint.z+Math.cos(angle)*spread);this.root.add(mesh);
       this.puffs.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.16,.16+Math.random()*.1,(Math.random()-.5)*.16),age:0});

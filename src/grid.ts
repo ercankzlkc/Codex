@@ -23,7 +23,7 @@ export class PlacementGrid {
   private rimMat=new T.LineBasicMaterial({color:0xfcf6d8,transparent:true,opacity:.9,depthWrite:false});
   private fillGeo=new T.CircleGeometry(RADIUS*.94,6,Math.PI/2).rotateX(-Math.PI/2);
   private fillMat=new T.MeshBasicMaterial({color:0xc1e8bd,transparent:true,opacity:.16,depthWrite:false});
-  private hoverMat=new T.MeshBasicMaterial({color:0xb8e79b,transparent:true,opacity:.48,depthWrite:false});
+  private hoverMat=new T.MeshBasicMaterial({color:0xb8e79b,transparent:true,opacity:.06,depthWrite:false});
   private hover=new T.Mesh(this.fillGeo,this.hoverMat);
   constructor(scene:T.Scene){this.root.add(this.markers,this.hover);this.hover.visible=false;scene.add(this.root)}
   rebuild(board:ReadonlyMap<number,unknown>){
@@ -65,7 +65,7 @@ export class PlacementGrid {
   update(dt:number){
     this.visibility=T.MathUtils.damp(this.visibility,this.available?1:0,10,dt);
     this.markers.visible=this.visibility>.001;
-    this.fillMat.opacity=.16*this.visibility;this.rimMat.opacity=.9*this.visibility;
+    this.fillMat.opacity=.025*this.visibility;this.rimMat.opacity=.28*this.visibility;
     for(const marker of this.markers.children)marker.scale.setScalar(.94+.06*this.visibility);
   }
   setHover(id:number,valid:boolean,selected:boolean){

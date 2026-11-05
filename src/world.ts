@@ -86,7 +86,8 @@ export class World {
   private wheelRotation=0;
   private placementQueued=false;
   private previewLand:T.Mesh|null=null;
-  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:true,side:T.DoubleSide,transparent:true,opacity:.55,depthWrite:false});
+  private previewFade=0;
+  private readonly previewLandMat=new T.MeshStandardMaterial({vertexColors:true,roughness:1,flatShading:false,side:T.FrontSide,transparent:true,opacity:0,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});
   private readonly seaRay=new T.Raycaster();
   private readonly seaPlane=new T.Plane(new T.Vector3(0,1,0),-SEA_Y);
   private readonly seaPoint=new T.Vector3();
@@ -98,7 +99,7 @@ export class World {
   private readonly contact=contactMaterial();
   private readonly contactGeo=new T.PlaneGeometry(1.48,1.26).rotateX(-Math.PI/2);
   private readonly moteGeo=new T.IcosahedronGeometry(.032,0);
-  private readonly moteMats=[0xe9cb83,0xc5d99a,0xdab68a].map(color=>new T.MeshBasicMaterial({color}));
+  private readonly moteMats=[0xe9cb83,0xc5d99a,0xdab68a].map(color=>new T.MeshLambertMaterial({color}));
   private builds:Build[]=[];
   private motes:Mote[]=[];
   private labels:Label[]=[];
@@ -216,7 +217,7 @@ export class World {
   }
   private dust(p:T.Vector3,count=18){
     for(let i=0;i<count;i++){
-      const material=new T.MeshBasicMaterial({color:i%2?0xc4b38e:0xd5c6a6,transparent:true,opacity:.42,depthWrite:false});
+      const material=new T.MeshLambertMaterial({color:i%2?0xc4b38e:0xd5c6a6,transparent:true,opacity:.42,depthWrite:false});
       const mesh=new T.Mesh(this.moteGeo,material);mesh.position.copy(p);mesh.position.y+=.08;this.scene.add(mesh);
       this.motes.push({mesh,velocity:new T.Vector3((Math.random()-.5)*.65,.12+Math.random()*.22,(Math.random()-.5)*.65),life:1.3+Math.random()*.5,dust:true});
     }
@@ -422,12 +423,13 @@ export class World {
       const wasVisible=this.ghost.visible;
       this.ghost.visible=i>=0;
       if(i>=0){
+        this.previewFade=wasVisible?.3:0;
         if(this.selected&&['fisher','harbor'].includes(this.selected.id)&&this.ghostManualCell!==i)this.desiredGhostYaw=this.coastalYaw(i,this.desiredGhostYaw);
         this.ghostTarget.copy(cellPosition(i,this.board.has(i)?LAND_Y+.035:LAND_Y+.025));
         if(!wasVisible)this.ghost.position.copy(this.ghostTarget);
         this.ghostPalette.forEach(({mat,base})=>{
           mat.color.copy(base).lerp(new T.Color(valid?0xc5e7ae:0xe98875),valid?.04:.65);
-          mat.opacity=valid?1:.45;mat.transparent=!valid;mat.depthWrite=valid;
+          mat.opacity=0;mat.transparent=true;mat.depthWrite=true;
         });
       }
     }
@@ -451,7 +453,7 @@ export class World {
     this.ghostPalette.forEach(p=>p.mat.dispose());this.ghostPalette=[];
     this.selected=card;this.fisherOffset=same?this.fisherOffset:0;this.placementQueued=false;this.ghostModel=null;this.desiredGhostYaw=targetYaw;this.wheelRotation=0;
     if(card){
-      this.ghost=new T.Group();this.ghostModel=model(card.id);this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);this.ghost.scale.setScalar(.70);
+      this.ghost=new T.Group();this.ghostModel=model(card.id);this.ghostModel.rotation.y=currentYaw;this.ghost.add(this.ghostModel);this.ghost.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(card.id)?BUILDING_SCALE:['berry','farm'].includes(card.id)?.75:1);
       this.ghost.traverse(o=>{if(o instanceof T.Mesh){
         const mat=(o.material as T.MeshStandardMaterial).clone();
         this.ghostPalette.push({mat,base:mat.color.clone()});mat.transparent=true;mat.opacity=.72;mat.depthWrite=false;
@@ -544,6 +546,10 @@ export class World {
     this.grid.update(dt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     if(this.ghost?.visible){
+      this.previewFade=T.MathUtils.damp(this.previewFade,1,10,dt);
+      const valid=this.valid(this.hover);
+      for(const {mat} of this.ghostPalette)mat.opacity=this.previewFade*(valid?.78:.38);
+      this.previewLandMat.opacity=this.previewFade*.76;
       this.ghost.position.lerp(this.ghostTarget,1-Math.exp(-16*dt));
       if(this.previewLand){this.previewLand.position.x=this.ghost.position.x;this.previewLand.position.z=this.ghost.position.z;}
       if(this.ghostModel){
