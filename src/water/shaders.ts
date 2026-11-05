@@ -97,6 +97,7 @@ uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
 uniform vec3 uSunDirection,uReflectionEye;
 uniform vec4 uTorchLights[4];
+uniform sampler2D uTorchField;uniform vec4 uTorchRegion;
 // Smooth, nonperiodic roughness. No high-frequency sine bars or screen-space streaks.
 float waterHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float waterNoise(vec2 p){
@@ -143,6 +144,8 @@ void main() {
     arrivalFoam=(max(outward,0.)*.36+exp(-second*second*80.)*fade*.16)*broken;
   }
   vec4 disturbance=waterDisturbance(p);
+  float shoreImpulse=disturbance.z;
+  float shoreWarp=clamp(shoreImpulse*.22,-.12,.12)*(1.-uFreeze);
   float wake=disturbance.z;vec2 wakeSlope=disturbance.xy*.24;
   float seaGate=smoothstep(.06,.38,shore);
   wake*=seaGate;wakeSlope*=seaGate;
@@ -178,15 +181,15 @@ void main() {
   float gate=smoothstep(-.07,.065,shore);
   float drift=.5+.5*sin(uTime*1.25+flow.y*7.+dot(p,vec2(.49,.71)));
   float wash=.205+.083*drift+.070*flow.x;
-  float surfDistance=abs(shore-wash);
+  float surfDistance=abs(shore-wash-shoreWarp);
   float aa=max(.006,fwidth(shore)*.68);
   float rim=1.-smoothstep(.010,.029+aa,surfDistance);
   float lace=texture2D(uLight,turn*p*.29+flow*.13+uTime*vec2(.003,-.004)).r;
-  float gaps=smoothstep(.10,.66,drift*.4+weather.a*.6+flow.y*.55);
+  float gaps=smoothstep(.10,.66,drift*.4+weather.a*.6+flow.y*.55+abs(shoreImpulse)*.18);
   float fringe=(1.-smoothstep(.012,.081,lace))*(1.-smoothstep(.025,.105,surfDistance));
     // Scalloped arcs peel off in short patches as a wash retreats.
   float retreat=.28+.27*drift+.11*flow.y;
-  float tornEdge=abs(shore-retreat-.048*sin(dot(p,vec2(3.1,-2.2))+flow.x*4.));
+  float tornEdge=abs(shore-retreat-shoreWarp*.75-.048*sin(dot(p,vec2(3.1,-2.2))+flow.x*4.));
   float backwash=(1.-smoothstep(.003,.021+aa,tornEdge))*smoothstep(.48,.82,weather.a+flow.x*.56)*drift;
   float foam=gate*clamp(rim*(.32+.63*gaps)+fringe*gaps*.42+backwash*.49,0.,1.);
   pigment=mix(pigment,vec3(.86,.93,.87)*mix(.75,1.,sunVisibility),foam*.72);
@@ -224,6 +227,10 @@ void main() {
       pigment+=vec3(1.,.43,.12)*(specular*.6+gentleScatter)*uTorchLights[i].w/(1.+distance2*2.5)*(1.-uFreeze*.9);
     }
   }
+  vec2 warmUv=(p-uTorchRegion.xy)/uTorchRegion.zw;
+  float warmInside=step(0.,warmUv.x)*step(0.,warmUv.y)*step(warmUv.x,1.)*step(warmUv.y,1.);
+  float shoreWarm=texture2D(uTorchField,clamp(warmUv,0.,1.)).r*warmInside;
+  pigment+=vec3(1.,.40,.12)*shoreWarm*(.045+.09*fresnel)*(1.-uFreeze*.9);
   gl_FragColor=vec4(pigment,opacity);
   #include <colorspace_fragment>
 }`;

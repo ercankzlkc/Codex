@@ -66,7 +66,7 @@ export class SeasonCycle{
   reset(){gameSpeed.value=1;this.hud.querySelectorAll('[data-speed]').forEach(button=>button.setAttribute('aria-pressed',String((button as HTMLElement).dataset.speed==='1')));this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){
     this.scene.traverse(object=>{
-      if(!(object instanceof T.Mesh)||object.userData.iceChip)return;
+      if(!(object instanceof T.Mesh)||object.userData.iceChip||object.userData.underwater)return;
       for(const material of Array.isArray(object.material)?object.material:[object.material]){
         if(material instanceof T.MeshBasicMaterial&&material.color.getHex()===0xccbc95)this.paths.add(material);
         if(material instanceof T.MeshStandardMaterial||material instanceof T.MeshLambertMaterial)seasonalSurface(material);

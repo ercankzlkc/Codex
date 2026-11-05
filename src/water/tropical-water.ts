@@ -1,5 +1,5 @@
 import * as T from 'three';
-import {torchLight} from '../torch-light';
+import {torchLight,torchField} from '../torch-light';
 import {climate} from '../climate';
 import { coast, position, type ShoreEdge } from '../hex';
 import {LAND_START,LAND_END,SINK_START,SINK_END,easeBetween} from '../emergence';
@@ -21,7 +21,7 @@ export class TropicalWater {
   private transitionEnd=LAND_END;
   private pendingEdges:ShoreEdge[]|null=null;
   private readonly uniforms={
-    uTorchLights:torchLight,
+    uTorchLights:torchLight,uTorchField:torchField.map,uTorchRegion:torchField.region,
     uNight:climate.night,uFreeze:climate.winter,uAutumn:climate.autumn,uSummer:climate.summer,
     uWakes:{value:Array.from({length:12},()=>new T.Vector4(0,0,-10,0))},
     uWakeDirs:{value:Array.from({length:12},()=>new T.Vector4(1,0,0,0))},

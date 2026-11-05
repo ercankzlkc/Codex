@@ -1,4 +1,5 @@
 import * as T from 'three';
+import {torchField} from './torch-light';
 export const climate={night:{value:0},winter:{value:0},autumn:{value:0},summer:{value:0}};
 const installed=new WeakSet<T.Material>();
 /** Surface snow follows upward-facing normals, preserving walls and muddy paths. */
@@ -7,11 +8,12 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
   const previous=material.onBeforeCompile,cache=material.customProgramCacheKey.bind(material),key=cache();
   material.onBeforeCompile=function(shader,renderer){
     previous.call(this,shader,renderer);
+    shader.uniforms.uTorchField=torchField.map;shader.uniforms.uTorchRegion=torchField.region;
     shader.uniforms.uSeasonSnow=climate.winter;shader.uniforms.uSeasonAutumn=climate.autumn;shader.uniforms.uSeasonSummer=climate.summer;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSeasonNormal;varying vec3 vSeasonPosition;');
     shader.vertexShader=shader.vertexShader.replace('#include <defaultnormal_vertex>','#include <defaultnormal_vertex>\nvSeasonNormal=inverseTransformDirection(transformedNormal,viewMatrix);');
     shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvec4 seasonLocal=vec4(transformed,1.);\n#ifdef USE_INSTANCING\nseasonLocal=instanceMatrix*seasonLocal;\n#endif\nvSeasonPosition=(modelMatrix*seasonLocal).xyz;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform float uSeasonSnow,uSeasonAutumn,uSeasonSummer;varying vec3 vSeasonNormal;varying vec3 vSeasonPosition;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uTorchField;uniform vec4 uTorchRegion;uniform float uSeasonSnow,uSeasonAutumn,uSeasonSummer;varying vec3 vSeasonNormal;varying vec3 vSeasonPosition;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       float vegetation=smoothstep(.015,.12,diffuseColor.g-max(diffuseColor.r*.88,diffuseColor.b));
       diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.03,.86),uSeasonSummer*vegetation*.45);
@@ -25,6 +27,14 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
       snow=max(snow,rim*.28*smoothstep(.02,.8,uSeasonSnow));
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.87,.93,.97),snow*.96);
     `);
+    shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
+      vec2 torchUv=(vSeasonPosition.xz-uTorchRegion.xy)/uTorchRegion.zw;
+      float torchInside=step(0.,torchUv.x)*step(0.,torchUv.y)*step(torchUv.x,1.)*step(torchUv.y,1.);
+      float torchWarm=texture2D(uTorchField,clamp(torchUv,0.,1.)).r*torchInside;
+      float torchHeight=exp(-max(0.,vSeasonPosition.y-.55)*1.3)*smoothstep(-.02,.10,vSeasonPosition.y);
+      outgoingLight+=diffuseColor.rgb*vec3(1.,.54,.20)*torchWarm*torchHeight*.72;
+      #include <opaque_fragment>
+    `);
   };
-  material.customProgramCacheKey=()=>key+'-season-surface-v3';material.needsUpdate=true;
+  material.customProgramCacheKey=()=>key+'-season-surface-v4-uniform-torches';material.needsUpdate=true;
 }

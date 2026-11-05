@@ -1,6 +1,6 @@
 import * as T from 'three';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
-import {torchLight} from './torch-light';
+import {torchLight,updateTorchField} from './torch-light';
 import {climate} from './climate';
 import {position} from './hex';
 import {LAND_Y} from './scenery';
@@ -48,7 +48,7 @@ void main(){
   float alpha=radial*flicker*vFire.r*.15;
   gl_FragColor=vec4(vec3(1.,.42,.09),alpha);
 }`;
-/** Low-poly holders and layered flames, plus four shadow-free lights, independent of fence count. */
+/** Low-poly holders and layered flames, and a shared warm-light field, independent of fence count. */
 export class FenceTorches{
   private capacity=0;private flames:T.InstancedMesh|null=null;private ground:T.InstancedMesh|null=null;private holder:T.InstancedMesh|null=null;
   private selected=new Set<string>();private selectionKey='';
@@ -65,6 +65,7 @@ export class FenceTorches{
   }
   private clock={value:0};private levels=new Map<string,number>();
   private lights:T.PointLight[]=[];
+  private fieldClock=0;
   private matrix=new T.Matrix4();private rotation=new T.Quaternion();private scale=new T.Vector3();private point=new T.Vector3();private color=new T.Color();
   private flameGeo=new T.ConeGeometry(.5,1,5,1).translate(0,.5,0);
   private holderGeo=(()=>{const parts=[new T.CylinderGeometry(.012,.018,.28,5).translate(0,-.19,0),new T.CylinderGeometry(.047,.026,.06,5).translate(0,-.035,0),new T.BoxGeometry(.064,.022,.034).translate(0,-.11,0)];parts.forEach((part,i)=>{const tint=new T.Color(i===0?0x745137:i===1?0x383d40:0x9c7246),values=new Float32Array(part.getAttribute('position').count*3);for(let j=0;j<values.length;j+=3){values[j]=tint.r;values[j+1]=tint.g;values[j+2]=tint.b}part.setAttribute('color',new T.BufferAttribute(values,3))});const geometry=mergeGeometries(parts,false)!;parts.forEach(part=>part.dispose());return geometry})();
@@ -73,7 +74,7 @@ export class FenceTorches{
   private flameMat=new T.ShaderMaterial({uniforms:{uTime:this.clock},vertexShader:vertex,fragmentShader:flameFragment,transparent:true,depthWrite:false,side:T.DoubleSide,blending:T.AdditiveBlending,toneMapped:false});
   private groundMat=new T.ShaderMaterial({uniforms:{uTime:this.clock,uWater:{value:0}},vertexShader:glowVertex,fragmentShader:glowFragment,transparent:true,depthWrite:false,blending:T.AdditiveBlending,toneMapped:false});
   constructor(private scene:T.Scene){
-    for(let i=0;i<4;i++){const light=new T.PointLight(0xffb45c,0,2.5,2);light.castShadow=false;scene.add(light);this.lights.push(light)}
+    for(let i=0;i<4;i++){const light=new T.PointLight(0xffb45c,0,2.5,2);light.castShadow=false;this.lights.push(light)}
   }
   private allocate(count:number){
     if(count<=this.capacity)return;
@@ -88,7 +89,7 @@ export class FenceTorches{
     this.flames.renderOrder=8;this.ground.renderOrder=3;this.holder.renderOrder=0;this.holder.castShadow=true;
   }
   reset(){
-    this.levels.clear();this.clock.value=0;this.selectionKey='';this.selected.clear();torchLight.value.forEach(light=>light.set(0,0,0,0));
+    this.levels.clear();this.clock.value=0;this.fieldClock=0;updateTorchField([]);this.selectionKey='';this.selected.clear();torchLight.value.forEach(light=>light.set(0,0,0,0));
     for(const mesh of [this.flames,this.ground,this.holder])if(mesh)mesh.count=0;
     for(const light of this.lights)light.intensity=0;
   }
@@ -120,6 +121,8 @@ export class FenceTorches{
     for(const mesh of [this.flames,this.ground,this.holder])if(mesh){
       mesh.count=mesh===this.flames?anchors.length*2:anchors.length;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
     }
+    this.fieldClock-=dt;
+    if(this.fieldClock<=0){this.fieldClock=.08;updateTorchField(candidates.map(c=>({x:c.anchor.position.x,z:c.anchor.position.z,level:c.level})))}
     candidates.sort((a,b)=>a.distance-b.distance);
     this.lights.forEach((light,i)=>{
       const candidate=candidates[i];if(!candidate){light.intensity=0;torchLight.value[i].set(0,0,0,0);return}
