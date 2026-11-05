@@ -1,5 +1,7 @@
 import {terrainGeometry} from './scenery';
 import * as T from 'three';
+import {FenceTorches} from './torches';
+import {climate} from './climate';
 import {gameSpeed} from './game-speed';
 import {StaticInstances} from './static-instances';
 import {SeasonCycle} from './seasons';
@@ -49,6 +51,7 @@ function villageHouse() {
 
 export class World {
   readonly scene=new T.Scene();
+  private readonly torches=new FenceTorches(this.scene);
   private readonly staticInstances=new StaticInstances(this.scene);
   readonly renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});
   readonly cameraControl:CameraController;
@@ -530,6 +533,7 @@ export class World {
     });
   }
   reset(){
+    this.torches.reset();
     this.staticInstances.clear();
     this.seasons.reset();
     for(const el of this.fullStores.values())el.remove();this.fullStores.clear();this.placedManualCell=-1;
@@ -548,6 +552,11 @@ export class World {
     this.cameraControl.update(realDt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     this.grid.update(dt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
+    if(this.game){
+      const anchors=this.environment.torchAnchors;
+      if(dt>0)this.game.updateTorches(climate.night.value>.12,this.seasons.torchNight,[...new Set(anchors.map(anchor=>anchor.id))].sort((a,b)=>Number(b===CENTER)-Number(a===CENTER)||a-b));
+      this.torches.update(dt,anchors,this.game,this.cameraControl.audioFocus);
+    }
     if(this.ghost?.visible){
       this.previewFade=T.MathUtils.damp(this.previewFade,1,10,dt);
       const valid=this.valid(this.hover);

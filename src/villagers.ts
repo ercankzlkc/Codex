@@ -333,7 +333,7 @@ export class Villagers {
         const distance=Math.hypot(c.root.position.x-x,c.root.position.z-z);c.walkPhase+=distance*Math.PI*2/.34;
         return dt>0?distance/dt:0;
       };
-      if(c.visual?.animate(dt,this.motionFor(c),0,travel)){
+      if(c.visual?.animate(dt*(c.stage==='working'&&c.job?g.nightWorkRate(c.job.source):1),this.motionFor(c),0,travel)){
         c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;
         c.root.position.y=LAND_Y;this.updateVisual(c);continue;
       }
@@ -356,9 +356,9 @@ export class Villagers {
       c.legs[0].rotation.x=walking?Math.sin(phase)*.55:0;c.legs[1].rotation.x=walking?-Math.sin(phase)*.55:0;c.axe.visible=!!wood&&c.job?.resource==='wood';c.pickaxe.visible=!!wood&&c.job?.resource==='stone';
       if(working&&c.job){
         if(fishing){const spot=this.hooks.fishingSpot(c.job.source);if(!spot||Math.hypot(c.root.position.x-spot.stand.x,c.root.position.z-spot.stand.z)>.22){c.clock=0;c.stage='to-work';c.path=[];c.target=null;c.retry=0;continue}}
-        c.clock+=dt;
+        const workDt=dt*g.nightWorkRate(c.job.source);c.clock+=workDt;
         const duration=fishing?this.fishTiming().total:wood?(c.job.resource==='stone'?6.8:6):harvestSeconds(c.job.category,c.job.amount);
-        if(fishing){c.body.rotation.x=.05;this.fishing(c,dt)}
+        if(fishing){c.body.rotation.x=.05;this.fishing(c,workDt)}
         else{const p=this.hooks.workPoint(c.job.source,c.job.tree);c.root.rotation.y=c.job.category==='farm'?this.hooks.yaw(c.job.source)+Math.PI:Math.atan2(p.x-.12-c.root.position.x,p.z-.15-c.root.position.z);this.hooks.harvestProgress(c.job.source,c.id,Math.min(1,c.clock/duration))}
         if(c.clock>=duration){
           if(this.hooks.harvest(c.job.source,c.job.resource,c.job.tree,c.id)){

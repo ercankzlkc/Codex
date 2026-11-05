@@ -100,6 +100,7 @@ export class Environment {
   }
   setPalette(colors:readonly string[]){this.water.setPalette(colors)}
   setSun(direction:T.Vector3){this.water.setSun(direction)}
+  get torchAnchors(){return [...this.land].flatMap(([id,tile])=>tile.fence.torchAnchors(id))}
   get soundShore(){return this.audioShore}
   get soundBirds(){return this.wildlife.soundBirds}
   fitWaterView(camera:T.OrthographicCamera,focus:T.Vector3){this.water.fitView(camera,focus);this.wildlife.setView(camera,window.innerHeight)}

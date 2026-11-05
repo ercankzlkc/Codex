@@ -286,6 +286,8 @@ world.onInspect=(id,x,y,bounds)=>{
   else if(kind==='harbor')lines.push(game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Limanı seçerek ticaret yap');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
+  if(game.hasTorches(id))lines.push('Meşaleler · 1 odun / gece / karo',game.torchLit(id)?'Meşaleler yanıyor · gece üretimi normal':'Gece için yakıt gerekir');
+  if(product&&game.nightWorkRate(id)<1)lines.push('Karanlık · gece çalışma hızı %65');
   const graphic=id===CENTER?'crest':({harbor:'harbor',forest:'wood',stone:'stone',berry:'berry',farm:'wheat',fisher:'fish',store:'carry',house:'people',manor:'people',lumber:'wood',garden:'garden'} as Record<string,string>)[kind??'']??'garden';
   tooltip.querySelector('strong')!.innerHTML=`${icon(graphic)}<span>${id===CENTER?'Krallık merkezi':card?.name??'Yerleşim'}</span>`;
   tooltip.querySelector('div')!.innerHTML=lines.map(line=>`<span>${line}</span>`).join('');tooltip.hidden=false;
@@ -336,7 +338,7 @@ get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy<
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir. + bir köylüyü o işe geçirir, − boşta bırakır; boşta kimse yoksa + başka işten birini aktarır. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
  <p>Depoyu seçerek kapasitesini görebilir, odunla yükseltebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
- <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · merkeze dön<br>Tekerlek · yakınlaş &nbsp; Home · ortala &nbsp; H · kaynaklara +1.000<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><button data-close>Oyuna dön</button>`);
+ <p>Çitlerin ortasındaki meşaleler geceleri yanar. Karo başına gece boyunca 1 odun yakıt kullanılır; aynı karodaki meşaleler ek ücret veya ek bonus vermez. Aydınlanan işyerleri normal hızda, karanlıktakiler %65 hızda çalışır. Yakıt gecenin başında ayrılır; yakıtsız meşaleler söner.</p>\n <p class="controls">Sağ tuş · 360° döndür &nbsp; Orta tuş · merkeze dön<br>Tekerlek · yakınlaş &nbsp; Home · ortala &nbsp; H · kaynaklara +1.000<br>Kart / yapı seçiliyken tekerlek veya R · döndür<br>Shift + R · ters yön &nbsp; Esc · seçimi bırak</p><button data-close>Oyuna dön</button>`);
 document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='h'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!dialog.open&&!(e.target instanceof Element&&e.target.closest('input,textarea,select,[contenteditable]'))){e.preventDefault();game.grantResources();renderHud();toast('Odun, taş, çilek, buğday, balık ve altın +1.000')}
   if(e.key==='Escape'&&!dialog.open){closeWork();drag.cancel();select(null)}});

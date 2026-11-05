@@ -79,6 +79,26 @@ export class Game {
   board=new Map<number,Kind>([[CENTER,'house']]);
   wood=18;stone=0;happy=70;gold=10;
   paused=false;
+  private torchFuel=new Map<number,number>();
+  private litTorchTiles=new Set<number>();
+  private torchNightActive=false;
+  private torchSites=new Set<number>();
+  hasTorches(id:number){return this.torchSites.has(id)}
+  /** A tile burns one log for the whole night, regardless of its fence count. */
+  updateTorches(night:boolean,nightId:number,tiles:readonly number[]){
+    this.torchSites=new Set(tiles);this.torchNightActive=night;this.litTorchTiles.clear();
+    if(!night)return;
+    const reserve=[...this.board.values()].includes('forest')?0:2;
+    for(const id of tiles){
+      if(!this.board.has(id))continue;
+      if(this.torchFuel.get(id)!==nightId&&this.wood-reserve>=1){this.spendWood(1);this.torchFuel.set(id,nightId)}
+      if(this.torchFuel.get(id)===nightId)this.litTorchTiles.add(id);
+    }
+    for(const id of this.torchFuel.keys())if(!this.board.has(id))this.torchFuel.delete(id);
+  }
+  torchLit(id:number){return this.litTorchTiles.has(id)}
+  nightWorkRate(id:number){return this.torchNightActive&&!this.torchLit(id) ? .65 : 1}
+
   peakPopulation=1;
   reached=new Set<number>();
   milestoneQueue:Milestone[]=[];

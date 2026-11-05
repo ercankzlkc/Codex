@@ -61,6 +61,7 @@ export class SeasonCycle{
     this.snow=new T.Points(geometry,new T.PointsMaterial({color:0xf0f7ff,size:.025,transparent:true,opacity:0,depthWrite:false}));
     this.snow.frustumCulled=false;scene.add(this.snow,this.ice);
   }
+  get torchNight(){return Math.floor(this.elapsed/DAY_SECONDS+.5)}
   setPalette(sky:string,sun:string){this.sky.set(sky);this.sunlight.set(sun)}
   reset(){gameSpeed.value=1;this.hud.querySelectorAll('[data-speed]').forEach(button=>button.setAttribute('aria-pressed',String((button as HTMLElement).dataset.speed==='1')));this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){

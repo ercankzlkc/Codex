@@ -34,6 +34,10 @@ function fencePanel(a:T.Vector3,b:T.Vector3,center:T.Vector3){
   const length=a.distanceTo(b),yaw=Math.atan2(b.x-a.x,b.z-a.z);
   post(a);post(center);post(b);
   for(const y of [.095,.19])add(.028,.035,length,center.clone().setY(LAND_Y+y),0xc7b48e,yaw);
+  // One bracket and torch per fence section, merged into the existing timber draw.
+  add(.025,.30,.025,center.clone().setY(LAND_Y+.34),0x59432c);
+  add(.068,.055,.062,center.clone().setY(LAND_Y+.48),0x3d3830);
+  add(.048,.035,.044,center.clone().setY(LAND_Y+.515),0x8b5831);
   const geometry=mergeGeometries(pieces,false);pieces.forEach(p=>p.dispose());
   geometry?.translate(-center.x,-LAND_Y,-center.z);return geometry!;
 }
@@ -81,6 +85,12 @@ export class ShoreFence {
   private edge(spec:Spec,id:number):FenceEdge{
     const p=position(id),offset=new T.Vector3(p.x,0,p.z);
     return {side:spec.side,a:spec.a.clone().add(offset),b:spec.b.clone().add(offset)};
+  }
+  torchAnchors(id:number){
+    return [...this.panels.values()].filter(panel=>panel.mesh.visible&&!panel.removing&&panel.mesh.scale.y>.85).map(panel=>{
+      panel.mesh.updateWorldMatrix(true,false);
+      return {key:`${id}:${panel.spec.side}`,id,position:panel.mesh.localToWorld(new T.Vector3(0,.55,0)),strength:Math.min(1,panel.mesh.scale.y)};
+    });
   }
   get hasPending(){return this.pending.size>0}
   waitingEdges(id:number){return [...this.pending.values()].filter(spec=>!this.retiring.some(panel=>panel.spec.side===spec.side)).map(spec=>this.edge(spec,id))}
