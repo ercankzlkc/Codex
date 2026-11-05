@@ -158,7 +158,7 @@ export class CameraController {
     this.desiredTarget.copy(this.islandCenter);
     this.pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
     this.element.setPointerCapture(event.pointerId);
-    this.element.style.cursor = 'grabbing';
+    this.element.style.cursor = 'var(--cursor-grab)';
   };
 
   private onPointerMove = (event: PointerEvent): void => {

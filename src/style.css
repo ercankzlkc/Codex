@@ -330,3 +330,11 @@ html,body,#app,#app *,.drag-card,.drag-card *{user-select:none;-webkit-user-sele
 
 .kingdom-hud{height:60px}
 .drag-card.drop-valid,.drag-card.drop-invalid{opacity:.96;visibility:visible}
+
+/* Native themed cursors keep the exact pointer hotspot and never lag behind input. */
+:root{--cursor-arrow:url('/cursors/arrow.svg') 3 2,default;--cursor-point:url('/cursors/hand.svg') 11 5,pointer;--cursor-grab:url('/cursors/grab.svg') 14 15,grabbing}
+html,body,#app,canvas{cursor:var(--cursor-arrow)}
+button,a,[role=button],.kingdom-hud button.resource{cursor:var(--cursor-point)}
+#hand .card{cursor:var(--cursor-point)}
+button:disabled,#hand .card:disabled{cursor:var(--cursor-arrow)}
+body.is-dragging,body.is-dragging *,body.is-dragging canvas{cursor:var(--cursor-grab)!important}

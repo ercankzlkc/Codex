@@ -65,7 +65,7 @@ export class PlacementGrid {
   update(dt:number){
     this.visibility=T.MathUtils.damp(this.visibility,this.available?1:0,10,dt);
     this.markers.visible=this.visibility>.001;
-    this.fillMat.opacity=.025*this.visibility;this.rimMat.opacity=.28*this.visibility;
+    this.fillMat.opacity=.16*this.visibility;this.rimMat.opacity=.9*this.visibility;
     for(const marker of this.markers.children)marker.scale.setScalar(.94+.06*this.visibility);
   }
   setHover(id:number,valid:boolean,selected:boolean){

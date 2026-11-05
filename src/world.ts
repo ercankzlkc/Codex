@@ -363,7 +363,7 @@ export class World {
     if(this.selected||event.buttons||document.querySelector('dialog[open]')){this.onInspect(-1,0,0,null);return}
     const id=this.grid.pick(event.clientX,event.clientY,this.cameraControl.camera,this.el);
     if(!this.board.has(id)){this.onInspect(-1,0,0,null);this.renderer.domElement.style.cursor='';return}
-    this.renderer.domElement.style.cursor='pointer';
+    this.renderer.domElement.style.cursor='var(--cursor-point)';
     const p=position(id),points=Array.from({length:6},(_,i)=>{const c=corner(i),v=new T.Vector3(p.x+c.x,LAND_Y,p.z+c.z).project(this.cameraControl.camera);return {x:(v.x+1)*this.el.clientWidth/2,y:(1-v.y)*this.el.clientHeight/2}});
     this.onInspect(id,event.clientX,event.clientY,{left:Math.min(...points.map(p=>p.x)),right:Math.max(...points.map(p=>p.x)),top:Math.min(...points.map(p=>p.y))-35,bottom:Math.max(...points.map(p=>p.y))});
   }

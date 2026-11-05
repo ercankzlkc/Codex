@@ -29,7 +29,7 @@ export class Environment {
   private pendingBoard:ReadonlyMap<number,unknown>|null=null;
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
-    this.atmosphere=new Atmosphere(scene);this.root.add(this.water.root);this.wildlife=new Wildlife(scene,(x,z)=>this.stir(x,z,1,0,.35,.1));
+    this.atmosphere=new Atmosphere(scene);this.root.add(this.water.root);this.wildlife=new Wildlife(scene,(x,z)=>this.stir(x,z,1,0,.35,.1),(x,z)=>this.water.depthAt(x,z));
   }
 
   sync(board:ReadonlyMap<number,unknown>,placed:number){

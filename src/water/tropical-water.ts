@@ -167,6 +167,7 @@ export class TropicalWater {
     if(this.stones.instanceColor)this.stones.instanceColor.needsUpdate=true;
     this.stones.computeBoundingSphere();
   }
+  depthAt(x:number,z:number){return this.field.depthAt(x,z)}
   setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){
     const i=this.nextWake;this.nextWake=(i+1)%12;

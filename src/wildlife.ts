@@ -10,7 +10,7 @@ export class Wildlife {
   readonly soundBirds:T.Object3D[]=[];
   private root=new T.Group();
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
-  private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
+  private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number;opacity:number}[]=[];
   private swimmers:{root:T.Group;angle:number;speed:number;lane:number;opacity:number}[]=[];
   private avoidance=new WeakMap<T.Group,T.Vector3>();
   private swimCenter=new T.Vector3();
@@ -18,9 +18,10 @@ export class Wildlife {
   private swimReady=false;
   private shore:ShoreEdge[]=[];
   private fishVisibility=0;
+  private targetFishVisibility=1;
   private center=new T.Vector3();private radius=4;
   private board:ReadonlyMap<number,unknown>=new Map();
-  constructor(scene:T.Scene,private splash:(x:number,z:number)=>void){
+  constructor(scene:T.Scene,private splash:(x:number,z:number)=>void,private waterDepth:(x:number,z:number)=>number){
     scene.add(this.root);
     new GLTFLoader().load(`${(import.meta as unknown as {env:{BASE_URL:string}}).env.BASE_URL}models/seagull.glb`,gltf=>{
       const clip=gltf.animations.find(a=>a.name==='ArmatureAction');
@@ -37,7 +38,7 @@ export class Wildlife {
     },undefined,error=>console.error('Martı modeli yüklenemedi',error));
     for(let i=0;i<2;i++){
       const root=koiFish(.30,true,true);root.visible=false;this.root.add(root);
-      this.fish.push({root,start:new T.Vector3(),direction:new T.Vector3(),age:-1,wait:5+i*7,duration:1.25});
+      this.fish.push({root,start:new T.Vector3(),direction:new T.Vector3(),age:-1,wait:5+i*7,duration:1.25,opacity:0});
     }
     for(let i=0;i<18;i++){
       const root=koiFish(.28,true,true);root.visible=false;this.root.add(root);
@@ -52,7 +53,7 @@ export class Wildlife {
   }
   setView(camera:T.OrthographicCamera,height:number){
     const pixels=height/((camera.top-camera.bottom)/camera.zoom);
-    this.fishVisibility=T.MathUtils.smoothstep(pixels,20,85);
+    this.targetFishVisibility=.25+.75*T.MathUtils.smoothstep(pixels,20,85);
   }
   sync(board:ReadonlyMap<number,unknown>){
     this.board=board;this.shore=coast(board);const points=[...board.keys()].map(position);if(!points.length)return;
@@ -61,6 +62,7 @@ export class Wildlife {
   }
   reset(){this.swimReady=false;this.swimmers.forEach(f=>{f.root.visible=false;f.opacity=0});this.shore=[];for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
   update(time:number,dt:number){
+    this.fishVisibility=T.MathUtils.damp(this.fishVisibility,this.targetFishVisibility,3,dt);
     this.birds.forEach((bird,i)=>{
       bird.angle+=dt*(.11+i*.007)*bird.pace*bird.direction;
       const a=bird.angle,blend=1-Math.exp(-1.5*dt);
@@ -87,19 +89,21 @@ export class Wildlife {
       fish.angle+=dt*fish.speed/Math.max(1,tangentLength);
       const angle=fish.angle,x=this.swimCenter.x+Math.sin(angle)*radius,z=this.swimCenter.z+Math.cos(angle)*radius*.88;
       const depth=.18+Math.min(.6,fish.lane*.045);
-      const targetOpacity=this.shore.length&&this.clearWater(x,z)&&climate.winter.value<.5
-        ?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12)):0;
+      const targetOpacity=this.shore.length
+        ?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12))*(1-climate.winter.value*.85):0;
       fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,dt);
-      fish.root.visible=fish.opacity>.005&&this.clearWater(x,z);
-      fish.root.position.set(x,SEA_Y-depth,z);
+      fish.root.visible=fish.opacity>.005;
+      const previousPosition=fish.root.position.clone();
+      fish.root.position.set(x,SEA_Y-Math.min(depth,Math.max(.03,this.waterDepth(x,z)-.10)),z);
       const offset=this.avoidance.get(fish.root);if(offset){offset.multiplyScalar(Math.exp(-dt*.8));if(this.clearWater(x+offset.x,z+offset.z))fish.root.position.add(offset)}
+      if(!this.clearWater(fish.root.position.x,fish.root.position.z)&&this.clearWater(previousPosition.x,previousPosition.z))fish.root.position.copy(previousPosition);
       const yaw=Math.atan2(Math.cos(angle),-Math.sin(angle)*.88);
       const turn=T.MathUtils.euclideanModulo(yaw-fish.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
       fish.root.rotation.y+=turn*(1-Math.exp(-2*dt));
       animateKoi(fish.root,dt*(.65+fish.speed*1.8),fish.opacity);
     }
     for(const f of this.fish){
-      if(climate.winter.value>.35){f.root.visible=false;f.age=-1;continue;}
+
       if(f.age>=f.duration){
         // Keep the same fish swimming from its actual splash-down position.
         f.age+=dt;const swimAge=f.age-f.duration;
@@ -108,11 +112,16 @@ export class Wildlife {
         const next=f.root.position.clone().addScaledVector(f.direction,dt*.2);
         if(this.clearWater(next.x,next.z))f.root.position.copy(next);
         else {f.direction.applyAxisAngle(new T.Vector3(0,1,0),dt*2);}
-        if(!this.clearWater(f.root.position.x,f.root.position.z)){f.root.visible=false;f.age=-1;f.wait=1;continue}
-        f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-.23,3,dt);
+        if(!this.clearWater(f.root.position.x,f.root.position.z)){
+          // A newly placed tile can cover an existing route; swim toward open water.
+          const outward=f.root.position.clone().sub(this.center).setY(0).normalize();
+          f.direction.lerp(outward.multiplyScalar(1.5),1-Math.exp(-dt*3));
+          f.root.position.addScaledVector(f.direction,dt*.4);
+        }
+        f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-Math.min(.23,Math.max(.03,this.waterDepth(f.root.position.x,f.root.position.z)-.10)),3,dt);
         f.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),heading),1-Math.exp(-3*dt));
-        animateKoi(f.root,dt,.42*this.fishVisibility);
-        if(swimAge>20&&[.25,.5,.75,1].every(t=>this.clearWater(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t))){
+        f.opacity=T.MathUtils.damp(f.opacity,.42*this.fishVisibility*(1-climate.winter.value*.85),3,dt);animateKoi(f.root,dt,f.opacity);
+        if(climate.winter.value<.35&&swimAge>20&&[.25,.5,.75,1].every(t=>this.clearWater(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t))){
           f.start.copy(f.root.position);f.start.y=SEA_Y;f.age=0;this.splash(f.start.x,f.start.z);
         }
         continue;
@@ -128,13 +137,13 @@ export class Wildlife {
         if(!found){f.wait=3;continue}
         f.age=0;f.root.visible=true;this.splash(f.start.x,f.start.z);
       }
-      animateKoi(f.root,dt,1);
+      f.opacity=T.MathUtils.damp(f.opacity,1,4,dt);animateKoi(f.root,dt,f.opacity);
       f.age+=dt;const t=Math.min(1,f.age/f.duration);
       const nextJump=f.start.clone().addScaledVector(f.direction,t);
       if(!this.clearWater(nextJump.x,nextJump.z)){f.age=f.duration;continue}
       f.root.position.copy(nextJump);f.root.position.y+=Math.sin(t*Math.PI)*.65;
       const tangent=f.direction.clone();tangent.y=Math.cos(t*Math.PI)*Math.PI*.65;f.root.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tangent.normalize());
-      if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.age=f.duration;f.root.position.y=SEA_Y;animateKoi(f.root,0,.42*this.fishVisibility)}
+      if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.age=f.duration;f.root.position.y=SEA_Y;animateKoi(f.root,0,f.opacity)}
     }
     const swimmers=new Set(this.swimmers.map(f=>f.root));
     const active=[...this.swimmers.map(f=>f.root),...this.fish.map(f=>f.root)].filter(root=>root.visible&&root.position.y<SEA_Y+.12);
