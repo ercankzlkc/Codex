@@ -412,6 +412,7 @@ export class World {
     const dx=x-previous.x,dz=z-previous.z,distance=Math.hypot(dx,dz);
     if(distance<.025||distance>2)return;
     this.environment.stir(x,z,dx/distance,dz/distance,Math.min(1,distance/(now-previous.time)/12),distance);
+    this.environment.frightenFish(x,z,Math.min(1,distance/(now-previous.time)/12),distance);
   }
   private setHover(i:number,force=false) {
     if(this.editing>=0&&!this.selected){this.grid.setHover(this.editing,true,true);return}
