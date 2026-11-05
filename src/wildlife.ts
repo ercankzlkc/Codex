@@ -11,7 +11,10 @@ export class Wildlife {
   private root=new T.Group();
   private birds:{root:T.Group;mixer:T.AnimationMixer;phase:number;pace:number;angle:number;direction:number;radius:number;center:T.Vector3}[]=[];
   private fish:{root:T.Group;start:T.Vector3;direction:T.Vector3;age:number;wait:number;duration:number}[]=[];
-  private swimmers:{root:T.Group;phase:number;edge:number}[]=[];
+  private swimmers:{root:T.Group;angle:number;speed:number;lane:number;opacity:number}[]=[];
+  private swimCenter=new T.Vector3();
+  private swimRadius=2;
+  private swimReady=false;
   private shore:ShoreEdge[]=[];
   private fishVisibility=0;
   private center=new T.Vector3();private radius=4;
@@ -35,22 +38,22 @@ export class Wildlife {
       const root=koiFish(.30,true);root.visible=false;this.root.add(root);
       this.fish.push({root,start:new T.Vector3(),direction:new T.Vector3(),age:-1,wait:5+i*7,duration:1.25});
     }
-    for(let i=0;i<10;i++){
+    for(let i=0;i<18;i++){
       const root=koiFish(.28,true,true);root.visible=false;this.root.add(root);
-      this.swimmers.push({root,phase:i*2.37,edge:i*7});
+      this.swimmers.push({root,angle:i*2.39996,speed:.18+Math.random()*.32,lane:i,opacity:0});
     }
   }
 
   setView(camera:T.OrthographicCamera,height:number){
     const pixels=height/((camera.top-camera.bottom)/camera.zoom);
-    this.fishVisibility=T.MathUtils.smoothstep(pixels,55,120);
+    this.fishVisibility=T.MathUtils.smoothstep(pixels,20,85);
   }
   sync(board:ReadonlyMap<number,unknown>){
     this.board=board;this.shore=coast(board);const points=[...board.keys()].map(position);if(!points.length)return;
     this.center.set(points.reduce((n,p)=>n+p.x,0)/points.length,0,points.reduce((n,p)=>n+p.z,0)/points.length);
     this.radius=Math.max(3,...points.map(p=>Math.hypot(p.x-this.center.x,p.z-this.center.z)+1.7));
   }
-  reset(){this.swimmers.forEach(f=>f.root.visible=false);this.shore=[];for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
+  reset(){this.swimReady=false;this.swimmers.forEach(f=>{f.root.visible=false;f.opacity=0});this.shore=[];for(let i=0;i<this.fish.length;i++){const f=this.fish[i];f.root.visible=false;f.age=-1;f.wait=5+i*7}}
   update(time:number,dt:number){
     this.birds.forEach((bird,i)=>{
       bird.angle+=dt*(.11+i*.007)*bird.pace*bird.direction;
@@ -65,20 +68,28 @@ export class Wildlife {
       bird.root.rotation.z=T.MathUtils.lerp(bird.root.rotation.z,-bird.direction*.10+Math.sin(a+bird.phase)*.04,1-Math.exp(-3*dt));
       bird.mixer.update(dt*(bird.pace===1?1:1.15));
     });
+    // Separate elliptical lanes keep a body-width clearance even at different speeds.
+    const targetRadius=Math.max(1.8,this.radius-1.05);
+    if(!this.swimReady){this.swimCenter.copy(this.center);this.swimRadius=targetRadius;this.swimReady=true}
+    this.swimCenter.lerp(this.center,1-Math.exp(-dt*.8));
+    this.swimRadius=T.MathUtils.damp(this.swimRadius,targetRadius,.8,dt);
     for(const fish of this.swimmers){
-      const edge=this.shore[fish.edge%this.shore.length];fish.root.visible=false;
-      if(!edge||this.fishVisibility<.01||climate.winter.value>.5)continue;
-      const dx=edge.bx-edge.ax,dz=edge.bz-edge.az,length=Math.max(.001,Math.hypot(dx,dz));
-      const t=.5+.32*Math.sin(time*.24+fish.phase),offset=.45+.12*Math.sin(time*.31+fish.phase);
-      const x=edge.ax+dx*t,z=edge.az+dz*t;
-      // Pick the sea side of the boundary, with a safety margin against new land.
-      const sign=this.board.has(fromWorld(x-dz/length*.45,z+dx/length*.45))?-1:1;
-      const px=x-dz/length*offset*sign,pz=z+dx/length*offset*sign;
-      if(this.board.has(fromWorld(px,pz)))continue;
-      fish.root.position.set(px,SEA_Y-.09,pz);
-      fish.root.rotation.y=Math.atan2(dx,dz)+(Math.cos(time*.24+fish.phase)<0?Math.PI:0);
-      fish.root.rotation.y+=Math.sin(time*4+fish.phase)*.08;
-      animateKoi(fish.root,dt,.8*this.fishVisibility);fish.root.visible=true;
+      const radius=this.swimRadius+fish.lane*.72;
+      const a=fish.angle;
+      // Constant individual cruising speed, no reversing at the end of a shore segment.
+      const tangentLength=radius*Math.hypot(Math.cos(a),Math.sin(a)*.88);
+      fish.angle+=dt*fish.speed/Math.max(1,tangentLength);
+      const angle=fish.angle,x=this.swimCenter.x+Math.sin(angle)*radius,z=this.swimCenter.z+Math.cos(angle)*radius*.88;
+      const depth=.18+Math.min(.6,fish.lane*.045);
+      const targetOpacity=this.shore.length&&!this.board.has(fromWorld(x,z))&&climate.winter.value<.5
+        ?this.fishVisibility*T.MathUtils.lerp(.48,.13,Math.min(1,fish.lane/12)):0;
+      fish.opacity=T.MathUtils.damp(fish.opacity,targetOpacity,3,dt);
+      fish.root.visible=fish.opacity>.005;
+      fish.root.position.set(x,SEA_Y-depth,z);
+      const yaw=Math.atan2(Math.cos(angle),-Math.sin(angle)*.88);
+      const turn=T.MathUtils.euclideanModulo(yaw-fish.root.rotation.y+Math.PI,Math.PI*2)-Math.PI;
+      fish.root.rotation.y+=turn*(1-Math.exp(-2*dt));
+      animateKoi(fish.root,dt*(.65+fish.speed*1.8),fish.opacity);
     }
     for(const f of this.fish){
       if(climate.winter.value>.35){f.root.visible=false;f.age=-1;continue;}

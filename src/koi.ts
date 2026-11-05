@@ -15,7 +15,8 @@ export function koiFish(length:number,animated=false,underwater=false){
       object.frustumCulled=false;object.castShadow=false;
       if(underwater){
         object.material=Array.isArray(object.material)?object.material.map(m=>m.clone()):object.material.clone();
-        for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=0;material.depthWrite=false}
+        for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=0;material.depthWrite=false;
+          if(material instanceof T.MeshStandardMaterial){material.color.lerp(new T.Color('#438e97'),.38);material.roughness=.85}}
         object.renderOrder=3;
       }
     });
