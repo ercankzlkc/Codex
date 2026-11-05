@@ -35,7 +35,7 @@ export class Wildlife {
       }
     },undefined,error=>console.error('Martı modeli yüklenemedi',error));
     for(let i=0;i<2;i++){
-      const root=koiFish(.30,true);root.visible=false;this.root.add(root);
+      const root=koiFish(.30,true,true);root.visible=false;this.root.add(root);
       this.fish.push({root,start:new T.Vector3(),direction:new T.Vector3(),age:-1,wait:5+i*7,duration:1.25});
     }
     for(let i=0;i<18;i++){
@@ -93,6 +93,21 @@ export class Wildlife {
     }
     for(const f of this.fish){
       if(climate.winter.value>.35){f.root.visible=false;f.age=-1;continue;}
+      if(f.age>=f.duration){
+        // Keep the same fish swimming from its actual splash-down position.
+        f.age+=dt;const swimAge=f.age-f.duration;
+        const heading=Math.atan2(f.direction.x,f.direction.z)+dt*.16;
+        f.direction.set(Math.sin(heading)*1.5,0,Math.cos(heading)*1.5);
+        const next=f.root.position.clone().addScaledVector(f.direction,dt*.2);
+        if(!this.board.has(fromWorld(next.x,next.z)))f.root.position.copy(next);
+        f.root.position.y=T.MathUtils.damp(f.root.position.y,SEA_Y-.23,3,dt);
+        f.root.quaternion.slerp(new T.Quaternion().setFromAxisAngle(new T.Vector3(0,1,0),heading),1-Math.exp(-3*dt));
+        animateKoi(f.root,dt,.42*this.fishVisibility);
+        if(swimAge>20&&[.25,.5,.75,1].every(t=>!this.board.has(fromWorld(f.root.position.x+f.direction.x*t,f.root.position.z+f.direction.z*t)))){
+          f.start.copy(f.root.position);f.start.y=SEA_Y;f.age=0;this.splash(f.start.x,f.start.z);
+        }
+        continue;
+      }
       if(f.age<0){
         f.wait-=dt;if(f.wait>0)continue;
         let found=false;
@@ -104,11 +119,11 @@ export class Wildlife {
         if(!found){f.wait=3;continue}
         f.age=0;f.root.visible=true;this.splash(f.start.x,f.start.z);
       }
-      animateKoi(f.root,dt);
+      animateKoi(f.root,dt,1);
       f.age+=dt;const t=Math.min(1,f.age/f.duration);
       f.root.position.copy(f.start).addScaledVector(f.direction,t);f.root.position.y+=Math.sin(t*Math.PI)*.65;
       const tangent=f.direction.clone();tangent.y=Math.cos(t*Math.PI)*Math.PI*.65;f.root.quaternion.setFromUnitVectors(new T.Vector3(0,0,1),tangent.normalize());
-      if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.root.visible=false;f.age=-1;f.wait=8+Math.random()*15}
+      if(t>=1||this.board.has(fromWorld(f.root.position.x,f.root.position.z))){this.splash(f.root.position.x,f.root.position.z);f.age=f.duration;f.root.position.y=SEA_Y;animateKoi(f.root,0,.42*this.fishVisibility)}
     }
   }
 }

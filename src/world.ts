@@ -6,7 +6,6 @@ import {SUN} from './lighting';
 import { CameraController } from './camera';
 import { Environment, LAND_Y, SEA_Y } from './environment';
 import {CENTER, position, fromWorld,corner,RADIUS,adjacent,type ShoreEdge} from './hex';
-import {terrainGeometry} from './scenery';
 import {BUILD_START,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 import { PlacementGrid, cellPosition } from './grid';
 import { model, resourceModel, part, box } from './models';
@@ -431,12 +430,6 @@ export class World {
       }
     }
     if(this.previewLand){this.scene.remove(this.previewLand);this.previewLand.geometry.dispose();this.previewLand=null}
-    if(this.ghost&&valid&&!this.selected?.event&&!this.board.has(i)){
-      const preview=new Map(this.board);preview.set(i,this.selected!.id as Kind);
-      this.previewLand=new T.Mesh(terrainGeometry(i,preview),this.previewLandMat);
-      this.previewLand.position.copy(this.ghost.position);this.previewLand.position.y=0;
-      this.previewLand.receiveShadow=true;this.scene.add(this.previewLand);
-    }
     this.onHover(i);
   }
   setSelection(card:Card|null,carrying=false) {

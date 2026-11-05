@@ -22,6 +22,28 @@ export interface VillageHooks {
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
+  private contacts=new WeakMap<Citizen,{distance:number;approaching:boolean;lastHit:number;job:Citizen['job']}>();
+  private contactPoint=new T.Vector3();
+  private updateToolContact(c:Citizen){
+    const job=c.job;
+    if(c.stage!=='working'||!job||!['wood','stone'].includes(job.resource)){this.contacts.delete(c);return}
+    const tool=job.resource==='wood'?c.axe:c.pickaxe;
+    // Sample the visible tool head after the animated hand socket has been updated.
+    c.root.updateWorldMatrix(true,true);
+    this.contactPoint.set(job.resource==='wood'?.025:0,.12,job.resource==='stone'?.07:0);tool.localToWorld(this.contactPoint);
+    const target=this.hooks.workPoint(job.source,job.tree).clone();target.y+=.18;
+    const distance=this.contactPoint.distanceTo(target);
+    const previous=this.contacts.get(c);
+    if(!previous||previous.job!==job){this.contacts.set(c,{distance,approaching:false,lastHit:-99,job});return}
+    const change=distance-previous.distance;
+    const cooldown=Math.max(.25,(c.visual?.workDuration(job.resource as 'wood'|'stone')??.59)*.5);
+    if(previous.approaching&&change>.0001&&this.time-previous.lastHit>cooldown){
+      this.hooks.impact(job.source,job.tree);previous.lastHit=this.time;previous.approaching=false;
+    }
+    if(change<-.0001)previous.approaching=true;
+    previous.distance=distance;
+  }
+
   readonly root=new T.Group();
   private flights:Flight[]=[];
   private game:Game|null=null;private nav:Walkways|null=null;
@@ -320,8 +342,6 @@ export class Villagers {
       if(working&&c.job){
         if(fishing){const spot=this.hooks.fishingSpot(c.job.source);if(!spot||Math.hypot(c.root.position.x-spot.stand.x,c.root.position.z-spot.stand.z)>.22){c.clock=0;c.stage='to-work';c.path=[];c.target=null;c.retry=0;continue}}
         c.clock+=dt;
-        const impactRate=c.visual?.hasAnimations?1/c.visual.workDuration(c.job.resource==='stone'?'stone':'wood'):1.7;
-        if(wood&&c.clock>.3&&Math.floor(c.clock*impactRate-.72)!==Math.floor((c.clock-dt)*impactRate-.72))this.hooks.impact(c.job.source,c.job.tree);
         const duration=fishing?this.fishTiming().total:wood?(c.job.resource==='stone'?6.8:6):harvestSeconds(c.job.category,c.job.amount);
         if(fishing){c.body.rotation.x=.05;this.fishing(c,dt)}
         else{const p=this.hooks.workPoint(c.job.source,c.job.tree);c.root.rotation.y=c.job.category==='farm'?this.hooks.yaw(c.job.source)+Math.PI:Math.atan2(p.x-.12-c.root.position.x,p.z-.15-c.root.position.z);this.hooks.harvestProgress(c.job.source,c.id,Math.min(1,c.clock/duration))}
@@ -347,7 +367,7 @@ export class Villagers {
       }
       if(c.stage==='to-store'&&c.job&&!c.path.length&&c.retry<=0)this.sendToStorage(c);
       if(c.bundle.visible)c.arms.forEach(arm=>arm.rotation.x=-.8);
-      this.updateVisual(c);
+      this.updateVisual(c);this.updateToolContact(c);
     }
   }
 }

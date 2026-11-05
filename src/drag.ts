@@ -28,6 +28,8 @@ interface Gesture {
   visualY:number;
   tilt:number;
   visualTilt:number;
+  angularVelocity:number;
+  previousVX:number;previousVY:number;
 }
 
 /**
@@ -96,7 +98,7 @@ export class CardDrag {
       anchorY: Math.min(1, Math.max(0, (event.clientY - origin.top) / origin.height)),
       started: false,
       valid: false,
-      ghost: null,visualX:event.clientX,visualY:event.clientY,tilt:0,visualTilt:0,
+      ghost: null,visualX:event.clientX,visualY:event.clientY,tilt:0,visualTilt:0,angularVelocity:0,previousVX:0,previousVY:0,
     };
     // Prevent native image dragging, text selection and touch scrolling.
     event.preventDefault();
@@ -130,7 +132,7 @@ export class CardDrag {
         position: 'fixed', left: '0', top: '0', margin: '0',
         width: `${gesture.width}px`, height: `${gesture.height}px`,
         pointerEvents: 'none', zIndex: '100', transition: 'none',
-        transformOrigin: '50% 50%', willChange: 'transform',
+        transformOrigin: `${gesture.anchorX*100}% ${gesture.anchorY*100}%`, willChange: 'transform',
       });
       gesture.ghost = ghost;
       document.body.append(ghost);
@@ -158,16 +160,23 @@ export class CardDrag {
     const ease=1-Math.exp(-38*dt);
     gesture.visualX+=(gesture.lastX-gesture.visualX)*ease;
     gesture.visualY+=(gesture.lastY-gesture.visualY)*ease;
-    gesture.visualTilt+=(gesture.tilt-gesture.visualTilt)*(1-Math.exp(-22*dt));
-    gesture.tilt*=Math.exp(-12*dt);
+    const vx=(gesture.lastX-gesture.visualX)*38,vy=(gesture.lastY-gesture.visualY)*38;
+    const ax=(vx-gesture.previousVX),ay=(vy-gesture.previousVY);
+    gesture.previousVX=vx;gesture.previousVY=vy;
+    const torque=(ax*(gesture.anchorY-.5)-ay*(gesture.anchorX-.5))*.055;
+    const gravity=(gesture.anchorX-.5)*12;
+    gesture.angularVelocity+=torque+(gravity-gesture.visualTilt)*80*dt;
+    gesture.angularVelocity*=Math.exp(-8*dt);
+    gesture.visualTilt=Math.max(-22,Math.min(22,gesture.visualTilt+gesture.angularVelocity*dt));
     gesture.ghost.style.transform=this.followTransform(gesture);
     this.animationFrame=requestAnimationFrame(()=>this.follow(gesture,now));
   }
   private followTransform(gesture: Gesture): string {
     const scale=.84;
-    const x=gesture.visualX-gesture.width*(.5+(gesture.anchorX-.5)*scale);
-    const y=gesture.visualY-gesture.height*(.5+(gesture.anchorY-.5)*scale);
+    const x=gesture.visualX-gesture.width*gesture.anchorX;
+    const y=gesture.visualY-gesture.height*gesture.anchorY;
     return `translate3d(${x}px, ${y}px, 0) rotate(${gesture.visualTilt}deg) scale(${scale})`;
+
   }
 
   private onUp = (event: PointerEvent): void => {
