@@ -15,7 +15,7 @@ const DAY_SECONDS=10, DAYS_PER_SEASON=3;
 const SEASON_SECONDS=DAY_SECONDS*DAYS_PER_SEASON, YEAR_SECONDS=SEASON_SECONDS*4;
 /** Three days per season; each day represents a month. */
 export class SeasonCycle{
-  private elapsed=0;private lastSeason=-1;private lastPhase='';private scanClock=0;private hudClock=0;
+  private elapsed=SEASON_SECONDS*2+DAY_SECONDS*2;private lastSeason=-1;private lastPhase='';private scanClock=0;private hudClock=0;
   private sky=new T.Color('#93bfcb');private sunlight=new T.Color('#fff2da');
   private materials=new Map<T.MeshStandardMaterial,{base:T.Color;foliage:boolean;ground:boolean;window:boolean}>();
   private paths=new Set<T.MeshBasicMaterial>();
@@ -29,20 +29,16 @@ export class SeasonCycle{
   breakIce(id:number){
     const strength=climate.winter.value;if(strength<.08)return;
     const center=position(id);
-    for(const floe of this.ice.children){
-      const distance=Math.hypot(floe.position.x-center.x,floe.position.z-center.z);
-      if(distance>2.2||!floe.visible)continue;
-      floe.visible=false;
-      for(let i=0;i<7&&this.iceChips.length<180;i++){
-        const angle=Math.random()*Math.PI*2,r=.08+Math.random()*.24;
-        const mesh=new T.Mesh(this.chipGeo,new T.MeshStandardMaterial({color:0xc9ecf4,roughness:.27,transparent:true,opacity:strength*.9,depthWrite:false,flatShading:true}));
-        mesh.userData.iceChip=true;
-        mesh.position.copy(floe.position).add(new T.Vector3(Math.cos(angle)*r,.02,Math.sin(angle)*r));
-        mesh.scale.set(.07+Math.random()*.12,.025+Math.random()*.04,.07+Math.random()*.13);
-        mesh.rotation.set(Math.random(),angle,Math.random());this.scene.add(mesh);
-        const dx=mesh.position.x-center.x,dz=mesh.position.z-center.z,len=Math.max(.1,Math.hypot(dx,dz));
-        this.iceChips.push({mesh,velocity:new T.Vector3(dx/len*(.3+Math.random()*.5),.5+Math.random()*.6,dz/len*(.3+Math.random()*.5)),spin:new T.Vector3(Math.random()*3,Math.random()*2,Math.random()*3),age:0,life:1.6+Math.random()*.6});
-      }
+    for(const floe of this.ice.children)if(Math.hypot(floe.position.x-center.x,floe.position.z-center.z)<1.4)floe.visible=false;
+    // Break the frozen surface inside the new hex, including open water away from shore floes.
+    for(let i=0;i<48&&this.iceChips.length<180;i++){
+      const angle=i/48*Math.PI*2+Math.random()*.12,r=Math.sqrt(Math.random())*.95;
+      const mesh=new T.Mesh(this.chipGeo,new T.MeshStandardMaterial({color:0xd6edf5,roughness:.32,transparent:true,opacity:strength,depthWrite:false,flatShading:true}));
+      mesh.userData.iceChip=true;
+      mesh.position.set(center.x+Math.cos(angle)*r,SEA_Y+.035,center.z+Math.sin(angle)*r);
+      mesh.scale.set(.13+Math.random()*.14,.025+Math.random()*.035,.12+Math.random()*.13);
+      mesh.rotation.set(0,angle,0);this.scene.add(mesh);
+      this.iceChips.push({mesh,velocity:new T.Vector3(Math.cos(angle)*(.4+Math.random()*.45),.22+Math.random()*.4,Math.sin(angle)*(.4+Math.random()*.45)),spin:new T.Vector3(Math.random()*2,Math.random(),Math.random()*2),age:0,life:.65+Math.random()*.35});
     }
   }
   private clearIceChips(){for(const chip of this.iceChips){this.scene.remove(chip.mesh);chip.mesh.material.dispose()}this.iceChips=[]}
@@ -58,7 +54,7 @@ export class SeasonCycle{
     this.snow.frustumCulled=false;scene.add(this.snow,this.ice);
   }
   setPalette(sky:string,sun:string){this.sky.set(sky);this.sunlight.set(sun)}
-  reset(){this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=0;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
+  reset(){this.clearIceChips();for(const path of this.paths)path.color.set(0xccbc95);this.paths.clear();climate.night.value=0;climate.winter.value=0;climate.autumn.value=0;climate.summer.value=0;for(const [material,state] of this.materials){material.color.copy(state.base);if(state.window)material.emissiveIntensity=0}this.materials.clear();this.elapsed=SEASON_SECONDS*2+DAY_SECONDS*2;this.lastSeason=-1;this.scanClock=0;this.lastPhase='';this.shoreKey='';this.ice.clear()}
   private scan(){
     this.scene.traverse(object=>{
       if(!(object instanceof T.Mesh)||object.userData.iceChip)return;
@@ -73,14 +69,14 @@ export class SeasonCycle{
   }
   update(dt:number,board:ReadonlyMap<number,Kind>,focus:T.Vector3){
     dt=Number.isFinite(dt)?Math.max(0,Math.min(.1,dt)):0;
-    if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=0;
+    if(!Number.isFinite(this.elapsed)||this.elapsed<0)this.elapsed=SEASON_SECONDS*2+DAY_SECONDS*2;
     this.iceChips=this.iceChips.filter(chip=>{
       chip.age+=dt;const t=chip.age/chip.life;
       if(t>=1){this.scene.remove(chip.mesh);chip.mesh.material.dispose();return false}
       chip.velocity.y-=dt*1.7;chip.mesh.position.addScaledVector(chip.velocity,dt);
-      chip.mesh.position.y=Math.max(SEA_Y-.06,chip.mesh.position.y);
+      // Let fragments sink beneath the sea before the land finishes rising.
       chip.mesh.rotation.x+=chip.spin.x*dt;chip.mesh.rotation.y+=chip.spin.y*dt;chip.mesh.rotation.z+=chip.spin.z*dt;
-      chip.mesh.material.opacity=climate.winter.value*.9*(1-T.MathUtils.smoothstep(t,.45,1));
+      chip.mesh.material.opacity=climate.winter.value*(1-T.MathUtils.smoothstep(t,.65,1));
       return true;
     });
     this.elapsed+=dt;this.scanClock-=dt;if(this.scanClock<=0){this.scanClock=.5;this.scan()}

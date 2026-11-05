@@ -208,8 +208,8 @@ export class TableSound {
     const source=ctx.createBufferSource(),gain=ctx.createGain(),pan=ctx.createStereoPanner();
     source.buffer=this.clips.get(`landing-wave-${choice}`)!;
     const now=ctx.currentTime,duration=source.buffer.duration,fade=Math.min(.04,duration/4);
-    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(.8,now+fade);
-    gain.gain.setValueAtTime(.8,now+duration-fade);gain.gain.linearRampToValueAtTime(0,now+duration);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(1.8,now+fade);
+    gain.gain.setValueAtTime(1.8,now+duration-fade);gain.gain.linearRampToValueAtTime(0,now+duration);
     if(this.viewCamera){this.clipPoint.copy(at).project(this.viewCamera);pan.pan.value=T.MathUtils.clamp(this.clipPoint.x*.65,-.65,.65)}
     source.connect(gain).connect(pan).connect(this.buses.sfx!);
     this.trackVoice(source,[gain,pan]);source.start(now);source.stop(now+duration);
@@ -219,7 +219,7 @@ export class TableSound {
     this.clipPoint.copy(at).project(camera);
     if(Math.abs(this.clipPoint.x)>1.05||Math.abs(this.clipPoint.y)>1.05||Math.abs(this.clipPoint.z)>1)return 0;
     const distance=Math.hypot(this.clipPoint.x,this.clipPoint.y);
-    return (1-T.MathUtils.smoothstep(distance,.18,.95))*(.12+.88*T.MathUtils.smoothstep(camera.zoom,.8,2.2));
+    return (1-.55*T.MathUtils.smoothstep(distance,.35,1.45))*(.7+.3*T.MathUtils.smoothstep(camera.zoom,.8,2.2));
   }
   private spatialClip(cue:{files:readonly string[];volume:number;rate:readonly[number,number];fullLength?:boolean},at:T.Vector3){
     const ctx=this.ctx;if(!ctx||ctx.state!=='running'||this.muted||document.hidden||!this.levels.sfx||this.workLive.size>=12)return false;
@@ -231,10 +231,10 @@ export class TableSound {
     this.lastSpatialClip.set(key,name);
     const source=ctx.createBufferSource(),panner=ctx.createPanner(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
     source.buffer=buffer;source.playbackRate.value=T.MathUtils.lerp(cue.rate[0],cue.rate[1],Math.random());
-    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=1.2;panner.rolloffFactor=2;panner.maxDistance=12;
+    panner.panningModel='HRTF';panner.distanceModel='inverse';panner.refDistance=6;panner.rolloffFactor=.45;panner.maxDistance=40;
     panner.setPosition(at.x,at.y,at.z);filter.type='lowpass';filter.Q.value=.3;filter.frequency.value=T.MathUtils.lerp(7000,1500,T.MathUtils.smoothstep(at.distanceTo(this.ear),5,30));
     const now=ctx.currentTime,duration=Math.min(cue.fullLength?buffer.duration:2.5,buffer.duration/source.playbackRate.value);
-    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(cue.volume,now+.008);gain.gain.setValueAtTime(cue.volume,now+Math.max(.01,duration-.04));gain.gain.linearRampToValueAtTime(0,now+duration);
+    gain.gain.setValueAtTime(0,now);gain.gain.linearRampToValueAtTime(cue.volume*2,now+.008);gain.gain.setValueAtTime(cue.volume*2,now+Math.max(.01,duration-.04));gain.gain.linearRampToValueAtTime(0,now+duration);
     const viewGain=ctx.createGain();viewGain.gain.value=focusGain;
     source.connect(filter).connect(panner).connect(gain).connect(viewGain).connect(this.buses.sfx!);this.workLive.add(source);this.workViews.set(source,{at:at.clone(),gain:viewGain});
     source.onended=()=>{this.workLive.delete(source);this.workViews.delete(source);source.disconnect();filter.disconnect();panner.disconnect();gain.disconnect();viewGain.disconnect()};
