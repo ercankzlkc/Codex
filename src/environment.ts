@@ -5,6 +5,7 @@ import {terrainGeometry,terrainSignature,meadow,grassTime,LAND_Y,SEA_Y} from './
 import {tree} from './models';
 import {ShoreFence} from './shore-fence';
 import {Wildlife} from './wildlife';
+import {CoralGardens} from './coral';
 import {Atmosphere} from './atmosphere';
 import {LAND_START,LAND_END,BUILD_END,SINK_START,SINK_END,DEMOLISH_END,easeBetween} from './emergence';
 export {LAND_Y,SEA_Y};
@@ -21,6 +22,7 @@ export class Environment {
   private shoreOpenings=new Map<number,number>();
   private atmosphere:Atmosphere;
   private wildlife:Wildlife;
+  private corals:CoralGardens;
   private last=0;
   private nextFenceAt=0;
   onFenceBuild:()=>void=()=>{};
@@ -30,6 +32,7 @@ export class Environment {
   constructor(scene:T.Scene){
     scene.add(this.root);scene.background=new T.Color(0x93bfcb);
     this.atmosphere=new Atmosphere(scene);this.root.add(this.water.root);this.wildlife=new Wildlife(scene,(x,z)=>this.stir(x,z,1,0,.35,.1),(x,z)=>this.water.depthAt(x,z));
+    this.corals=new CoralGardens(scene,(x,z)=>this.water.depthAt(x,z));
   }
 
   sync(board:ReadonlyMap<number,unknown>,placed:number){
@@ -37,7 +40,7 @@ export class Environment {
     for(const id of this.land.keys())if(!board.has(id))this.removeLand(id)
     this.pendingBoard=placed>=0?new Map(board):null;
     const edges=coast(board);this.audioShore=edges;
-    this.water.sync(board,edges,placed);
+    this.water.sync(board,edges,placed);this.corals.sync(board);
     for(const id of board.keys()){
       const signature=terrainSignature(id,board);
       const old=this.land.get(id);
@@ -90,7 +93,7 @@ export class Environment {
   }
   demolish(board:ReadonlyMap<number,unknown>,id:number){
     this.pendingBoard=new Map(board);this.sinking.set(id,0);this.land.get(id)?.fence.plan(id,board);
-    this.audioShore=coast(board);this.water.sync(board,this.audioShore,-1,id);
+    this.audioShore=coast(board);this.water.sync(board,this.audioShore,-1,id);this.corals.sync(board);
   }
   private removeLand(id:number){
     const tile=this.land.get(id);if(!tile)return;
@@ -107,7 +110,7 @@ export class Environment {
   frightenFish(x:number,z:number,strength:number,length:number){this.wildlife.frighten(x,z,strength,length)}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number){this.water.stir(x,z,dx,dz,strength,length)}
   update(time:number){
-    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));
+    grassTime.value=time;const dt=Math.max(0,time-this.last);this.last=time;this.water.update(time);this.corals.update(time);this.wildlife.update(time,dt);this.atmosphere.update(Math.min(.1,dt));
     for(const tile of this.land.values())if(tile.age<BUILD_END){
       tile.age=Math.min(BUILD_END,tile.age+dt);
       const progress=easeBetween(tile.age,LAND_START,LAND_END);
@@ -137,5 +140,5 @@ export class Environment {
     }
   }
 
-  reset(){this.audioShore=[];this.nextFenceAt=0;this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
+  reset(){this.corals.reset();this.audioShore=[];this.nextFenceAt=0;this.shoreOpenings.clear();this.atmosphere.reset();this.wildlife.reset();this.pendingBoard=null;this.sinking.clear();this.water.clearWakes();for(const id of this.land.keys())this.removeLand(id)}
 }

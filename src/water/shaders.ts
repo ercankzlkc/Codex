@@ -96,6 +96,7 @@ uniform float uCoastMix;
 uniform vec4 uRegion;
 uniform vec3 uMint, uTurquoise, uLagoon, uDeep;
 uniform vec3 uSunDirection,uReflectionEye;
+uniform vec4 uTorchLights[4];
 // Smooth, nonperiodic roughness. No high-frequency sine bars or screen-space streaks.
 float waterHash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float waterNoise(vec2 p){
@@ -212,6 +213,17 @@ void main() {
   pigment=mix(pigment,iceColor,freeze);
   opacity=mix(opacity,1.,freeze);
   pigment*=mix(vec3(1.),vec3(.07,.13,.25),uNight*.94);
+  // View-dependent reflections use the actual emitters and the water's continuous normals.
+  for(int i=0;i<4;i++){
+    if(uTorchLights[i].w>.001){
+      vec3 delta=uTorchLights[i].xyz-vWorld;
+      float distance2=dot(delta,delta);
+      vec3 lightDir=normalize(delta),halfDir=normalize(lightDir+eye);
+      float specular=pow(max(dot(normal,halfDir),0.),48.);
+      float gentleScatter=.012*max(dot(normal,lightDir),0.);
+      pigment+=vec3(1.,.43,.12)*(specular*.6+gentleScatter)*uTorchLights[i].w/(1.+distance2*2.5)*(1.-uFreeze*.9);
+    }
+  }
   gl_FragColor=vec4(pigment,opacity);
   #include <colorspace_fragment>
 }`;

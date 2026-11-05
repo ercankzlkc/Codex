@@ -553,7 +553,7 @@ export class World {
     this.grid.update(dt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     if(this.game){
-      const anchors=this.environment.torchAnchors;
+      const anchors=this.torches.selectAnchors(this.environment.torchAnchors);
       if(dt>0)this.game.updateTorches(climate.night.value>.12,this.seasons.torchNight,[...new Set(anchors.map(anchor=>anchor.id))].sort((a,b)=>Number(b===CENTER)-Number(a===CENTER)||a-b));
       this.torches.update(dt,anchors,this.game,this.cameraControl.audioFocus);
     }

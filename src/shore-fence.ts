@@ -34,10 +34,6 @@ function fencePanel(a:T.Vector3,b:T.Vector3,center:T.Vector3){
   const length=a.distanceTo(b),yaw=Math.atan2(b.x-a.x,b.z-a.z);
   post(a);post(center);post(b);
   for(const y of [.095,.19])add(.028,.035,length,center.clone().setY(LAND_Y+y),0xc7b48e,yaw);
-  // One bracket and torch per fence section, merged into the existing timber draw.
-  add(.025,.30,.025,center.clone().setY(LAND_Y+.34),0x59432c);
-  add(.068,.055,.062,center.clone().setY(LAND_Y+.48),0x3d3830);
-  add(.048,.035,.044,center.clone().setY(LAND_Y+.515),0x8b5831);
   const geometry=mergeGeometries(pieces,false);pieces.forEach(p=>p.dispose());
   geometry?.translate(-center.x,-LAND_Y,-center.z);return geometry!;
 }
