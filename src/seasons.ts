@@ -139,7 +139,7 @@ export class SeasonCycle{
     const phase=cycle<.08?'Şafak':cycle<.42?'Gündüz':cycle<.55?'Gün batımı':'Gece';
     this.hud.style.setProperty('--season-color',current.color);this.hud.style.setProperty('--day-progress',String(cycle));
     this.hud.querySelector('.clock-orbit')!.textContent=night>.5?'☾':'☀';
-    (this.hud.querySelector('.clock-orbit') as HTMLElement).style.transform=`rotate(${cycle*360}deg) translateY(-14px) rotate(${-cycle*360}deg)`;
+    (this.hud.querySelector('.clock-orbit') as HTMLElement).style.transform=`rotate(${cycle*360}deg) translateY(-19px) rotate(${-cycle*360}deg)`;
     this.hud.querySelector('.clock-center')!.textContent=current.symbol;
     this.hud.querySelector('.season-copy small')!.textContent=`YIL ${Math.floor(this.elapsed/YEAR_SECONDS)+1} · GÜN ${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
     this.hud.querySelector('.season-copy strong')!.textContent=current.name;

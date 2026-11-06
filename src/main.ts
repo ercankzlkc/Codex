@@ -1,6 +1,10 @@
 import type {ChestLoot} from './chest-loot';
 import {resourceArt} from './resource-art';
 import './style.css';
+import './ui-shell.css';
+import './ui-cards.css';
+import './ui-dialogs.css';
+import './ui-panels.css';
 import {Vector3} from 'three';
 import {CENTER,position} from './hex';
 import {harvestSeconds,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
@@ -17,9 +21,10 @@ app.addEventListener('selectstart',event=>{if(!(event.target instanceof Element&
 app.addEventListener('contextmenu',event=>event.preventDefault());
 app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı adası"></div>
  <div class="vignette"></div>
+ <aside class="game-seal" aria-label="Yelken Koyu"><span>${icon('harbor')}</span><strong>Yelken Koyu</strong><small>BİR KIYI HİKÂYESİ</small></aside>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
- <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${icon('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
+ <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
  <div class="tools"><button id="trade-open" aria-label="Deniz ticareti" title="Deniz ticareti">${icon('harbor')}</button><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog" title="Ayarlar">${icon('settings')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
@@ -221,7 +226,7 @@ const resourceNames:Record<string,string>={wood:'odun',stone:'taş',food:'yiyece
 function cardFace(c:Card){
   const costs=Object.entries(c.cost);
   const category=c.id==='harbor'?'Liman':c.event?'Etkinlik':c.workers?'Üretim':'Yapı';
-  return `<span class="card-top"><span class="costs">${costs.map(([key,n])=>`<span title="${n} ${resourceNames[key]}" aria-label="${n} ${resourceNames[key]}">${icon(key)}<b>${n}</b></span>`).join('')}</span><span class="type">${category}</span></span>
+  return `<span class="card-top"><span class="costs">${costs.map(([key,n])=>`<span title="${n} ${resourceNames[key]}" aria-label="${n} ${resourceNames[key]}">${resourceArt(key)}<b>${n}</b></span>`).join('')}</span><span class="type">${category}</span></span>
     <span class="card-art"><img src="${thumbs[c.id]}" alt="" draggable="false"></span><strong>${c.name}</strong><span class="rule"></span><span class="effect">${c.desc}</span><small>${c.bonus}</small>`;
 }
 function render(deal=false,withSound=false){

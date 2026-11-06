@@ -1,0 +1,116 @@
+/* Yelken Koyu — a tactile coastal folio. Component files share these tokens. */
+@font-face{font-family:'Baloo 2';src:url('/fonts/baloo-2-variable.woff2') format('woff2');font-style:normal;font-weight:400 800;font-display:swap}
+:root{
+  --ui-font:'Baloo 2',sans-serif;
+  --ui-ink:#193f36;--ui-muted:#71816b;--ui-paper:#fff6df;--ui-paper-deep:#ede0bd;
+  --ui-pine:#274c3d;--ui-sage:#a8bb8a;--ui-gold:#d9af64;--ui-coral:#c78365;
+  --ui-paper:color-mix(in srgb,var(--palette-paper,#fff6df) 32%,#fff4dc);
+  --ui-pine:color-mix(in srgb,var(--palette-accent,#274c3d) 30%,#244b3b);
+  --ui-stroke:#b7ba92;--ui-shadow:0 5px 0 #263e3033,0 12px 28px #163e3e24;
+  --ui-panel-top:112px;--ui-radius:20px;--ui-header-y:18px;
+  --card-w:clamp(164px,12vw,202px);--card-h:clamp(224px,27vh,272px);
+  font-family:var(--ui-font);color:var(--ui-ink);font-size:15px;
+}
+/* Legacy components used local serif shorthands. All game typography now uses Baloo. */
+html,body,button,input,textarea,select,dialog,#app *,.drag-token *{font-family:var(--ui-font)!important}
+body{font-weight:500;line-height:1.4;text-rendering:optimizeLegibility;-webkit-font-smoothing:antialiased}
+button{font-weight:650;letter-spacing:.05px;touch-action:manipulation}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--ui-gold);outline-offset:4px;box-shadow:0 0 0 7px #234c3930}
+button:disabled{cursor:var(--cursor-arrow)}
+::selection{background:#d5dfbd;color:var(--ui-ink)}
+.vignette{box-shadow:inset 0 0 14vw #163f4524;background:linear-gradient(#173f4210,transparent 18%,transparent 77%,#173e4115)}
+svg{flex-shrink:0}
+/* A balanced top rail: calendar / six resource cells / village seal. */
+.kingdom-hud{
+  position:absolute;left:50%;top:var(--ui-header-y);transform:translateX(-50%);
+  display:block;width:min(780px,calc(100vw - 640px));max-width:none;height:80px;padding:5px 8px;
+  border:2px solid #fff9e4;border-radius:18px;background:linear-gradient(155deg,#fffaf0,var(--ui-paper));
+  box-shadow:var(--ui-shadow),inset 0 0 0 1px #c8bd9470;isolation:isolate;z-index:8;
+}
+.kingdom-hud:before{content:'';position:absolute;left:18px;right:18px;top:5px;height:1px;background:#ffffffb3;pointer-events:none}
+.kingdom-hud #stats{
+  position:static;display:flex;width:100%;height:100%;margin:0;gap:0;transform:none;
+  background:none;border:0;box-shadow:none;color:var(--ui-ink);
+}
+.kingdom-hud .resource{
+  position:relative;display:grid;flex:1;grid-template-columns:36px minmax(0,1fr);grid-template-rows:16px 26px 13px;
+  column-gap:5px;row-gap:0;align-content:center;align-items:center;min-width:0;width:auto;height:100%;padding:3px 9px;
+  border:0;border-radius:10px;background:transparent;color:var(--ui-ink);text-align:left;
+}
+.kingdom-hud .resource+.resource:before{left:0;top:15px;height:34px;width:1px;background:linear-gradient(transparent,#c9bf9b,transparent)}
+.kingdom-hud .resource>.resource-art{grid-column:1;grid-row:1 / 3;width:38px;height:38px;margin-left:-3px;filter:drop-shadow(0 2px 1px #49633e20)}
+.kingdom-hud .resource>div{display:contents}
+.kingdom-hud .resource small{grid-column:2;grid-row:1;font-size:11px;font-weight:650;line-height:15px;letter-spacing:0;color:#697b5b;margin:0;white-space:nowrap}
+.kingdom-hud .resource b{grid-column:2;grid-row:2;font-size:25px;font-weight:750;line-height:27px;color:var(--ui-ink);letter-spacing:-.7px;font-variant-numeric:tabular-nums;min-width:0;white-space:nowrap}
+.kingdom-hud .resource em{display:block;grid-column:1 / -1;grid-row:3;min-height:13px;font-size:9px;line-height:13px;font-weight:500;letter-spacing:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#738064;margin:2px 0 0;padding:0;background:none;text-align:center}
+.kingdom-hud .resource[data-resource=food] em,.kingdom-hud .resource[data-resource=people] em{background:none}
+.kingdom-hud button.resource{transition:background .2s,box-shadow .2s;color:var(--ui-ink)}
+.kingdom-hud button.resource:hover,.kingdom-hud button.resource[aria-expanded=true]{background:#e2e9d29c;box-shadow:inset 0 0 0 1px #9db68b59}
+.kingdom-hud .resource b[data-change=up]{color:#6d9353}.kingdom-hud .resource b[data-change=down]{color:#b17659}
+.population-track{left:10px;right:10px;bottom:1px;height:3px;background:#dfe3cd;border:0;border-radius:4px;overflow:hidden}
+.population-track i{display:block;height:100%;background:linear-gradient(90deg,#a5bd80,#6e975f);border-radius:inherit;transition:width .5s}
+/* Constant dimensions keep both the date and the 24-hour clock steady. */
+#season-hud{
+  left:20px;top:var(--ui-header-y);z-index:8;width:284px;height:80px;min-width:0;
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+  border:2px solid #fff9e4;border-radius:18px;background:linear-gradient(145deg,#fffaf0,var(--ui-paper));
+  box-shadow:var(--ui-shadow),inset 0 0 0 1px #c8bd9460;color:var(--ui-ink);
+}
+.season-clock{width:48px;height:48px;flex:0 0 48px;border:2px solid #c3c8a8;box-shadow:inset 0 0 0 5px var(--ui-paper);background:conic-gradient(var(--season-color) calc(var(--day-progress)*360deg),#dce4cf 0)}
+.clock-center{font-size:27px;line-height:1;color:#789969}.clock-orbit{left:17px;top:17px;font-size:12px;line-height:12px;text-shadow:0 0 4px #fff8dc;color:#b39558}
+.season-copy{width:106px;flex:0 0 106px;min-width:0;white-space:nowrap}
+.season-copy small{font-size:8px;font-weight:700;line-height:12px;letter-spacing:1px;color:#70805f}
+.season-copy strong{font-size:23px;font-weight:750;line-height:25px;letter-spacing:-.5px;margin:1px 0;color:var(--ui-ink)}
+.season-copy>span{font-size:9px;line-height:12px;font-weight:500;color:#70805f}
+.season-days{margin-top:5px;gap:3px}.season-days i{height:3px;border-radius:5px}
+.season-remaining{width:76px;flex:0 0 76px;min-width:0;align-self:center;padding-left:8px;border-left:1px solid #d8cfb0;white-space:nowrap;text-align:center}
+.season-remaining b{font-size:24px;font-weight:750;line-height:27px;letter-spacing:-.8px;color:var(--ui-ink);font-variant-numeric:tabular-nums}
+.speed-controls{gap:2px;margin-top:5px;pointer-events:auto}
+.speed-controls button{min-width:15px;height:17px;padding:0 2px;border:0;border-radius:4px;font-size:9px;font-weight:700;background:transparent;color:#9aa384;transition:color .18s,background .18s}
+.speed-controls button:hover{background:#e5e7d1;color:#536b48}.speed-controls button[aria-pressed=true]{background:var(--ui-pine);color:#fff5d6;border:0;box-shadow:0 1px 2px #29442e33}
+/* A quiet crest balances the long resource rail. */
+.game-seal{position:absolute;right:22px;top:var(--ui-header-y);z-index:7;width:100px;height:80px;display:flex;align-items:center;justify-content:center;gap:5px;flex-direction:column;border:2px solid #e4d6ad;border-radius:18px;background:linear-gradient(150deg,#3d6250,var(--ui-pine));box-shadow:var(--ui-shadow);pointer-events:none;color:#f6eccd}
+.game-seal:after{content:'';position:absolute;inset:5px;border:1px solid #c6ca9f40;border-radius:12px}
+.game-seal svg{width:21px;height:21px;color:#c8d4a2}.game-seal strong{font-size:17px;font-weight:700;line-height:18px;letter-spacing:.1px}.game-seal small{font-size:7px;line-height:9px;letter-spacing:1.5px;color:#bbca9f}
+/* Utility dock: visually separate from the cards, but a single family of controls. */
+.tools{position:absolute;right:22px;bottom:24px;top:auto;display:flex;flex-direction:row;gap:6px;align-items:center;padding:7px;background:linear-gradient(145deg,#3e6150,#294f40);border:1px solid #a9b592;border-radius:18px;box-shadow:0 4px 0 #25443580,0 9px 22px #153f3e29;z-index:10}
+.tools button{position:relative;display:grid;place-items:center;width:39px;height:39px;padding:9px;border:1px solid #849b7c66;outline:0;border-radius:11px;background:#5576613d;color:#dbe4c1;box-shadow:inset 0 1px 0 #ffffff15;transition:background .18s,transform .18s,color .18s}
+.tools button svg{width:20px;height:20px}.tools button:hover,.tools button:focus-visible{background:#f5ecd3;color:#355843;transform:translateY(-2px)}
+.tools button:active{transform:translateY(1px)}.tools #trade-open{background:#b7c68e;color:#36523b;border-color:#cad3a3;box-shadow:0 2px 0 #203c2a66}
+.tools button:focus-visible{outline:3px solid var(--ui-gold);outline-offset:4px}
+.tools button:after{content:attr(aria-label);position:absolute;bottom:calc(100% + 12px);right:-2px;width:max-content;max-width:170px;padding:7px 11px;border:1px solid #becaa1;border-radius:9px;background:var(--ui-paper);color:var(--ui-ink);font-size:12px;font-weight:600;box-shadow:0 4px 14px #24463720;opacity:0;transform:translateY(4px);transition:opacity .16s,transform .16s;pointer-events:none}
+.tools button:hover:after,.tools button:focus-visible:after{opacity:1;transform:translateY(0)}
+/* Placement prompts and earned feedback have their own calm, readable layer. */
+#log{top:116px;left:50%;right:auto;transform:translate(-50%,-6px);max-width:min(620px,calc(100vw - 48px));padding:11px 19px;border:1px solid #c8d3ac;border-radius:14px;background:#294e40ed;box-shadow:0 4px 0 #28433140,0 7px 20px #183f3f22;font-size:13px;font-weight:600;line-height:1.6;text-align:center;letter-spacing:0;color:#f4eccf;z-index:18;transition:opacity .24s,transform .24s;pointer-events:none}
+#log{white-space:normal;overflow-wrap:anywhere}
+#log.visible{transform:translate(-50%,0)}
+#placement{bottom:calc(var(--card-h) + 94px);max-width:min(630px,calc(100vw - 390px));padding:12px 18px;gap:4px 12px;border:2px solid #fffae8;border-radius:16px;background:linear-gradient(145deg,#fff7e5f5,#ede7cdf5);box-shadow:0 5px 0 #526e4c24,0 12px 28px #2b534122;color:var(--ui-ink);text-align:left}
+#placement strong{font-size:18px;font-weight:750;line-height:1.3;color:#365a42}#placement>span{font-size:12px;font-weight:500;line-height:1.5;color:#7c8c6b}#placement small{font-size:10px;font-weight:500;line-height:1.4;letter-spacing:.2px;opacity:.8;color:#9b9e7f}
+#placement[data-valid=false]{background:#f9ecdbf5;border-color:#e8c8aa;color:#a16e52}#placement[data-valid=false] strong{color:#a16e52}
+#event-target{bottom:calc(var(--card-h) + 96px);right:30px;padding:12px 17px;background:var(--ui-pine);border:1px dashed #d6d9aa;border-radius:12px;color:#f4e9c9;font-size:13px;box-shadow:0 5px 15px #264f4233}
+#season-notice{top:128px;color:#fff6dc;text-shadow:0 2px 0 #355d4766,0 5px 20px #183e4580}#season-notice>span{font-size:33px;margin-bottom:0}#season-notice small{font-size:9px;font-weight:700;letter-spacing:2px}#season-notice strong{font-size:38px;line-height:1.15;font-weight:750;margin:4px 0}#season-notice p{font-size:14px;font-weight:500}
+.float{font-size:12px;font-weight:700;padding:6px 11px;border:1px solid #dfd7a7;background:#3d644eea;border-radius:10px;color:#fff1c6;box-shadow:0 3px 0 #1f3e2e3b,0 5px 14px #26433320}.float.bonus{color:#e4ce85}
+.resource-art{background-size:300% 300%;image-rendering:auto}
+@media(max-width:1400px){
+  .kingdom-hud .resource{padding-right:5px;padding-left:5px;grid-template-columns:31px minmax(0,1fr);column-gap:3px}
+  .kingdom-hud .resource>.resource-art{width:32px;height:32px;margin-left:-1px}
+  .kingdom-hud .resource b{font-size:22px}.kingdom-hud .resource em{font-size:8px}.kingdom-hud .resource small{font-size:10px}
+}
+@media(max-width:1150px){
+  #season-hud{left:16px;width:260px;gap:7px;padding:9px 10px}.season-clock{width:42px;height:42px;flex-basis:42px}.clock-orbit{left:14px;top:14px}.clock-center{font-size:24px}.season-copy{width:99px;flex-basis:99px}.season-copy strong{font-size:21px}.season-remaining{width:72px;flex-basis:72px}.season-remaining b{font-size:23px}
+  .kingdom-hud{left:auto;right:16px;transform:none;width:calc(100vw - 308px)}.game-seal{display:none}
+  .kingdom-hud .resource b{font-size:23px}.kingdom-hud .resource em{font-size:9px}
+}
+@media(max-width:960px){
+  :root{--ui-panel-top:184px;--card-w:162px;--card-h:224px}
+  .kingdom-hud{top:108px;left:16px;right:16px;width:auto;height:68px;transform:none}.kingdom-hud .resource{grid-template-rows:14px 23px 11px}.kingdom-hud .resource b{font-size:22px}.kingdom-hud .resource em{font-size:8px}.game-seal{display:flex;right:16px}
+  #log{top:190px}.tools{right:16px;bottom:18px;padding:6px;gap:4px}.tools button{width:34px;height:36px;padding:7px}#placement{max-width:calc(100vw - 48px);font-size:12px}
+}
+@media(max-height:740px) and (min-width:961px){
+  :root{--card-h:218px;--card-w:164px;--ui-header-y:14px;--ui-panel-top:106px}
+  .kingdom-hud,#season-hud,.game-seal{height:74px}.kingdom-hud .resource{grid-template-rows:14px 24px 12px}.kingdom-hud .resource em{font-size:8px}#season-notice{top:113px}#log{top:104px}
+  .tools{bottom:18px}.game-seal strong{font-size:16px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*:before,*:after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important;animation-iteration-count:1!important}
+}
