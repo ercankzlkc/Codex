@@ -80,12 +80,12 @@ vec4 waterDisturbance(vec2 p) {
 `;
 
 const smooth=(a:number,b:number,x:number)=>{const t=Math.max(0,Math.min(1,(x-a)/(b-a)));return t*t*(3-2*t)};
-/** Evaluate once per colony, not the wake loop on every coral vertex. Matches wakeField. */
-export function sampleReefCurrent(uniforms:OceanUniforms,x:number,z:number,out:{x:number;y:number}){
+type SurfaceSample={height:number;dx:number;dz:number};
+/** Same analytic crest, return trough and trailing pulse as the GPU wake field. */
+function sampleWakeSurface(uniforms:OceanUniforms,x:number,z:number,out:SurfaceSample,landing=false){
   const time=uniforms.uTime.value as number,freeze=uniforms.uFreeze.value as number;
-  const a=x*.88+z*1.31-time*.72,b=x*1.93-z*.62+time*.55;
-  let sx=0,sz=0;
   const wakes=uniforms.uWakes.value as T.Vector4[],directions=uniforms.uWakeDirs.value as T.Vector4[];
+  let height=0,sx=0,sz=0;
   for(let i=0;i<WAKE_COUNT;i++){
     const wake=wakes[i],age=time-wake.z;if(age<0||age>=WAKE_LIFE||wake.w<=.001)continue;
     const dir=directions[i],dx=x-wake.x,dz=z-wake.y,along=Math.max(-dir.z,Math.min(0,dx*dir.x+dz*dir.y));
@@ -93,14 +93,38 @@ export function sampleReefCurrent(uniforms:OceanUniforms,x:number,z:number,out:{
     const front=.035+age*speed,q=(distance-front)/width,second=(distance-front+speed*.28)/(width*1.12);
     if(Math.abs(q)>=3.5&&Math.abs(second)>=3.5)continue;
     const fade=smooth(0,.085,age)*(1-smooth(.85,WAKE_LIFE,age))*Math.exp(-age*.65),trailing=.38*smooth(.28,.47,age);
-    const primary=(4*q*q*q-6*q)*Math.exp(-q*q)/width;
-    const echo=trailing*(4*second*second*second-6*second)*Math.exp(-second*second)/(width*1.12);
-    const gradient=(.012+.019*wake.w)*wake.w*fade*dir.w*(primary+echo)/Math.max(distance,.015);
-    sx+=rx*gradient;sz+=rz*gradient;
+    const bell=Math.exp(-q*q),echo=Math.exp(-second*second),amplitude=(.012+.019*wake.w)*wake.w*fade*dir.w;
+    height+=amplitude*((1-2*q*q)*bell+trailing*(1-2*second*second)*echo);
+    const primary=(4*q*q*q-6*q)*bell/width,following=trailing*(4*second*second*second-6*second)*echo/(width*1.12);
+    const gradient=amplitude*(primary+following)/Math.max(distance,.015);sx+=rx*gradient;sz+=rz*gradient;
   }
-  const thaw=1-smooth(.1,.8,freeze),current=1-freeze*.85;
-  out.x=(.65*Math.sin(a)+.35*Math.sin(b))*.075*current+Math.max(-.38,Math.min(.38,sx))*.3*thaw;
-  out.y=(.48*Math.cos(a*.83)+.26*Math.sin(b))*.060*current+Math.max(-.38,Math.min(.38,sz))*.3*thaw;
+  if(landing){
+    const at=uniforms.uLanding.value as T.Vector3,age=(uniforms.uSceneTime.value as number)-at.z;
+    if(age>=0&&age<2.1){
+      const dx=x-at.x,dz=z-at.y,r=Math.hypot(dx,dz),q=(r-(.65+Math.max(0,age-.3)*.95))/.16;
+      const fade=smooth(0,.12,age)*(1-smooth(.6,2.1,age)),bell=Math.exp(-q*q),amplitude=.024*fade;
+      height+=amplitude*(1-2*q*q)*bell;
+      const gradient=amplitude*(4*q*q*q-6*q)*bell/.16/Math.max(r,.02);sx+=dx*gradient;sz+=dz*gradient;
+    }
+  }
+  const thaw=1-smooth(.1,.8,freeze);
+  out.height=Math.max(-.05,Math.min(.05,height))*thaw;
+  out.dx=Math.max(-.38,Math.min(.38,sx))*thaw;out.dz=Math.max(-.38,Math.min(.38,sz))*thaw;
+}
+/** Evaluate once per colony, not the wake loop on every coral vertex. */
+export function sampleReefCurrent(uniforms:OceanUniforms,x:number,z:number,out:{x:number;y:number}){
+  const time=uniforms.uTime.value as number,freeze=uniforms.uFreeze.value as number;
+  const a=x*.88+z*1.31-time*.72,b=x*1.93-z*.62+time*.55,wake={height:0,dx:0,dz:0};sampleWakeSurface(uniforms,x,z,wake);
+  const current=1-freeze*.85;
+  out.x=(.65*Math.sin(a)+.35*Math.sin(b))*.075*current+wake.dx*.3;
+  out.y=(.48*Math.cos(a*.83)+.26*Math.sin(b))*.060*current+wake.dz*.3;
+}
+/** Floating bodies sample the same live pointer wakes that move the reefs and highlights. */
+export function sampleOceanSurface(uniforms:OceanUniforms,x:number,z:number){
+  const surface=oceanSurface(x,z,uniforms.uTime.value as number,uniforms.uFreeze.value as number),wake={height:0,dx:0,dz:0};
+  sampleWakeSurface(uniforms,x,z,wake,true);
+  surface.height+=wake.height;surface.dx+=wake.dx;surface.dz+=wake.dz;
+  return surface;
 }
 
 /** CPU counterpart of seaWave, used by floating props. */

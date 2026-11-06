@@ -1,3 +1,4 @@
+import type {ChestLoot} from './chest-loot';
 import {merchantRouteOpen} from './merchant-route';
 import {ShippingIce,shipIce} from './shipping-ice';
 import type {PersonVisual} from './people';
@@ -131,11 +132,13 @@ export class World {
   hover=-1;
   valid=(_i:number)=>false;
   onHover=(_i:number)=>{};
+  onChestReward: (loot:ChestLoot,at:T.Vector3)=>Promise<number>=async()=>0;
   onMerchant=()=>{};
   private shippingIce:ShippingIce;
   private routeKey='';private blockedNotice=false;
   private crewVisuals=new WeakMap<T.Object3D,{visual:PersonVisual;body:T.Group;arms:T.Group[];legs:T.Group[]}>();
   private shipPrevious=new T.Vector3();private shipPreviousValid=false;private shipWakeTime=0;
+  private shipHeave=0;private shipPitch=0;private shipRoll=0;
   private transferAge=10;private transferSelling=true;private lastMerchant=false;
   showTradeTransfer(selling:boolean){this.transferAge=0;this.transferSelling=selling}
   private merchantRay=new T.Raycaster();
@@ -172,7 +175,7 @@ export class World {
     sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00006;sun.shadow.normalBias=.006;
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
-    this.shippingIce=new ShippingIce(this.scene);this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);this.cozy=new CozyVillage(this.scene,(x,z)=>this.environment.sampleSea(x,z));
+    this.shippingIce=new ShippingIce(this.scene);this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);this.cozy=new CozyVillage(this.scene,(x,z)=>this.environment.sampleSea(x,z),(loot,at)=>this.onChestReward(loot,at));
     this.villagers=new Villagers(this.scene,{
       ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
@@ -219,7 +222,7 @@ export class World {
 
   set onFenceBreak(callback:()=>void){this.environment.onFenceBreak=callback}
   set onFenceBuild(callback:()=>void){this.environment.onFenceBuild=callback}
-  bindGame(game:Game){this.shippingIce.reset();this.routeKey='';this.blockedNotice=false;this.lastMerchant=false;this.shipPreviousValid=false;this.shipWakeTime=0;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
+  bindGame(game:Game){this.shippingIce.reset();this.routeKey='';this.blockedNotice=false;this.lastMerchant=false;this.shipPreviousValid=false;this.shipWakeTime=0;this.shipHeave=0;this.shipPitch=0;this.shipRoll=0;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
   private ready(id:number){return this.board.has(id)&&this.buildings.has(id)&&!this.builds.some(b=>b.id===id)&&!this.demolitions.some(d=>d.id===id)}
   private pickTree(id:number,preferred:number){
     for(let j=0;j<3;j++){const index=(preferred+j)%3;if(!this.treeCycles.has(`${id}:${index}`)&&this.buildings.get(id)?.children.some(t=>t.userData.treeIndex===index))return index}
@@ -382,6 +385,10 @@ export class World {
       }
     }
     this.trails.count=this.trailPoints.length;this.trails.instanceMatrix.needsUpdate=true;
+  }
+  projectToScreen(at:T.Vector3){
+    const point=at.clone().project(this.cameraControl.camera),rect=this.renderer.domElement.getBoundingClientRect();
+    return {x:rect.left+(point.x+1)*rect.width/2,y:rect.top+(1-point.y)*rect.height/2};
   }
   screenPoint(id:number,y=.7){const p=position(id),v=new T.Vector3(p.x,y,p.z).project(this.cameraControl.camera);return {x:(v.x+1)*this.el.clientWidth/2,y:(1-v.y)*this.el.clientHeight/2}}
   private pickMerchant(x:number,y:number){
@@ -627,7 +634,7 @@ export class World {
     const dt=this.game?.paused||document.hidden?0:realDt*gameSpeed.value;this.time+=dt;
     this.cameraControl.update(realDt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     this.grid.update(document.hidden?0:realDt);
-    this.cozy.update(dt,this.cameraControl.camera);
+    this.cozy.update(dt,this.cameraControl.camera,this.game?.paused||document.hidden?0:realDt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     this.environment.setSun(this.waterSunDirection.subVectors(this.sun.position,this.sun.target.position));
     if(this.game){
@@ -732,7 +739,11 @@ export class World {
       ship.position.set(1.12,(SEA_Y-LAND_Y)/BUILDING_SCALE,2.6+approach*5.0);
       ship.rotation.y=t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END)*.35:0;
       const point=ship.getWorldPosition(new T.Vector3()),wave=this.environment.sampleSea(point.x,point.z);
-      ship.position.y+=wave.height/BUILDING_SCALE;ship.rotation.x=wave.dz;ship.rotation.z=-wave.dx;
+      // The merchant hull has much more inertia than a little floating chest.
+      this.shipHeave=T.MathUtils.damp(this.shipHeave,wave.height,2,realDt);
+      this.shipPitch=T.MathUtils.damp(this.shipPitch,T.MathUtils.clamp(wave.dz*.35,-.06,.06),2,realDt);
+      this.shipRoll=T.MathUtils.damp(this.shipRoll,T.MathUtils.clamp(-wave.dx*.35,-.06,.06),2,realDt);
+      ship.position.y+=this.shipHeave/BUILDING_SCALE;ship.rotation.x=this.shipPitch;ship.rotation.z=this.shipRoll;
       if(ship.visible){
         const travelSign=t<MERCHANT_DOCKED?-1:1;
         const direction=new T.Vector3(0,0,travelSign).applyQuaternion(dock.getWorldQuaternion(new T.Quaternion()));

@@ -110,6 +110,17 @@ export class Game {
   merchantAge=-1;merchantRouteOpen=false;private merchantSeason=0;private visitedSeason=-1;
   tradeSold=0;
   merchantCargo:Record<TradeGood,number>={wood:30,stone:25,berry:20,wheat:20,fish:15};
+  /** Discovery contents use the same physical depots as deliveries and purchases. */
+  receiveDiscoveryLoot(good:TradeGood|'gold',amount:number){
+    if(!Number.isFinite(amount))return 0;
+    const requested=Math.max(0,Math.floor(amount));
+    if(good==='gold'){this.gold+=requested;return requested}
+    if(!TRADE_GOODS.some(item=>item.id===good))return 0;
+    const count=Math.min(requested,this.totalStorageFree);let left=count;
+    for(const [id,stock] of this.storageStocks){const take=Math.min(left,this.storageFree(id));stock[good]+=take;left-=take;if(!left)break}
+    if(good==='wood'||good==='stone')this[good]+=count;else this.foods[good]+=count;
+    return count;
+  }
   get totalStorageFree(){return [...this.storageStocks.keys()].reduce((total,id)=>total+this.storageFree(id),0)}
   marketPressure:Record<TradeGood,number>={wood:0,stone:0,berry:0,wheat:0,fish:0};
   sellPrice(good:TradeGood){return marketPrice(TRADE_GOODS.find(item=>item.id===good)!.price,'sell',this.marketPressure[good])}

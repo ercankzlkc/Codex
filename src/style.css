@@ -516,3 +516,5 @@ dialog[data-kind=trade] .trade-footer>button{display:flex;align-items:center;jus
   .trade-enter .trade-main,.trade-enter .trade-ports{animation:none}
   .trade-layout .trade-product button,.trade-footer>button{transition:none}
 }
+
+.chest-reward-flight{position:fixed;left:0;top:0;z-index:45;display:grid;place-items:center;width:38px;height:38px;margin:-19px;pointer-events:none;border-radius:13px;background:#fcf5e4dd;box-shadow:0 3px 12px #456d4b24}.chest-reward-flight .resource-art{width:36px;height:36px}

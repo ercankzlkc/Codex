@@ -1,3 +1,4 @@
+import type {ChestLoot} from './chest-loot';
 import {resourceArt} from './resource-art';
 import './style.css';
 import {Vector3} from 'three';
@@ -317,6 +318,39 @@ get('#reroll-toggle').onclick=()=>{void refreshHand()};
 get('#tile-trade').onclick=openTrade;
 get('#trade-open').onclick=openTrade;
 
+let chestRewardEpoch=0;
+const chestFlights=new Map<Animation,HTMLElement>();
+world.onChestReward=async(loot:ChestLoot,at:Vector3)=>{
+  const currentGame=game,epoch=chestRewardEpoch,requested=Math.max(0,Math.floor(loot.amount));
+  const count=loot.good==='gold'?requested:Math.min(requested,game.totalStorageFree);
+  if(!count)return 0;
+  const hudKind=['berry','wheat','fish'].includes(loot.good)?'food':loot.good;
+  const target=get(`[data-resource="${hudKind}"]`),rect=target.getBoundingClientRect(),from=world.projectToScreen(at);
+  const destination={x:rect.left+rect.width/2,y:rect.top+rect.height/2};
+  const pieces=Math.min(5,count),reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  await Promise.all(Array.from({length:pieces},(_,index)=>{
+    const spark=document.createElement('span');spark.className='chest-reward-flight';spark.setAttribute('aria-hidden','true');spark.innerHTML=resourceArt(loot.good);document.body.append(spark);
+    const side=(index-(pieces-1)/2)*14;
+    const animation=spark.animate([
+      {transform:`translate(${from.x+side}px,${from.y}px) scale(.35)`,opacity:0},
+      {transform:`translate(${from.x+side*1.3}px,${from.y-38-index*4}px) scale(1)`,opacity:1,offset:.2},
+      {transform:`translate(${from.x+(destination.x-from.x)*.55+side}px,${Math.min(from.y,destination.y)-28}px) scale(.9)`,opacity:1,offset:.65},
+      {transform:`translate(${destination.x}px,${destination.y}px) scale(.35)`,opacity:0}
+    ],{duration:reduced?100:1050,delay:reduced?0:index*65,easing:'cubic-bezier(.25,.65,.3,1)',fill:'both'});
+    chestFlights.set(animation,spark);
+    return animation.finished.catch(()=>{}).then(()=>{chestFlights.delete(animation);spark.remove()});
+  }));
+  if(currentGame!==game||epoch!==chestRewardEpoch)return 0;
+  const accepted=game.receiveDiscoveryLoot(loot.good,count);
+  if(accepted){
+    renderHud();renderStorage();sound.play('reward');
+    const motion=target.animate([{transform:'scale(1)'},{transform:'scale(1.07)',backgroundColor:'#e5eccf'},{transform:'scale(1)'}],{duration:reduced?100:500});void motion.finished.catch(()=>{});
+    const names:Record<string,string>={wood:'odun',stone:'taş',berry:'çilek',wheat:'buğday',fish:'balık',gold:'altın'};
+    toast(`Sandıktan +${accepted} ${names[loot.good]}`);
+  }
+  return accepted;
+};
+
 let deliveryHudFrame=0;
 const deliveryPulses=new Map<Resource,number>();
 world.onDelivery=(source,store,resource,amount)=>{
@@ -383,6 +417,7 @@ function modal(html:string,kind='standard') {
   dialog.querySelector('[data-new]')?.addEventListener('click',()=>{dialog.close();reset()});
 }
 function reset(){
+  chestRewardEpoch++;for(const [animation,node] of chestFlights){animation.cancel();node.remove()}chestFlights.clear();
   cancelAnimationFrame(deliveryHudFrame);deliveryHudFrame=0;deliveryPulses.clear();
   handMotion++;handBusy=false;hand.removeAttribute('data-cards');hand.getAnimations({subtree:true}).forEach(a=>a.cancel());
   clearTimeout(settleTimer);clearTimeout(toastTimer);log.classList.remove('visible');
@@ -392,7 +427,7 @@ function reset(){
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
- <p>Sol alttaki Köy Defteri’nden köylülerin portrelerini, isimlerini, dileklerini ve kıyı keşiflerini görebilirsin. Dilekleri gerçekleştirmek refah kazandırır. Denizde beliren keşiflere tıklayarak küçük hazineler toplayabilirsin.</p><p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. Deniz ticareti düğmesinden iskele kartını alıp kıyıya kurabilirsin. Her mevsimin 3. günü gemi gelir; gemiye tıklayıp alış ve satış yapabilirsin. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
+ <p>Sol alttaki Köy Defteri’nden köylülerin portrelerini, isimlerini, dileklerini ve kıyı keşiflerini görebilirsin. Dilekleri gerçekleştirmek refah kazandırır. Denizde beliren sandıklara tıklayarak kaynaklar ve nadiren altın toplayabilirsin.</p><p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. Deniz ticareti düğmesinden iskele kartını alıp kıyıya kurabilirsin. Her mevsimin 3. günü gemi gelir; gemiye tıklayıp alış ve satış yapabilirsin. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
  <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir. + bir köylüyü o işe geçirir, − boşta bırakır; boşta kimse yoksa + başka işten birini aktarır. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>

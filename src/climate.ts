@@ -8,12 +8,12 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
   const previous=material.onBeforeCompile,cache=material.customProgramCacheKey.bind(material),key=cache();
   material.onBeforeCompile=function(shader,renderer){
     previous.call(this,shader,renderer);
-    shader.uniforms.uTorchField=torchField.map;shader.uniforms.uTorchRegion=torchField.region;
+    shader.uniforms.uTorchField=torchField.map;shader.uniforms.uTorchHeat=torchField.heat;shader.uniforms.uTorchRegion=torchField.region;
     shader.uniforms.uSeasonSnow=climate.winter;shader.uniforms.uSeasonAutumn=climate.autumn;shader.uniforms.uSeasonSummer=climate.summer;
     shader.vertexShader=shader.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vSeasonNormal;varying vec3 vSeasonPosition;');
     shader.vertexShader=shader.vertexShader.replace('#include <defaultnormal_vertex>','#include <defaultnormal_vertex>\nvSeasonNormal=inverseTransformDirection(transformedNormal,viewMatrix);');
     shader.vertexShader=shader.vertexShader.replace('#include <project_vertex>','#include <project_vertex>\nvec4 seasonLocal=vec4(transformed,1.);\n#ifdef USE_INSTANCING\nseasonLocal=instanceMatrix*seasonLocal;\n#endif\nvSeasonPosition=(modelMatrix*seasonLocal).xyz;');
-    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uTorchField;uniform vec4 uTorchRegion;uniform float uSeasonSnow,uSeasonAutumn,uSeasonSummer;varying vec3 vSeasonNormal;varying vec3 vSeasonPosition;');
+    shader.fragmentShader=shader.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uTorchField,uTorchHeat;uniform vec4 uTorchRegion;uniform float uSeasonSnow,uSeasonAutumn,uSeasonSummer;varying vec3 vSeasonNormal;varying vec3 vSeasonPosition;');
     shader.fragmentShader=shader.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
       float vegetation=smoothstep(.015,.12,diffuseColor.g-max(diffuseColor.r*.88,diffuseColor.b));
       diffuseColor.rgb=mix(diffuseColor.rgb,diffuseColor.rgb*vec3(1.12,1.03,.86),uSeasonSummer*vegetation*.45);
@@ -25,6 +25,12 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
       // A light dusting reaches the upper coastal bevel and vertical tile rim.
       float rim=smoothstep(-.24,-.025,vSeasonPosition.y)*(1.-smoothstep(.08,.15,vSeasonPosition.y));
       snow=max(snow,rim*.28*smoothstep(.02,.8,uSeasonSnow));
+      vec2 heatUv=(vSeasonPosition.xz-uTorchRegion.xy)/uTorchRegion.zw;
+      float heatInside=step(0.,heatUv.x)*step(0.,heatUv.y)*step(heatUv.x,1.)*step(heatUv.y,1.);
+      float warmth=texture2D(uTorchHeat,clamp(heatUv,0.,1.)).r*heatInside;
+      // Only ground, the low shore and nearby grass thaw. Snowy roofs remain cold.
+      float groundHeat=(1.-smoothstep(.30,.49,vSeasonPosition.y))*smoothstep(-.20,-.08,vSeasonPosition.y);
+      snow*=1.-smoothstep(.05,.86,warmth)*groundHeat;
       diffuseColor.rgb=mix(diffuseColor.rgb,vec3(.87,.93,.97),snow*.96);
     `);
     shader.fragmentShader=shader.fragmentShader.replace('#include <opaque_fragment>',`
@@ -37,5 +43,5 @@ export function seasonalSurface(material:T.MeshStandardMaterial|T.MeshLambertMat
       #include <opaque_fragment>
     `);
   };
-  material.customProgramCacheKey=()=>key+'-season-surface-v5-soft-neutral';material.needsUpdate=true;
+  material.customProgramCacheKey=()=>key+'-season-surface-v6-local-torch-thaw';material.needsUpdate=true;
 }

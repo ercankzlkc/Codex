@@ -1,6 +1,7 @@
 import * as T from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import {mergeGeometries} from 'three/addons/utils/BufferGeometryUtils.js';
+import type {ChestLoot} from './chest-loot';
 
 /** Keep the moving lid separate, while drawing its little details in material batches. */
 function batchDetails(group:T.Group){
@@ -23,7 +24,7 @@ function batchDetails(group:T.Group){
   }
 }
 
-export function discoveryModel(type:number){
+export function discoveryModel(loot:ChestLoot){
   const root=new T.Group();
   // Materials belong to this discovery, because removing a discovery disposes its meshes.
   const materials=new Map<string,T.MeshStandardMaterial>();
@@ -36,7 +37,6 @@ export function discoveryModel(type:number){
     const mesh=new T.Mesh(geometry,material(color,metal));mesh.position.set(x,y,z);mesh.castShadow=true;mesh.receiveShadow=true;parent.add(mesh);return mesh;
   };
   const add=(parent:T.Group,color:number,w:number,h:number,d:number,x=0,y=0,z=0,metal=false)=>part(parent,new RoundedBoxGeometry(w,h,d,1,Math.min(.006,Math.min(w,h,d)*.2)),color,x,y,z,metal);
-  if(type===1){
     root.name='Floating treasure chest';
     const body=new T.Group();body.name='Planked chest';root.add(body);
     const wood=0x96744e,lightWood=0xac8759,darkWood=0x745839,inside=0x4b4433,metal=0x637466,metalLight=0x82917c,brass=0xb6a06b;
@@ -106,13 +106,39 @@ export function discoveryModel(type:number){
     add(lid,brass,.016,.018,.014,0,-.034,depth+.011,true);
     for(const x of [-.015,.015])part(body,new T.SphereGeometry(.0035,6,4),metalLight,x,.101,.171,true);
     batchDetails(body);batchDetails(lid);
-  }else if(type===0){
-    const bottle=new T.Mesh(new T.CylinderGeometry(.055,.075,.26,8),new T.MeshStandardMaterial({color:0x77aa98,roughness:.3,transparent:true,opacity:.85}));bottle.rotation.z=.6;root.add(bottle);
-    add(root,0xc6af78,.05,.05,.05,-.075,.12);const note=add(root,0xf0e4c4,.035,.14,.035);note.rotation.z=.6;
-  }else{
-    for(let i=0;i<9;i++){const rib=part(root,new T.ConeGeometry(.035,.17,4),i%2?0xe0c7a1:0xeedab9);rib.rotation.set(Math.PI/2,0,(i-4)*.16);rib.position.set(Math.sin((i-4)*.16)*.07,.018,0)}
-  }
   const prizes=new T.Group();prizes.visible=false;root.add(prizes);root.userData.prizes=prizes;
-  for(let i=0;i<6;i++){const coin=part(prizes,new T.CylinderGeometry(.025,.025,.009,10),0xd7b35a,0,0,0,true);coin.userData.phase=i*2.4}
+  for(let i=0;i<Math.min(loot.amount,6);i++){
+    const prize=new T.Group();prize.userData.phase=i*2.4;prizes.add(prize);
+    if(loot.good==='gold'){
+      const coin=part(prize,new T.CylinderGeometry(.027,.027,.009,12),0xd7b35a,0,0,0,true);coin.rotation.x=Math.PI*.38;
+      const stamp=part(prize,new T.CylinderGeometry(.019,.019,.010,8),0xe5c977,0,0,0,true);stamp.rotation.copy(coin.rotation);
+    }else if(loot.good==='wood'){
+      for(const [y,z] of [[0,-.014],[0,.014],[.022,0]]){
+        const log=part(prize,new T.CylinderGeometry(.015,.017,.083,7),0x89613e,0,y,z);log.rotation.z=Math.PI/2;
+        for(const x of [-.042,.042]){const end=part(prize,new T.CylinderGeometry(.012,.012,.002,7),0xd7b078,x,y,z);end.rotation.z=Math.PI/2}
+      }
+      for(const x of [-.018,.018]){const rope=part(prize,new T.TorusGeometry(.028,.003,4,8),0xbca478,x,.007,0);rope.rotation.y=Math.PI/2}
+    }else if(loot.good==='stone'){
+      part(prize,new T.DodecahedronGeometry(.038,0),0x869085,-.012,0,0).scale.set(1.15,.78,1);
+      part(prize,new T.DodecahedronGeometry(.026,0),0xa6ad98,.026,-.009,.013).rotation.set(.3,.8,.4);
+    }else if(loot.good==='berry'){
+      for(let j=0;j<4;j++){
+        const angle=j*2.4,x=Math.cos(angle)*.022,z=Math.sin(angle)*.02,y=j===3?.018:0;
+        const berry=part(prize,new T.SphereGeometry(.018,7,5),j%2?0xc9573e:0xb94035,x,y,z);berry.scale.y=1.14;
+        for(let leaf=0;leaf<3;leaf++){const blade=part(prize,new T.ConeGeometry(.009,.021,3),0x658554,x,y+.022,z);blade.rotation.set(.65,leaf*Math.PI*2/3,.9)}
+      }
+    }else if(loot.good==='wheat'){
+      for(let stalk=0;stalk<3;stalk++){
+        const stem=part(prize,new T.CylinderGeometry(.0016,.0018,.09,4),0xb09c54,(stalk-1)*.014,0,0);stem.rotation.z=(stalk-1)*.12;
+        for(let grain=0;grain<6;grain++){const kernel=part(prize,new T.SphereGeometry(.007,5,4),grain%2?0xd8bc6b:0xe6ca7b,(stalk-1)*.014+(grain%2?-.005:.005),.01+Math.floor(grain/2)*.013,0);kernel.scale.set(.75,1.6,.7);kernel.rotation.z=grain%2?-.4:.4}
+      }
+    }else{
+      const fish=part(prize,new T.SphereGeometry(.031,8,5),0x91aba5);fish.scale.set(1.55,.65,.55);
+      const belly=part(prize,new T.SphereGeometry(.024,7,4),0xc2cfb9,.006,-.008,0);belly.scale.set(1.55,.45,.66);
+      const tail=part(prize,new T.ConeGeometry(.022,.035,3),0x65877e,-.057,0,0);tail.rotation.z=Math.PI/2;
+      part(prize,new T.SphereGeometry(.0035,5,4),0x334e47,.03,.007,.017);
+    }
+    batchDetails(prize);
+  }
   return root;
 }

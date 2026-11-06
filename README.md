@@ -91,3 +91,9 @@ Gelişim modalları yumuşak ölçek ve kayma animasyonuyla açılır; ödül ka
 Balta ve kazmanın görselleri, el kemiğindeki tutuş noktaları korunarak yüzde 62 ölçeğe indirilmiştir; yeniden tutuş hesapları bu iç görsel ölçeğini değiştirmez.
 
 Köylüler iş başındayken yemek animasyonu işi ve alet görünürlüğünü kesmez; yiyecek tüketimi sürer, yemek pozu yalnız boşta oynar. Depoya ulaşınca köylü boşaltma pozuna girer; ürünler 0,14 saniye aralıklarla eldeki yükten çıkar, yarım saniyelik yumuşak bir yay çizerek depoya uçar. Stok her ürün vardığında artar, eldeki yük kademeli azalır. Depo dolarsa kabul edilmeyen ürün geri döner ve kalan yük başka uygun depoya götürülür. Aynı karedeki HUD güncellemeleri birleştirilir.
+
+## Erzak sandıkları ve meşale sıcaklığı
+
+Deniz keşifleri yalnızca sandıklardan oluşur. Altın çıkma ihtimali %8’dir (3–6 altın); diğer sandıklarda 5–10 odun, taş, çilek, buğday veya balık bulunur. Kaynaklar kendi HUD alanına uçtuktan sonra envantere eklenir. Depoda yer yoksa kalan içerik açık sandıkta korunur; yer açıldıktan sonra yeniden alınabilir. Tamamen boşalan sandık 2,6 saniyede yumuşakça batar. Açılma, dalgayla sallanma ve batma oyun hızından bağımsızdır; sandık fareyle oluşturulan su dalgalarının yüksekliğini ve eğimini de izler.
+
+Yanan meşalenin yakınındaki küçük kar alanı ısındıkça erir. Sönünce kar kademeli geri gelir; çatı karı korunur. Geminin kırdığı buz küçük, karla aynı renkte taneler ve az sayıda ince kırıntıyla gösterilir.

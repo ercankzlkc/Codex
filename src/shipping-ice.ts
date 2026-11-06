@@ -2,14 +2,16 @@ import * as T from 'three';
 import {SEA_Y} from './scenery';
 
 export const shipIce={lane:{value:new T.Vector4()},open:{value:new T.Vector2(.70,0)}};
-const CHIP_LIMIT=128,CONTACT_STEP=.13;
+const GRAIN_LIMIT=192,CHIP_LIMIT=40,CONTACT_STEP=.13;
+// Same linear RGB as the snow layer in climate.ts; scene lighting handles nightfall.
+const SNOW_COLOR=new T.Color().setRGB(.87,.93,.97);
 
 function icePlate(){
-  // A thick, irregular floe has readable top and broken edges at the game's camera distance.
+  // Only a few thin chips remain among the finer, compact snow grains.
   const shape=new T.Shape();
   shape.moveTo(-.15,-.09);shape.lineTo(-.07,-.14);shape.lineTo(.11,-.10);
   shape.lineTo(.17,.015);shape.lineTo(.055,.14);shape.lineTo(-.12,.10);shape.closePath();
-  return new T.ExtrudeGeometry(shape,{depth:.045,bevelEnabled:false,steps:1}).rotateX(-Math.PI/2).center();
+  return new T.ExtrudeGeometry(shape,{depth:.025,bevelEnabled:false,steps:1}).rotateX(-Math.PI/2).center();
 }
 
 type IceChip={
@@ -18,36 +20,46 @@ type IceChip={
 };
 
 export class ShippingIce{
-  private mesh=new T.InstancedMesh(icePlate(),new T.MeshLambertMaterial({
-    color:0xffffff,transparent:true,opacity:.94,depthWrite:false,flatShading:true,
-  }),CHIP_LIMIT);
+  private material=new T.MeshLambertMaterial({
+    color:0xffffff,transparent:true,opacity:.96,depthWrite:false,flatShading:true,
+  });
+  private grainsMesh=new T.InstancedMesh(new T.IcosahedronGeometry(1,0),this.material,GRAIN_LIMIT);
+  private chipsMesh=new T.InstancedMesh(icePlate(),this.material,CHIP_LIMIT);
+  private grains:IceChip[]=[];
   private chips:IceChip[]=[];
   private pose=new T.Object3D();
   private last:T.Vector3|null=null;
   private contact=new T.Vector3();
   constructor(scene:T.Scene){
-    this.mesh.count=0;this.mesh.frustumCulled=false;
-    // Water renders at 2. Shards stay visible above it, with hull depth testing
-    // and the scene's actual day/night lighting rather than an emissive overlay.
-    this.mesh.renderOrder=4;this.mesh.receiveShadow=true;this.mesh.userData.iceChip=true;scene.add(this.mesh);
-    this.mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    for(const mesh of [this.grainsMesh,this.chipsMesh]){
+      mesh.count=0;mesh.frustumCulled=false;
+      // Above the water render pass, while retaining hull depth testing and normal lighting.
+      mesh.renderOrder=4;mesh.receiveShadow=true;mesh.userData.iceChip=true;scene.add(mesh);
+      mesh.instanceMatrix.setUsage(T.DynamicDrawUsage);
+    }
   }
-  reset(){this.chips=[];this.mesh.count=0;shipIce.open.value.y=0;this.last=null}
+  reset(){
+    this.grains=[];this.chips=[];this.grainsMesh.count=0;this.chipsMesh.count=0;
+    shipIce.open.value.y=0;this.last=null;
+  }
 
   private fracture(bow:T.Vector3,dx:number,dz:number,width:number){
-    for(let i=0;i<8&&this.chips.length<CHIP_LIMIT;i++){
-      const side=i%2?-1:1,pair=Math.floor(i/2),large=pair===0||pair===2;
-      // The point opens first, then each shoulder pushes floes sideways along the hull.
-      const spread=pair===3?.10:width*[.30,.68,1.][pair];
-      const along=pair===3?.07:-pair*.24;
-      const at=new T.Vector3(bow.x+dx*along+dz*spread*side,SEA_Y+.035,bow.z+dz*along-dx*spread*side);
-      const push=(large?.25:.38)+Math.random()*.19;
-      this.chips.push({at,
-        v:new T.Vector3(dz*side*push+dx*.08,(large?.26:.43)+Math.random()*.22,-dx*side*push+dz*.08),
-        rotation:new T.Vector3((Math.random()-.5)*.35,Math.random()*Math.PI*2,(Math.random()-.5)*.35),
-        spin:new T.Vector3((Math.random()-.5)*(large?1.8:5),side*(.35+Math.random()),(Math.random()-.5)*(large?1.8:5)),
-        color:new T.Color().setHSL(.53+Math.random()*.025,.20+Math.random()*.10,.72+Math.random()*.17),
-        age:0,life:2.1+Math.random()*.85,size:large?.95+Math.random()*.52:.34+Math.random()*.38,
+    for(let i=0;i<16;i++){
+      const grain=i<14,particles=grain?this.grains:this.chips;
+      if(particles.length>=(grain?GRAIN_LIMIT:CHIP_LIMIT))continue;
+      const side=i%2?-1:1,shoulder=Math.floor(i/2)%3;
+      // Local clusters crumble at the point and both shoulders, instead of wide plates.
+      const spread=width*[.24,.63,.95][shoulder]+(Math.random()-.5)*.10;
+      const along=-shoulder*.19+(Math.random()-.5)*.10;
+      const at=new T.Vector3(bow.x+dx*along+dz*spread*side,SEA_Y+.026,bow.z+dz*along-dx*spread*side);
+      const push=(grain?.24:.20)+Math.random()*(grain?.32:.17);
+      particles.push({at,
+        v:new T.Vector3(dz*side*push+dx*.07,.24+Math.random()*(grain?.40:.18),-dx*side*push+dz*.07),
+        rotation:new T.Vector3(Math.random()*.5,Math.random()*Math.PI*2,Math.random()*.5),
+        spin:new T.Vector3((Math.random()-.5)*5,side*(.5+Math.random()),(Math.random()-.5)*5),
+        color:SNOW_COLOR.clone().multiplyScalar(.94+Math.random()*.06),
+        age:0,life:grain?.85+Math.random()*.55:1.3+Math.random()*.55,
+        size:grain?.020+Math.random()*.019:.23+Math.random()*.19,
         phase:Math.random()*Math.PI*2,floating:false,
       });
     }
@@ -71,9 +83,17 @@ export class ShippingIce{
         }
       }
     }else this.last=null;
-    this.chips=this.chips.filter(chip=>{chip.age+=step;return chip.age<chip.life});
-    this.chips.forEach((chip,i)=>{
-      if(!chip.floating)chip.v.y-=step*1.7;
+    this.grains=this.updateParticles(this.grains,this.grainsMesh,step,true);
+    this.chips=this.updateParticles(this.chips,this.chipsMesh,step,false);
+  }
+
+  private updateParticles(particles:IceChip[],mesh:T.InstancedMesh,step:number,grain:boolean){
+    let count=0;
+    for(const chip of particles){
+      chip.age+=step;
+      if(chip.age>=chip.life)continue;
+      particles[count]=chip;
+      if(!chip.floating)chip.v.y-=step*(grain?2.5:1.7);
       chip.at.addScaledVector(chip.v,step);
       if(!chip.floating&&chip.at.y<SEA_Y+.014&&chip.v.y<0){chip.floating=true;chip.v.y=0}
       if(chip.floating){
@@ -84,13 +104,17 @@ export class ShippingIce{
         chip.rotation.z=T.MathUtils.damp(chip.rotation.z,0,5,step);
       }
       chip.rotation.addScaledVector(chip.spin,step);
-      const fade=T.MathUtils.smoothstep(chip.age,chip.life-.65,chip.life);
+      const fade=T.MathUtils.smoothstep(chip.age,chip.life-.5,chip.life);
       this.pose.position.copy(chip.at);this.pose.position.y-=fade*.07;
       this.pose.rotation.set(chip.rotation.x,chip.rotation.y,chip.rotation.z);
-      this.pose.scale.set(chip.size*(1-fade),chip.size*(1-fade),chip.size*(1-fade)*.82);
-      this.pose.updateMatrix();this.mesh.setMatrixAt(i,this.pose.matrix);this.mesh.setColorAt(i,chip.color);
-    });
-    this.mesh.count=this.chips.length;this.mesh.instanceMatrix.needsUpdate=true;
-    if(this.mesh.instanceColor)this.mesh.instanceColor.needsUpdate=true;
+      const size=chip.size*(1-fade);
+      this.pose.scale.set(size,size*(grain?.72:1),size*.82);
+      this.pose.updateMatrix();mesh.setMatrixAt(count,this.pose.matrix);mesh.setColorAt(count,chip.color);
+      count++;
+    }
+    particles.length=count;
+    mesh.count=count;mesh.instanceMatrix.needsUpdate=true;
+    if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;
+    return particles;
   }
 }

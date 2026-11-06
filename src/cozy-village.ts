@@ -1,6 +1,7 @@
 import {residentIcon} from './resident-card';
 import {cozyFlowerGeometry} from './models';
 import {discoveryModel} from './discovery-model';
+import {chestLootName,rollChestLoot,type ChestLoot} from './chest-loot';
 import * as T from 'three';
 import {Game,cards} from './game';
 import {position,fromWorld} from './hex';
@@ -18,10 +19,12 @@ export class CozyVillage{
   private leafPositions=new Float32Array(64*3);private firePositions=new Float32Array(32*3);
   private leaves:T.Points;private fireflies:T.Points;
   private panel:HTMLElement;private toggle:HTMLButtonElement;private collect:HTMLButtonElement;
-  private completed=new Set<number>();private journal:string[]=[];private signature='';private clock=0;private nextDiscovery=35;
-  private opening=-1;private rewarded=false;
-  private discovery:T.Group|null=null;private discoveryType=0;private activeTab:'residents'|'discoveries'='residents';
-  constructor(private scene:T.Scene,private sampleSea:(x:number,z:number)=>{height:number;dx:number;dz:number}){
+  private completed=new Set<number>();private journal:string[]=[];private signature='';private clock=0;private floatClock=0;private nextDiscovery=35;
+  private opening=-1;private prizeTime=0;private sinkTime=-1;
+  private loot:ChestLoot|null=null;private pendingLoot=false;private lootRequested=false;private generation=0;
+  private floatY=0;private floatVelocity=0;private pitch=0;private roll=0;private pitchVelocity=0;private rollVelocity=0;
+  private discovery:T.Group|null=null;private activeTab:'residents'|'discoveries'='residents';
+  constructor(private scene:T.Scene,private sampleSea:(x:number,z:number)=>{height:number;dx:number;dz:number},private onLoot:(loot:ChestLoot,at:T.Vector3)=>Promise<number>){
     this.root.add(this.blooms);scene.add(this.root);
     const leafGeo=new T.BufferGeometry();leafGeo.setAttribute('position',new T.BufferAttribute(this.leafPositions,3));
     const fireGeo=new T.BufferGeometry();fireGeo.setAttribute('position',new T.BufferAttribute(this.firePositions,3));
@@ -40,9 +43,16 @@ export class CozyVillage{
     });
   }
   bind(game:Game){this.reset();this.game=game;this.render()}
-  reset(){this.game=null;this.completed.clear();this.journal=[];this.signature='';this.clock=0;this.nextDiscovery=15;this.opening=-1;this.rewarded=false;this.panel.hidden=true;this.collect.hidden=true;this.clearBlooms();this.removeDiscovery()}
+  reset(){this.game=null;this.completed.clear();this.journal=[];this.signature='';this.clock=0;this.floatClock=0;this.nextDiscovery=15;this.opening=-1;this.prizeTime=0;this.sinkTime=-1;this.panel.hidden=true;this.collect.hidden=true;this.clearBlooms();this.removeDiscovery();this.floatVelocity=this.pitchVelocity=this.rollVelocity=this.pitch=this.roll=0}
   private clearBlooms(){for(const child of this.blooms.children){if(child instanceof T.Mesh)child.geometry.dispose()}this.blooms.clear()}
-  private removeDiscovery(){if(this.discovery){this.root.remove(this.discovery);this.discovery.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();(o.material as T.Material).dispose()}});this.discovery=null}}
+  private removeDiscovery(){
+    this.generation++;this.loot=null;this.pendingLoot=false;this.lootRequested=false;
+    if(this.discovery){
+      const geometries=new Set<T.BufferGeometry>(),materials=new Set<T.Material>();
+      this.root.remove(this.discovery);this.discovery.traverse(o=>{if(o instanceof T.Mesh){geometries.add(o.geometry);for(const material of Array.isArray(o.material)?o.material:[o.material])materials.add(material)}});
+      geometries.forEach(geometry=>geometry.dispose());materials.forEach(material=>material.dispose());this.discovery=null;
+    }
+  }
   private render(){
     const game=this.game;if(!game)return;
     const residents=this.activeTab==='residents';
@@ -52,29 +62,75 @@ export class CozyVillage{
       ${residents?`<p class="journal-intro">Komşularını tanı, küçük dileklerine kulak ver.</p><div class="resident-pages">${game.residents.map(r=>{
         const wish=wishes[r.id%3],done=this.completed.has(r.id);
         return `<article class="resident-entry ${done?'wish-done':''}"><div class="resident-avatar tone-${r.id%4}"><img src="${residentIcon(r.id)}" alt="${residentName(r.id)} portresi"></div><div class="resident-story"><strong>${residentName(r.id)}</strong><small class="wish-badge">${done?'♥ Dileği gerçekleşti':'✧ Küçük bir dilek'}</small><p>“${done?wish.thanks:wish.text}”</p><span>${done?'Köyün refahına +3 katkı':`${cards.find(c=>c.id===wish.kind)!.name} kartı yerleştir · +3 refah`}</span></div></article>`
-      }).join('')}</div>`:`<p class="journal-intro">Dalgaların getirdiği küçük sürprizler.</p>${this.journal.length?this.journal.map((entry,i)=>`<article class="discovery-entry"><span class="discovery-stamp">${['✉','✦','❧'][i%3]}</span><div><small>KIYIDAN BİR HATIRA</small><p>${entry}</p></div></article>`).join(''):'<div class="journal-empty"><span>✉</span><strong>İlk hikâye henüz kıyıya ulaşmadı.</strong><p>Denizde beliren şişe, sandık ve kabuklara tıkla. Buldukların burada hatıra olarak kalacak.</p></div>'}`}`;
+      }).join('')}</div>`:`<p class="journal-intro">Dalgaların getirdiği küçük erzak sandıkları.</p>${this.journal.length?this.journal.map(entry=>`<article class="discovery-entry"><span class="discovery-stamp">✦</span><div><small>DALGALARDAN GELEN BİR ARMAĞAN</small><p>${entry}</p></div></article>`).join(''):'<div class="journal-empty"><span>✦</span><strong>İlk sandık henüz kıyıya ulaşmadı.</strong><p>Denizde yüzen sandıklara tıkla. İçlerinden odun, taş, yiyecek ve nadiren altın çıkabilir.</p></div>'}`}`;
 
   }
   private spawnDiscovery(){
     const game=this.game!;const points=[...game.board.keys()].map(position);if(!points.length)return;
     let location:T.Vector3|null=null;
-    for(let i=0;i<30;i++){const p=points[Math.floor(Math.random()*points.length)],a=Math.random()*Math.PI*2,x=p.x+Math.cos(a)*2.6,z=p.z+Math.sin(a)*2.6;if(!game.board.has(fromWorld(x,z))){location=new T.Vector3(x,SEA_Y+.08,z);break}}
+    for(let i=0;i<30;i++){
+      const p=points[Math.floor(Math.random()*points.length)],a=Math.random()*Math.PI*2,x=p.x+Math.cos(a)*2.6,z=p.z+Math.sin(a)*2.6;
+      // Keep the box and its bobbing corners away from the beach, not just its centre.
+      if(game.board.has(fromWorld(x,z)))continue;
+      let clear=true;for(let side=0;side<8;side++){const angle=side*Math.PI/4;if(game.board.has(fromWorld(x+Math.cos(angle)*.44,z+Math.sin(angle)*.44))){clear=false;break}}
+      if(clear){location=new T.Vector3(x,SEA_Y+.08,z);break}
+    }
     if(!location)return;
-    this.discoveryType=Math.floor(Math.random()*3);const group=discoveryModel(this.discoveryType);group.position.copy(location);this.root.add(group);this.discovery=group;this.opening=-1;this.rewarded=false;this.collect.disabled=false;
-    this.collect.textContent=['✧ Mesaj şişesi','✧ Sürüklenen sandık','✧ Deniz kabuğu'][this.discoveryType];this.collect.hidden=false;
+    this.loot=rollChestLoot();const group=discoveryModel(this.loot);group.position.copy(location);this.root.add(group);this.discovery=group;
+    this.opening=-1;this.prizeTime=0;this.sinkTime=-1;this.lootRequested=false;this.pendingLoot=false;this.floatY=this.sampleSea(location.x,location.z).height;
+    this.floatVelocity=this.pitchVelocity=this.rollVelocity=this.pitch=this.roll=0;this.collect.disabled=false;
+    this.collect.textContent='✧ Sürüklenen sandık';this.collect.hidden=false;
   }
   private claimDiscovery(){
-    if(!this.game||!this.discovery||this.opening>=0)return;
-    this.opening=0;this.collect.disabled=true;this.collect.textContent='✧ Açılıyor…';
+    if(!this.game||!this.discovery||this.pendingLoot||this.sinkTime>=0)return;
+    this.collect.disabled=true;
+    if(this.opening<0){this.opening=0;this.collect.textContent='✧ Açılıyor…'}
+    else{this.prizeTime=0;void this.rewardDiscovery()}
   }
-  private rewardDiscovery(){
-    if(!this.game||!this.discovery||this.rewarded)return;this.rewarded=true;
-    const gold=[3,6,2][this.discoveryType];this.game.gold+=gold;
-    const stories=[`Bir denizci not bırakmış: “Yolum yine bu sakin koya düşsün.” +${gold} altın.`,`Sandıkta eski bir ticaret kesesi buldun. +${gold} altın.`,`İnci gibi bir kabuk… Köylüler onu köyün uğuru sayıyor. +${gold} altın.`];
-    this.journal.unshift(stories[this.discoveryType]);this.journal=this.journal.slice(0,6);this.collect.textContent=`+${gold} altın · Kıyıdan bir hatıra`;this.nextDiscovery=this.clock+70+Math.random()*40;this.render();window.dispatchEvent(new CustomEvent('cozy-change',{detail:'Kıyıda küçük bir hazine buldun.'}));
+  private async rewardDiscovery(){
+    if(!this.game||!this.discovery||!this.loot||this.pendingLoot||this.sinkTime>=0)return;
+    const chest=this.discovery,game=this.game,generation=this.generation,offered={...this.loot};this.pendingLoot=true;this.lootRequested=true;
+    this.collect.disabled=true;this.collect.textContent='✧ Erzaklar köyüne ulaşıyor…';
+    const at=chest.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.34,0));
+    let accepted=0;
+    try{accepted=await this.onLoot(offered,at)}catch{
+      if(generation!==this.generation||this.discovery!==chest||this.game!==game)return;
+      this.pendingLoot=false;this.collect.disabled=false;this.collect.textContent='✧ Sandık seni bekliyor · Tekrar al';return;
+    }
+    if(generation!==this.generation||this.discovery!==chest||this.game!==game)return;
+    accepted=Number.isFinite(accepted)?T.MathUtils.clamp(Math.floor(accepted),0,offered.amount):0;
+    this.pendingLoot=false;this.loot!.amount-=accepted;
+    if(accepted){
+      const message=`Sandıktan ${accepted} ${chestLootName[offered.good]} köyüne ulaştı.`;
+      this.journal.unshift(message);this.journal=this.journal.slice(0,6);this.render();window.dispatchEvent(new CustomEvent('cozy-change',{detail:message}));
+    }
+    if(this.loot!.amount){
+      this.collect.disabled=false;this.collect.textContent=`✧ ${this.loot!.amount} ${chestLootName[offered.good]} sandıkta · Depoda yer açıp al`;
+    }else{
+      // The HUD flight must finish before the empty chest gently leaves the surface.
+      this.sinkTime=0;this.collect.hidden=true;this.nextDiscovery=this.clock+70+Math.random()*40;
+    }
   }
-  update(dt:number,camera:T.Camera){
-    const game=this.game;if(!game)return;this.clock+=dt;
+  private floatDiscovery(dt:number){
+    const chest=this.discovery!,x=chest.position.x,z=chest.position.z,wave=this.sampleSea(x,z);
+    const left=this.sampleSea(x-.16,z),right=this.sampleSea(x+.16,z),front=this.sampleSea(x,z+.11),back=this.sampleSea(x,z-.11);
+    const targetY=wave.height*.5+(left.height+right.height+front.height+back.height)*.125;
+    const dx=wave.dx*.4+(right.height-left.height)/.32*.6,dz=wave.dz*.4+(front.height-back.height)/.22*.6,yaw=.15;
+    const targetPitch=T.MathUtils.clamp(-Math.atan(dx*Math.sin(yaw)+dz*Math.cos(yaw)),-.3,.3);
+    const targetRoll=T.MathUtils.clamp(Math.atan(dx*Math.cos(yaw)-dz*Math.sin(yaw)),-.3,.3);
+    // Small integration steps keep a dragged wake buoyant at every game speed.
+    const elapsed=Math.min(Math.max(0,dt),.3),steps=Math.max(1,Math.ceil(elapsed*120)),step=elapsed/steps;
+    for(let i=0;i<steps;i++){
+      this.floatVelocity+=((targetY-this.floatY)*48-this.floatVelocity*10)*step;this.floatY+=this.floatVelocity*step;
+      this.pitchVelocity+=((targetPitch-this.pitch)*30-this.pitchVelocity*7)*step;this.pitch+=this.pitchVelocity*step;
+      this.rollVelocity+=((targetRoll-this.roll)*30-this.rollVelocity*7)*step;this.roll+=this.rollVelocity*step;
+    }
+    const sink=this.sinkTime<0?0:T.MathUtils.smoothstep(this.sinkTime,0,2.6);
+    chest.position.y=SEA_Y+.035+this.floatY-sink*1.2;chest.rotation.set(this.pitch+sink*.18,yaw,this.roll+sink*.1);
+    if(sink>0){const opacity=1-T.MathUtils.smoothstep(sink,.65,1);chest.traverse(object=>{if(object instanceof T.Mesh)for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=opacity;material.depthWrite=opacity>.7}})}
+  }
+  update(dt:number,camera:T.Camera,visualDt=dt){
+    const game=this.game;if(!game)return;this.clock+=dt;this.floatClock+=visualDt;
     const signature=[...game.board].map(([id,k])=>`${id}:${k}`).join('|');
     if(signature!==this.signature){
       this.signature=signature;this.clearBlooms();
@@ -94,18 +150,22 @@ export class CozyVillage{
     this.leaves.visible=this.leafMat.opacity>.01;this.fireflies.visible=this.fireMat.opacity>.01;
     if(!this.discovery&&this.clock>=this.nextDiscovery){this.spawnDiscovery();this.nextDiscovery=this.clock+35}
     if(this.discovery){
-      const wave=this.sampleSea(this.discovery.position.x,this.discovery.position.z);
-      this.discovery.position.y=SEA_Y+.035+wave.height;
-      this.discovery.rotation.set(Math.atan(wave.dz),.15, -Math.atan(wave.dx));
+      if(this.sinkTime>=0){this.sinkTime+=visualDt;if(this.sinkTime>=2.6){this.removeDiscovery();this.collect.hidden=true;this.opening=-1;return}}
+      this.floatDiscovery(visualDt);
       if(this.opening>=0){
-        this.opening+=dt;const t=this.opening,lid=this.discovery.userData.lid as T.Group|undefined,prizes=this.discovery.userData.prizes as T.Group;
+        this.opening+=visualDt;const t=this.opening,lid=this.discovery.userData.lid as T.Group|undefined,prizes=this.discovery.userData.prizes as T.Group;
         if(lid)lid.rotation.x=-T.MathUtils.smoothstep(t,0,.8)*1.65;
         prizes.visible=t>.35;
-        prizes.children.forEach((coin,i)=>{coin.visible=i<[3,6,2][this.discoveryType];const phase=coin.userData.phase,progress=T.MathUtils.clamp((t-.35-i*.04)/1.5,0,1);coin.position.set(Math.cos(phase)*progress*.22,.12+Math.sin(progress*Math.PI)*.4+progress*.12,Math.sin(phase)*progress*.22);coin.rotation.set(t*2,phase+t,t*.7);coin.scale.setScalar(1-T.MathUtils.smoothstep(t,1.8,2.5))});
-        if(t>.8)this.rewardDiscovery();
-        if(t>2.7){this.removeDiscovery();this.collect.hidden=true;this.opening=-1;return}
+        if(t>.35)this.prizeTime+=visualDt;
+        prizes.children.forEach((prize,i)=>{
+          prize.visible=i<Math.min(this.loot?.amount??0,6);const phase=prize.userData.phase as number,progress=T.MathUtils.clamp((this.prizeTime-i*.04)/1.1,0,1);
+          if(this.lootRequested&&!this.pendingLoot&&this.sinkTime<0){prize.position.set(Math.cos(phase)*.08,.08+Math.sin(this.floatClock*1.4+i)*.008,Math.sin(phase)*.065);prize.scale.setScalar(.85)}
+          else{prize.position.set(Math.cos(phase)*progress*.15,.12+Math.sin(progress*Math.PI)*.32+progress*.16,Math.sin(phase)*progress*.15);prize.scale.setScalar(1-T.MathUtils.smoothstep(this.prizeTime,1.1,1.65))}
+          prize.rotation.set(.2,phase+this.floatClock*.5,.1);
+        });
+        if(t>.8&&!this.lootRequested)void this.rewardDiscovery();
       }
-      const p=this.discovery.position.clone().add(new T.Vector3(0,.35,0)).project(camera);this.collect.hidden=p.z< -1||p.z>1;this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
+      const p=this.discovery.position.clone().add(new T.Vector3(0,.35,0)).project(camera);this.collect.hidden=this.sinkTime>=0||p.z< -1||p.z>1;this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
     }
     
   }

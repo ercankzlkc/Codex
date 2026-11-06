@@ -3,7 +3,7 @@ import * as T from 'three';
 import {torchLight,torchField} from '../torch-light';
 import {climate} from '../climate';
 import {gameSpeed} from '../game-speed';
-import {WAKE_COUNT,WAKE_LIFE,oceanSurface} from './motion';
+import {WAKE_COUNT,WAKE_LIFE,sampleOceanSurface} from './motion';
 import { coast, position, type ShoreEdge } from '../hex';
 import {LAND_START,LAND_END,SINK_START,SINK_END,easeBetween} from '../emergence';
 import { SEA_Y } from '../scenery';
@@ -184,7 +184,7 @@ export class TropicalWater {
     this.stones.computeBoundingSphere();
   }
   get opticalUniforms(){return this.uniforms}
-  surfaceAt(x:number,z:number){return oceanSurface(x,z,this.uniforms.uTime.value,climate.winter.value)}
+  surfaceAt(x:number,z:number){return sampleOceanSurface(this.uniforms,x,z)}
   depthAt(x:number,z:number){return this.field.depthAt(x,z)}
   setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number,gain=1){
