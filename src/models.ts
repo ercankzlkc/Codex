@@ -217,32 +217,6 @@ function harbor(){
   g.add(ship);return g;
 }
 export function model(kind: Kind): T.Group {
-  if(['bench','lantern','well'].includes(kind)){
-    const g=new T.Group(),wood=0x91714f,trim=0x586c61,stone=0xaaa995;
-    if(kind==='bench'){
-      for(const x of [-.145,.145]){box(g,trim,x,.085,0,.035,.17,.15);box(g,wood,x,.215,-.065,.03,.22,.035)}
-      for(let i=0;i<3;i++)box(g,0xb39a70,0,.17,-.06+i*.055,.39,.025,.045);
-      for(let i=0;i<2;i++)box(g,wood,0,.245+i*.045,-.075,.39,.035,.025);
-      for(const x of [-.18,.18])box(g,trim,x,.205,.015,.025,.025,.17);
-      const cushion=box(g,0x9bab8b,.105,.19,.01,.09,.018,.105);cushion.rotation.y=.06;
-    }else if(kind==='lantern'){
-      for(let i=0;i<5;i++){const a=i*1.26;box(g,stone,Math.cos(a)*.10,.025,Math.sin(a)*.10,.09,.05,.09)}
-      box(g,wood,0,.26,0,.035,.49,.035);box(g,wood,.065,.48,0,.16,.028,.035);
-      const glow=box(g,0xe8c78b,.12,.395,0,.095,.13,.095);glow.userData.cozyLantern=true;
-      for(const x of [.073,.167])for(const z of [-.047,.047])box(g,trim,x,.395,z,.012,.15,.012);
-      box(g,trim,.12,.32,0,.125,.025,.125);part(g,new T.ConeGeometry(.105,.075,4),trim,.12,.50,0);
-    }else{
-      for(let layer=0;layer<2;layer++)for(let i=0;i<10;i++){const a=(i+(layer%2)*.5)*Math.PI/5;const brick=box(g,i%3?stone:0x999f8c,Math.sin(a)*.15,.045+layer*.075,Math.cos(a)*.15,.095,.065,.075);brick.rotation.y=a}
-      part(g,new T.CylinderGeometry(.112,.112,.015,12),0x4d7775,0,.06,0);
-      for(const x of [-.205,.205])box(g,wood,x,.26,0,.03,.49,.035);
-      const roof=new T.Group();roof.position.y=.51;g.add(roof);
-      for(const sign of [-1,1]){const tile=box(roof,0x997252,sign*.085,0,0,.19,.035,.37);tile.rotation.z=-sign*.4}
-      box(g,wood,0,.31,0,.42,.025,.025);
-      part(g,new T.CylinderGeometry(.035,.03,.05,8),0x9b805b,.11,.205,.06);
-      box(g,trim,.11,.24,.06,.01,.035,.01);
-    }
-    return g;
-  }
   if(kind==='harbor'){if(!templates.has(kind))templates.set(kind,harbor());return templates.get(kind)!.clone()}
   if(kind==='stone'){if(!templates.has(kind)){const g=new T.Group();for(let i=0;i<3;i++){const rock=new T.Group();rock.userData.treeIndex=i;rock.position.set([-.27,.24,0][i],0,[-.18,-.1,.29][i]);const m=ball(rock,[0x8c9a99,0xa5afa5,0x7c8e8b][i],0,.13,0,.23);m.scale.set(1,.85,1.05);for(let j=0;j<3;j++){const x=-.09+j*.065;beam(rock,0xc7c7a7,new T.Vector3(x,.18+j*.012,.19),new T.Vector3(x+.055,.197+j*.012,.18),.012)}batchParts(rock);g.add(rock)}templates.set(kind,g)}return templates.get(kind)!.clone()}
   if(kind==='garden'){if(!templates.has(kind))templates.set(kind,flowerGarden());return templates.get(kind)!.clone()}

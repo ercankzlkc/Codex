@@ -1,7 +1,7 @@
 import { CENTER, adjacent, canGrow,axial } from './hex.ts';
 export type Kind =
   | 'stone' | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
-  | 'bench' | 'lantern' | 'well' | 'harbor' | 'fisher' | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
+  | 'harbor' | 'fisher' | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
 
 export type CostResource='wood'|'stone'|'food'|'gold';
 export const REROLL_COST=5;
@@ -21,9 +21,6 @@ export interface Card {
 }
 
 export const cards: Card[] = [
-  {id:'bench',name:'Dinlenme Köşesi',cost:{wood:3},workers:0,desc:'Ahşap bank · köylüler için mola',bonus:'Bir dileği gerçekleştir · +3 refah'},
-  {id:'lantern',name:'Fener Bahçesi',cost:{wood:2,stone:2},workers:0,desc:'Gece yanan sıcak bir ışık',bonus:'Köyüne ışık kat · bir dileği gerçekleştir'},
-  {id:'well',name:'Köy Kuyusu',cost:{wood:2,stone:4},workers:0,desc:'Çiçeklerle çevrili buluşma alanı',bonus:'Komşuların buluştuğu sakin bir köşe'},
   {id:'harbor',name:'Liman',cost:{wood:24,stone:16},unlock:60,workers:0,desc:'Tüccar gemisi · ürün satışı',bonus:'Köyde yalnızca bir liman · ilk gemi hemen gelir'},
   {id:'stone',name:'Taş Ocağı',cost:{wood:3},workers:2,desc:'+3 taş / teslimat',bonus:'Kazmayla çıkarılır · yeniden oluşur'},
   { id:'fisher',name:'Balıkçı Kulübesi',cost:{wood:7,stone:2},workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },

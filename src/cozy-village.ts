@@ -1,3 +1,4 @@
+import {residentIcon} from './resident-card';
 import {cozyFlowerGeometry} from './models';
 import {discoveryModel} from './discovery-model';
 import * as T from 'three';
@@ -18,9 +19,8 @@ export class CozyVillage{
   private leaves:T.Points;private fireflies:T.Points;
   private panel:HTMLElement;private toggle:HTMLButtonElement;private collect:HTMLButtonElement;
   private completed=new Set<number>();private journal:string[]=[];private signature='';private clock=0;private nextDiscovery=35;
-  private lamps:T.MeshStandardMaterial[]=[];
   private opening=-1;private rewarded=false;
-  private discovery:T.Group|null=null;private discoveryType=0;private uiClock=0;
+  private discovery:T.Group|null=null;private discoveryType=0;private activeTab:'residents'|'discoveries'='residents';
   constructor(private scene:T.Scene,private sampleSea:(x:number,z:number)=>{height:number;dx:number;dz:number}){
     this.root.add(this.blooms);scene.add(this.root);
     const leafGeo=new T.BufferGeometry();leafGeo.setAttribute('position',new T.BufferAttribute(this.leafPositions,3));
@@ -32,9 +32,10 @@ export class CozyVillage{
     document.querySelector('#app')!.append(this.panel,this.toggle,this.collect);
     this.toggle.onclick=()=>{this.panel.hidden=!this.panel.hidden;this.toggle.setAttribute('aria-expanded',String(!this.panel.hidden));this.render()};
     this.collect.onclick=()=>this.claimDiscovery();
+    window.addEventListener('resident-portrait',()=>{if(!this.panel.hidden)this.render()});
     this.panel.addEventListener('click',event=>{
-      const button=(event.target as Element).closest<HTMLButtonElement>('[data-decor]');
-      if(button){window.dispatchEvent(new CustomEvent('cozy-card',{detail:button.dataset.decor}));this.panel.hidden=true;this.toggle.setAttribute('aria-expanded','false')}
+      const tab=(event.target as Element).closest<HTMLButtonElement>('[data-journal-tab]');
+      if(tab){this.activeTab=tab.dataset.journalTab as 'residents'|'discoveries';this.render()}
       if((event.target as Element).closest('[data-journal-close]')){this.panel.hidden=true;this.toggle.setAttribute('aria-expanded','false')}
     });
   }
@@ -44,7 +45,15 @@ export class CozyVillage{
   private removeDiscovery(){if(this.discovery){this.root.remove(this.discovery);this.discovery.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();(o.material as T.Material).dispose()}});this.discovery=null}}
   private render(){
     const game=this.game;if(!game)return;
-    this.panel.innerHTML=`<header><div><small>YELKEN KOYU</small><h2>Köy Defteri</h2></div><button data-journal-close aria-label="Kapat">×</button></header><p class="journal-intro">Küçük güzellikler, yeni dostluklar.</p><h3>Dekorasyon kartları</h3><p>Bir kart seç; elindeki son normal kartın yerine gelir. Kaynaklar yalnızca yerleştirince harcanır.</p><div class="decor-picks">${cards.filter(c=>['bench','lantern','well'].includes(c.id)).map(c=>`<button data-decor="${c.id}"><b>${c.name}</b><span>${Object.entries(c.cost).map(([k,v])=>`${v} ${k==='wood'?'odun':'taş'}`).join(' · ')}</span></button>`).join('')}</div><h3>Komşular ve dilekleri</h3><div class="resident-pages">${game.residents.map(r=>{const wish=wishes[r.id%3],done=this.completed.has(r.id);return `<article><strong>${residentName(r.id)} <small>${done?'♥ Gerçekleşti':'Bir dilek'}</small></strong><p>${done?wish.thanks:wish.text}</p><span>${done?'+3 refah kazanıldı':`Köyüne ${cards.find(c=>c.id===wish.kind)!.name.toLocaleLowerCase('tr-TR')} ekle.`}</span></article>`}).join('')}</div><h3>Kıyıdan gelenler</h3>${this.journal.length?this.journal.map(entry=>`<p class="journal-entry">${entry}</p>`).join(''):'<p>Denize göz at. Bir şişe, sandık ya da deniz kabuğu kıyına ulaşabilir…</p>'}`;
+    const residents=this.activeTab==='residents';
+    this.panel.innerHTML=`<header><div><small>KIYIMIZIN HİKÂYELERİ</small><h2>Köy Defteri</h2></div><button data-journal-close aria-label="Kapat">×</button></header>
+      <div class="journal-summary"><span>♧ <b>${game.people}</b> komşu</span><span>♥ <b>${this.completed.size}</b> mutlu dilek</span></div>
+      <nav class="journal-tabs" aria-label="Defter bölümleri"><button data-journal-tab="residents" aria-pressed="${residents}">Komşularımız</button><button data-journal-tab="discoveries" aria-pressed="${!residents}">Kıyı keşifleri${this.journal.length?` · ${this.journal.length}`:''}</button></nav>
+      ${residents?`<p class="journal-intro">Komşularını tanı, küçük dileklerine kulak ver.</p><div class="resident-pages">${game.residents.map(r=>{
+        const wish=wishes[r.id%3],done=this.completed.has(r.id);
+        return `<article class="resident-entry ${done?'wish-done':''}"><div class="resident-avatar tone-${r.id%4}"><img src="${residentIcon(r.id)}" alt="${residentName(r.id)} portresi"></div><div class="resident-story"><strong>${residentName(r.id)}</strong><small class="wish-badge">${done?'♥ Dileği gerçekleşti':'✧ Küçük bir dilek'}</small><p>“${done?wish.thanks:wish.text}”</p><span>${done?'Köyün refahına +3 katkı':`${cards.find(c=>c.id===wish.kind)!.name} kartı yerleştir · +3 refah`}</span></div></article>`
+      }).join('')}</div>`:`<p class="journal-intro">Dalgaların getirdiği küçük sürprizler.</p>${this.journal.length?this.journal.map((entry,i)=>`<article class="discovery-entry"><span class="discovery-stamp">${['✉','✦','❧'][i%3]}</span><div><small>KIYIDAN BİR HATIRA</small><p>${entry}</p></div></article>`).join(''):'<div class="journal-empty"><span>✉</span><strong>İlk hikâye henüz kıyıya ulaşmadı.</strong><p>Denizde beliren şişe, sandık ve kabuklara tıkla. Buldukların burada hatıra olarak kalacak.</p></div>'}`}`;
+
   }
   private spawnDiscovery(){
     const game=this.game!;const points=[...game.board.keys()].map(position);if(!points.length)return;
@@ -72,7 +81,6 @@ export class CozyVillage{
       const tiles=[...game.board.keys()].slice(0,40),flowers=new T.InstancedMesh(cozyFlowerGeometry(),this.flowerMat,tiles.length*5),pose=new T.Object3D();let index=0;
       for(const id of tiles){const p=position(id);for(let j=0;j<5;j++){const a=j*2.4+id,r=.58+(j%2)*.08;pose.position.set(p.x+Math.cos(a)*r,LAND_Y+.005,p.z+Math.sin(a)*r);pose.scale.setScalar(.85+(j%3)*.12);pose.updateMatrix();flowers.setMatrixAt(index++,pose.matrix)}}
       flowers.instanceMatrix.needsUpdate=true;flowers.computeBoundingSphere();this.blooms.add(flowers);
-      this.lamps=[];this.scene.traverse(object=>{if(object.userData.cozyLantern&&object instanceof T.Mesh)this.lamps.push(object.material as T.MeshStandardMaterial)});
       for(const resident of game.residents){if(!this.completed.has(resident.id)&&[...game.board.values()].includes(wishes[resident.id%3].kind)){this.completed.add(resident.id);game.happy=Math.min(100,game.happy+3);window.dispatchEvent(new CustomEvent('cozy-change',{detail:`${residentName(resident.id)}: “${wishes[resident.id%3].thanks}” +3 refah`}))}}
       this.render();
     }
@@ -84,7 +92,6 @@ export class CozyVillage{
     this.leaves.geometry.getAttribute('position').needsUpdate=true;this.fireflies.geometry.getAttribute('position').needsUpdate=true;
     this.leafMat.opacity=climate.autumn.value*.65*(1-climate.night.value*.8);this.fireMat.opacity=climate.summer.value*climate.night.value*.65;
     this.leaves.visible=this.leafMat.opacity>.01;this.fireflies.visible=this.fireMat.opacity>.01;
-    for(const mat of this.lamps){mat.emissive.set('#ffb650');mat.emissiveIntensity=climate.night.value*1.3}
     if(!this.discovery&&this.clock>=this.nextDiscovery){this.spawnDiscovery();this.nextDiscovery=this.clock+35}
     if(this.discovery){
       const wave=this.sampleSea(this.discovery.position.x,this.discovery.position.z);
