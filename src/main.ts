@@ -1,3 +1,4 @@
+import {resourceArt} from './resource-art';
 import './style.css';
 import {Vector3} from 'three';
 import {CENTER,position} from './hex';
@@ -178,7 +179,7 @@ app.querySelectorAll<HTMLButtonElement>('[data-worker]').forEach(button=>button.
 });
 document.addEventListener('pointerdown',e=>{if(!(e.target as Element).closest('#work-panel,[data-resource="people"]'))closeWork()});
 function renderFood(){
-  const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${icon(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>−${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
+  const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${resourceArt(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>−${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
 }
 function showFood(){
   const panel=get('#food-details'),rect=get('[data-resource="food"]').getBoundingClientRect();renderFood();panel.hidden=false;
@@ -196,7 +197,7 @@ function animateCounter(id:string,target:number){
 }
 function renderHud(){
   const stats=get('#stats');
-  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['gold','Altın'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<${id==='people'?'button type="button" aria-expanded="false" aria-controls="work-panel"':'div'} class="resource" data-resource="${id}">${icon(id)}<div><small>${name}</small><b>0</b></div><em></em>${id==='people'?'<span class="population-track" aria-hidden="true"><i></i></span>':''}</${id==='people'?'button':'div'}>`).join('');
+  if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['gold','Altın'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<${id==='people'?'button type="button" aria-expanded="false" aria-controls="work-panel"':'div'} class="resource" data-resource="${id}">${resourceArt(id)}<div><small>${name}</small><b>0</b></div><em></em>${id==='people'?'<span class="population-track" aria-hidden="true"><i></i></span>':''}</${id==='people'?'button':'div'}>`).join('');
   const foodStat=get('[data-resource="food"]');
   foodStat.onmouseenter=showFood;foodStat.onmouseleave=()=>get('#food-details').hidden=true;foodStat.onfocus=showFood;foodStat.onblur=()=>get('#food-details').hidden=true;foodStat.tabIndex=0;foodStat.setAttribute('aria-describedby','food-details');
   get('[data-resource="people"]').onclick=toggleWork;
@@ -268,33 +269,33 @@ function openTrade(){
   }
   const active=game.merchantPresent,blocked=!game.merchantRouteOpen;
   modal(`<div class="trade-story"><div class="trade-ports"><span data-village-ledger>${icon('crest')}<small>Senin köyün</small></span><span class="trade-sea">∿ ∿ ∿</span><span data-ship-ledger>${icon('harbor')}<small>Gezgin tüccar</small></span></div><h1>${blocked?'Su yolu kapalı':active?'Hoş geldin, komşu':'Yolculuk devam ediyor'}</h1><p>${blocked?'Gemi iskeleye ulaşamıyor. İskele yönünde açık denize uzanan geniş bir su yolu bırak.':active?'Biraz paylaş, biraz keşfet. Bugün ne takas edelim?':`Gemi her mevsimin son günü yola çıkar. ${game.merchantAge>=0?'Yavaşça yanaşıyor…':`Yanaşmaya yaklaşık ${game.merchantCountdown} sn.`}`}</p></div>
-    <div class="trade-purse"><span data-gold-ledger>${icon('gold')} <b>${game.gold}</b> altın</span><span>${game.totalStorageFree} boş depo yeri</span></div>
+    <div class="trade-purse"><span data-gold-ledger>${resourceArt('gold')} <b>${game.gold}</b> altın</span><span>${game.totalStorageFree} boş depo yeri</span></div>
     <div class="trade-choice"><button data-trade-mode="sell" aria-pressed="${tradeMode==='sell'}">Ürünlerimi sat</button><button data-trade-mode="buy" aria-pressed="${tradeMode==='buy'}">Gemiden al</button></div>
     <div class="trade-quantity"><span>Kaç tane?</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-pressed="${tradeQuantity===n}">${n}</button>`).join('')}</div>
     <div class="trade-basket">${TRADE_GOODS.map(item=>{
-      const selling=tradeMode==='sell',price=selling?item.price:game.buyPrice(item.id);
-      const amount=selling?Math.min(tradeQuantity,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold):Math.min(tradeQuantity,game.merchantCargo[item.id],Math.floor(game.gold/price),game.totalStorageFree);
-      const hint=!active?(blocked?'Su yolu kapalı':'Gemi henüz yanaşmadı'):amount>0?`${amount} adet · ${amount*price} altın`:selling?(game.tradeStock(item.id)===0?'Stoğun yok':'Geminin yükü dolu'):!game.totalStorageFree?'Depon dolu':!game.merchantCargo[item.id]?'Gemide kalmadı':'Altın yetersiz';
-      return `<article class="trade-product"><span class="trade-product-icon">${icon(item.id)}</span><div><strong>${item.name}</strong><small>Sende ${game.tradeStock(item.id)} · Gemide ${game.merchantCargo[item.id]}</small><span>Tanesi ${price} altın</span></div><button data-exchange="${item.id}" ${!active||amount<=0?'disabled':''}>${selling?'Sat':'Al'}<small>${hint}</small></button></article>`;
-    }).join('')}</div><p class="trade-footnote">${active?`Gemi ${game.tradeCapacity-game.tradeSold} ürün daha alabilir. `:''}Bu pencere açıkken zaman durur.</p><div class="trade-receipt" role="status" aria-live="polite"></div><button data-close>Şimdilik bu kadar · Oyuna dön</button>`,'trade');
+      const selling=tradeMode==='sell',quote=game.tradeQuote(item.id,tradeMode,tradeQuantity),price=quote.first,amount=quote.count;
+      const hint=!active?(blocked?'Su yolu kapalı':'Gemi henüz yanaşmadı'):amount>0?`${amount} adet · ${quote.total} altın`:selling?(game.tradeStock(item.id)===0?'Stoğun yok':'Geminin yükü dolu'):!game.totalStorageFree?'Depon dolu':!game.merchantCargo[item.id]?'Gemide kalmadı':'Altın yetersiz';
+      const pressure=game.marketPressure[item.id],trend=pressure>3?'Azalan stok':pressure< -3?'Bol ürün':'Dengeli';
+      return `<article class="trade-product"><span class="trade-product-icon">${resourceArt(item.id)}</span><div><strong>${item.name}</strong><small>Sende ${game.tradeStock(item.id)} · Gemide ${game.merchantCargo[item.id]}</small><span>İlk ürün ${price} altın <em class="market-trend ${pressure>3?'scarce':pressure< -3?'abundant':''}">${pressure>3?'↗':pressure< -3?'↘':'↔'} ${trend}</em></span>${amount>1&&quote.next!==price?`<small class="market-forecast">Bu işlemden sonra ${quote.next} altın ${quote.next>price?'↗':'↘'}</small>`:''}</div><button data-exchange="${item.id}" ${!active||amount<=0?'disabled':''}>${selling?'Sat':'Al'}<small>${hint}</small></button></article>`;
+    }).join('')}</div><p class="trade-footnote">${active?`Gemi ${game.tradeCapacity-game.tradeSold} ürün daha alabilir. `:''}Sattıkça fiyat düşer, aldıkça yükselir. Toplam tutar her ürünün değişen fiyatını içerir. Yeni ziyaretlerde piyasa yavaşça dengelenir. Bu pencere açıkken zaman durur.</p><div class="trade-receipt" role="status" aria-live="polite"></div><button data-close>Şimdilik bu kadar · Oyuna dön</button>`,'trade');
   dialog.querySelectorAll<HTMLButtonElement>('[data-trade-mode]').forEach(button=>button.onclick=()=>{tradeMode=button.dataset.tradeMode as 'sell'|'buy';openTrade()});
   dialog.querySelectorAll<HTMLButtonElement>('[data-quantity]').forEach(button=>button.onclick=()=>{tradeQuantity=Number(button.dataset.quantity);openTrade()});
   dialog.querySelectorAll<HTMLButtonElement>('[data-exchange]').forEach(button=>button.onclick=()=>{
-    const good=button.dataset.exchange as TradeGood,selling=tradeMode==='sell',count=selling?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
-    if(count){world.showTradeTransfer(selling);renderHud();renderStorage();sound.play('reward');openTrade();animateTrade(good,count,selling)}
+    const good=button.dataset.exchange as TradeGood,selling=tradeMode==='sell',quote=game.tradeQuote(good,tradeMode,tradeQuantity),count=selling?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
+    if(count){world.showTradeTransfer(selling);renderHud();renderStorage();sound.play('reward');openTrade();animateTrade(good,count,selling,quote.total)}
   });
 }
-function animateTrade(good:TradeGood,count:number,selling:boolean){
+function animateTrade(good:TradeGood,count:number,selling:boolean,total:number){
   const origin=dialog.getBoundingClientRect(),village=dialog.querySelector('[data-village-ledger]')!.getBoundingClientRect(),ship=dialog.querySelector('[data-ship-ledger]')!.getBoundingClientRect(),wallet=dialog.querySelector('[data-gold-ledger]')!.getBoundingClientRect();
   const point=(rect:DOMRect)=>({x:rect.left+rect.width/2-origin.left,y:rect.top+rect.height/2-origin.top+dialog.scrollTop});
   const fly=(graphic:string,from:DOMRect,to:DOMRect,index:number)=>{
     if(dialog.querySelectorAll('.trade-flight').length>=24)return;
-    const a=point(from),b=point(to),node=document.createElement('span');node.className='trade-flight';node.innerHTML=icon(graphic);dialog.append(node);
+    const a=point(from),b=point(to),node=document.createElement('span');node.className='trade-flight';node.innerHTML=resourceArt(graphic)||icon(graphic);dialog.append(node);
     const animation=node.animate([{transform:`translate(${a.x}px,${a.y}px) scale(.6)`,opacity:0},{transform:`translate(${a.x}px,${a.y-14}px) scale(1)`,opacity:1,offset:.15},{transform:`translate(${(a.x+b.x)/2}px,${Math.min(a.y,b.y)-38-index*4}px) scale(1.1)`,opacity:1,offset:.5},{transform:`translate(${b.x}px,${b.y}px) scale(.45)`,opacity:0}],{duration:850,delay:index*95,easing:'cubic-bezier(.2,.65,.3,1)',fill:'both'});
     void animation.finished.catch(()=>{}).then(()=>node.remove());
   };
   for(let i=0;i<Math.min(4,count);i++){fly(good,selling?village:ship,selling?ship:village,i);fly('gold',selling?ship:wallet,selling?wallet:ship,i+2)}
-  const receipt=dialog.querySelector('.trade-receipt')!;receipt.textContent=`${count} ${TRADE_GOODS.find(item=>item.id===good)!.name.toLocaleLowerCase('tr-TR')} ${selling?'satıldı · Altınların kesene eklendi.':'alındı · Ürünler depolarına yerleşti.'}`;
+  const receipt=dialog.querySelector('.trade-receipt')!;receipt.textContent=`${count} ${TRADE_GOODS.find(item=>item.id===good)!.name.toLocaleLowerCase('tr-TR')} ${selling?`satıldı · +${total} altın`:`alındı · −${total} altın`}`;
   receipt.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration:350});
 }
 window.addEventListener('merchant-blocked',()=>toast('Gemi yolu kapalı · İskele yönünde açık denize uzanan geniş bir geçit bırak'));

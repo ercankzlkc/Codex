@@ -1,0 +1,2 @@
+resource-atlas.png: Bu proje için üretilmiş dokuz kaynak görseli (3×3 saydam atlas).
+Odun, taş, yiyecek, altın, nüfus, refah, çilek, buğday, balık.
