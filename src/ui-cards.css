@@ -1,6 +1,6 @@
 /* Portrait cards use the same illustrated paper and frame as the coastal HUD. */
 .hand-wrap {
-  bottom: 18px;
+  bottom: 16px;
   width: max-content;
   max-width: calc(100vw - 48px);
   z-index: 8;
@@ -10,17 +10,17 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: 34px;
-  gap: 18px;
-  margin: 0 5px 13px;
+  min-height: 30px;
+  gap: 14px;
+  margin: 0 4px 10px;
   padding: 0;
-  font: 500 12px/1.2 var(--ui-font);
+  font: 500 11.5px/1.2 var(--ui-font);
   text-shadow: none;
 }
 .hand-label > i { display: none; }
 .hand-instruction {
   color: #fff4dc;
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 550;
   text-shadow: 0 1px 3px #234945b3;
 }
@@ -30,7 +30,7 @@
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 14px;
+  gap: 11px;
   padding: 0;
   perspective: 1000px;
   pointer-events: auto;
@@ -43,21 +43,21 @@
   top: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 26px minmax(88px, 1fr) 42px 30px 34px;
+  grid-template-rows: 22px minmax(72px, 1fr) 38px 26px 28px;
   align-items: center;
   justify-items: center;
-  gap: 4px;
+  gap: 3px;
   flex: none;
   box-sizing: border-box;
-  width: var(--card-w, 194px);
-  height: var(--card-h, 272px);
+  width: var(--card-w, 164px);
+  height: var(--card-h, 230px);
   aspect-ratio: 5 / 7;
   margin: 0;
-  padding: 14px;
+  padding: 11px;
   overflow: hidden;
   border: 1px solid #a18e6a;
-  border-image: var(--ui-frame) 96 / 12px / 0 stretch;
-  border-radius: 11px;
+  border-image: var(--ui-frame) 96 / 9px / 0 stretch;
+  border-radius: 9px;
   background-color: var(--ui-paper, #efe5cc);
   background-image: var(--ui-paper-texture);
   background-repeat: repeat;
@@ -76,10 +76,10 @@
   -webkit-user-select: none;
 }
 .card + .card { margin-left: 0; }
-#hand .card:nth-child(1) { --tilt: -3deg; top: 4px; }
+#hand .card:nth-child(1) { --tilt: -2deg; top: 3px; }
 #hand .card:nth-child(2) { --tilt: 0deg; z-index: 1; }
-#hand .card:nth-child(3) { --tilt: 3deg; top: 4px; }
-#hand .card:nth-child(n+4) { --tilt: 4deg; top: 6px; }
+#hand .card:nth-child(3) { --tilt: 2deg; top: 3px; }
+#hand .card:nth-child(n+4) { --tilt: 3deg; top: 5px; }
 .card::before, .card::after { content: none; }
 .card > * { position: relative; z-index: 1; }
 .card.tone-berry { --card-accent: #a07969; }
@@ -104,7 +104,7 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  gap: 7px;
+  gap: 5px;
   min-height: 0;
   margin: 0;
 }
@@ -112,25 +112,25 @@
   display: inline-flex;
   align-items: center;
   gap: 2px;
-  min-height: 26px;
+  min-height: 22px;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: none;
   color: var(--ui-ink, #284e4a);
-  font: 700 14px/1 var(--ui-font);
+  font: 700 12.5px/1 var(--ui-font);
   box-shadow: none;
   white-space: nowrap;
 }
 .card .costs b { font: inherit; font-variant-numeric: tabular-nums; }
-.card .costs .resource-art { width: 25px; height: 25px; flex: 0 0 25px; }
-.card .costs svg, #hand .card .costs svg { width: 16px; height: 16px; margin: 0; }
+.card .costs .resource-art { width: 21px; height: 21px; flex: 0 0 21px; }
+.card .costs svg, #hand .card .costs svg { width: 14px; height: 14px; margin: 0; }
 .card .type, #hand .card .type, .modal-cards .card .type {
   position: static;
   min-width: 0;
   padding: 2px 0 2px 4px;
   color: var(--card-accent);
-  font: 650 9.5px/1.1 var(--ui-font);
+  font: 650 9px/1.1 var(--ui-font);
   letter-spacing: .3px;
   text-transform: uppercase;
   white-space: nowrap;
@@ -170,7 +170,7 @@
   max-width: 100%;
   margin: 0;
   color: var(--ui-ink, #284e4a);
-  font: 750 clamp(18px, 1.1vw, 20px)/1.06 var(--ui-font);
+  font: 750 clamp(17px, 1vw, 18px)/1.03 var(--ui-font);
   letter-spacing: -.2px;
   white-space: normal;
   text-wrap: balance;
@@ -179,7 +179,7 @@
 .card .effect, #hand .card .effect, .modal-cards .card .effect {
   max-width: 100%;
   color: var(--ui-pine, #55746b);
-  font: 650 13px/1.15 var(--ui-font);
+  font: 650 12px/1.08 var(--ui-font);
   text-wrap: balance;
 }
 .card > small, #hand .card > small, .modal-cards .card > small {
@@ -191,21 +191,21 @@
   margin: 0;
   overflow: hidden;
   color: var(--ui-muted, #78806b);
-  font: 500 12px/1.25 var(--ui-font);
+  font: 500 clamp(10.5px, .65vw, 11px)/1.25 var(--ui-font);
   text-wrap: balance;
 }
 
 #hand .card:enabled:hover, #hand .card:focus-visible {
   z-index: 4;
   box-shadow: 0 3px 0 #34534b7a, 0 12px 24px #143d344a;
-  transform: translateY(-8px) rotate(0deg);
+  transform: translateY(-6px) rotate(0deg);
 }
 #hand .card:enabled:hover .card-art img { transform: translateY(-1px) scale(1.025); }
 #hand .card.selected {
   z-index: 4;
   outline: 2px solid var(--ui-gold, #ac8753);
   outline-offset: 2px;
-  transform: translateY(-8px) rotate(0deg);
+  transform: translateY(-6px) rotate(0deg);
   box-shadow: 0 3px 0 #34534b7a, 0 12px 24px #143d344a;
 }
 .card:focus-visible { outline: 2px solid #bd9d64; outline-offset: 3px; }
@@ -223,9 +223,9 @@
   gap: 7px;
   width: auto;
   min-width: 0;
-  height: 34px;
+  height: 30px;
   margin: 0;
-  padding: 6px 11px;
+  padding: 5px 10px;
   border: 1px solid #a18e6a;
   border-image: var(--ui-frame) 96 / 9px / 0 stretch;
   border-radius: 6px;
@@ -234,7 +234,7 @@
   background-repeat: repeat;
   background-size: 384px 384px;
   color: var(--ui-ink, #284e4a);
-  font: 600 12px/1 var(--ui-font);
+  font: 600 11.5px/1 var(--ui-font);
   text-shadow: none;
   box-shadow: 0 3px 8px #143d3429;
   transform: none;
@@ -306,8 +306,8 @@
 .modal-cards .card, dialog[data-kind=milestone] .modal-cards .card {
   --tilt: 0deg;
   top: 0;
-  width: 194px;
-  height: 272px;
+  width: 164px;
+  height: 230px;
   margin: 0;
   transform: none;
   cursor: default;

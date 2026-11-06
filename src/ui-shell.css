@@ -23,7 +23,7 @@
   --ui-rail-height: 68px;
   --ui-header-y: 16px;
   --ui-rail-left: max(16px, calc((100vw - 1540px) / 2));
-  --card-w: clamp(194px, 14vw, 224px);
+  --card-w: clamp(164px, 12vw, 184px);
   --card-h: calc(var(--card-w) * 1.4);
   font-family: var(--ui-font);
   color: var(--ui-ink);
@@ -119,8 +119,8 @@ svg { flex-shrink: 0; }
   background: #bac1b675;
 }
 .kingdom-hud .resource > .resource-art {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   margin: 0;
   filter: none;
 }
@@ -128,8 +128,8 @@ svg { flex-shrink: 0; }
 .kingdom-hud .resource small {
   display: block;
   margin: 0;
-  font-size: 10px;
-  line-height: 13px;
+  font-size: 11px;
+  line-height: 14px;
   font-weight: 500;
   letter-spacing: 0;
   color: var(--ui-muted);
@@ -219,12 +219,12 @@ svg { flex-shrink: 0; }
 .season-copy > span { font-size: 9px; font-weight: 500; line-height: 11px; color: var(--ui-muted); }
 .season-days { position: absolute; left: 0; bottom: -4px; width: 102px; gap: 3px; margin: 0; }
 .season-days i { height: 2px; border-radius: 0; }
-.season-remaining { width: 86px; flex: 0 0 86px; padding-left: 12px; border-left: 1px solid #bac1b675; text-align: center; white-space: nowrap; }
+.season-remaining { width: 88px; flex: 0 0 88px; padding-left: 12px; border-left: 1px solid #bac1b675; text-align: center; white-space: nowrap; }
 .season-remaining b { font-size: 21px; font-weight: 650; line-height: 23px; letter-spacing: -.4px; color: var(--ui-ink); font-variant-numeric: tabular-nums; }
 .speed-controls { gap: 2px; margin-top: 3px; }
-.speed-controls button { min-width: 16px; height: 16px; padding: 0 2px; border: 0; border-radius: 2px; background: none; color: #748174; font-size: 9px; font-weight: 600; }
+.speed-controls button { min-width: 17px; height: 18px; padding: 0 2px; border: 0; border-radius: 2px; background: none; color: var(--ui-muted); font-size: 10px; font-weight: 600; }
 .speed-controls button:hover { background: #d9ded3; color: #3e5447; }
-.speed-controls button[aria-pressed=true] { border: 0; background: #677c66; color: #fff; box-shadow: none; }
+.speed-controls button[aria-pressed=true] { border: 0; background: var(--ui-pine); color: #fff; box-shadow: none; }
 
 .tools {
   position: absolute;
@@ -251,6 +251,10 @@ svg { flex-shrink: 0; }
 .tools button:focus-visible { outline: 2px solid #bd9d55; outline-offset: 1px; }
 .tools #trade-open { color: #4d6e5d; background: none; border: 0; box-shadow: none; }
 .tools #trade-open:hover { background: #d5ddd0; }
+.tools #trade-open[data-state=ready] { color: #3f754f; }
+.tools #trade-open[data-state=blocked] { color: #987044; }
+.tools #trade-open[data-state=ready]::before,
+.tools #trade-open[data-state=blocked]::before { content: ''; position: absolute; top: 4px; right: 4px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px var(--ui-paper); pointer-events: none; }
 .tools button::after { content: attr(aria-label); position: absolute; right: 0; top: calc(100% + 15px); bottom: auto; width: max-content; max-width: 180px; padding: 7px 10px; border: 0; border-radius: 4px; background: #2c3c39; color: #f1f0e8; font-size: 12px; line-height: 1.4; font-weight: 500; box-shadow: var(--ui-shadow); opacity: 0; transform: translateY(-3px); transition: opacity .14s, transform .14s; pointer-events: none; }
 .tools button:hover::after, .tools button:focus-visible::after { opacity: 1; transform: none; }
 
@@ -275,13 +279,13 @@ svg { flex-shrink: 0; }
   .kingdom-hud { left: calc(var(--ui-rail-left) + 244px); }
   #season-hud { width: 220px; gap: 8px; }
   .season-copy { width: 124px; flex-basis: 124px; }
-  .season-remaining { width: 78px; flex-basis: 78px; padding-left: 6px; }
+  .season-remaining { width: 81px; flex-basis: 81px; padding-left: 6px; }
   .kingdom-hud .resource { padding: 7px 4px; gap: 4px; }
   .kingdom-hud .resource > .resource-art { width: 25px; height: 25px; }
   .kingdom-hud .resource b { font-size: 21px; }
 }
 @media (max-height: 740px) {
-  :root { --card-w: 194px; }
+  :root { --card-w: 164px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; animation-iteration-count: 1 !important; }

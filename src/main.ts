@@ -202,6 +202,17 @@ function animateCounter(id:string,target:number){
   const tick=(now:number)=>{const t=Math.min(1,(now-start)/550);state.value=from+(target-from)*(1-(1-t)**3);el.textContent=String(Math.round(state.value));if(t<1)state.frame=requestAnimationFrame(tick);else{el.textContent=String(target);window.setTimeout(()=>{if(state.target===target)delete el.dataset.change},500)}};
   state.frame=requestAnimationFrame(tick);
 }
+function pulseHudResource(target:HTMLElement){
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const art=target.querySelector<HTMLElement>('.resource-art');if(!art)return;
+  art.getAnimations().forEach(animation=>animation.cancel());
+  const motion=art.animate([
+    {transform:'translateY(0) scale(1)'},
+    {transform:'translateY(-2px) scale(1.16)'},
+    {transform:'translateY(0) scale(1)'}
+  ],{duration:360,easing:'cubic-bezier(.2,.7,.3,1)'});
+  void motion.finished.catch(()=>{});
+}
 function renderHud(){
   const stats=get('#stats');
   if(!stats.children.length)stats.innerHTML=[['wood','Odun'],['stone','Taş'],['food','Yiyecek'],['gold','Altın'],['people','Nüfus'],['happy','Refah']].map(([id,name])=>`<${id==='people'?'button type="button" aria-expanded="false" aria-controls="work-panel"':'div'} class="resource" data-resource="${id}">${resourceArt(id)}<div><small>${name}</small><b>0</b></div><em></em>${id==='people'?'<span class="population-track" aria-hidden="true"><i></i></span>':''}</${id==='people'?'button':'div'}>`).join('');
@@ -218,6 +229,10 @@ function renderHud(){
   const next=game.nextMilestone,population=get('[data-resource="people"]');
   population.title=`Köylü görevleri${next?` · ${next.population} nüfusta ${next.name}`:' · Tüm gelişim ödülleri açıldı'}`;
   population.querySelector<HTMLElement>('.population-track i')!.style.width=`${next?Math.min(100,game.people/next.population*100):100}%`;
+  const trade=get('#trade-open');
+  const tradeState=game.harborId===undefined?'unbuilt':!game.merchantRouteOpen?'blocked':game.merchantPresent?'ready':'waiting';
+  const tradeLabel=tradeState==='ready'?'Deniz ticareti · Gemi iskelende':tradeState==='blocked'?'Deniz ticareti · Gemi yolu kapalı':tradeState==='unbuilt'?'Deniz ticareti · İskele kur':'Deniz ticareti · Gemi bekleniyor';
+  trade.dataset.state=tradeState;trade.title=tradeLabel;trade.setAttribute('aria-label',tradeLabel);
   get<HTMLButtonElement>('#reroll-toggle').disabled=handBusy||locked||game.gold<REROLL_COST;
   get('#reroll-toggle').classList.toggle('refreshing',handBusy);
   get('#reroll-toggle').title=game.gold<REROLL_COST?`Kart değiştirmek için ${REROLL_COST} altın gerekir`:'Bütün kartları 5 altına yenile';
@@ -350,7 +365,7 @@ world.onChestReward=async(loot:ChestLoot,at:Vector3)=>{
   const accepted=game.receiveDiscoveryLoot(loot.good,count);
   if(accepted){
     renderHud();renderStorage();sound.play('reward');
-    const motion=target.animate([{transform:'scale(1)'},{transform:'scale(1.07)',backgroundColor:'#e5eccf'},{transform:'scale(1)'}],{duration:reduced?100:500});void motion.finished.catch(()=>{});
+    pulseHudResource(target);
     const names:Record<string,string>={wood:'odun',stone:'taş',berry:'çilek',wheat:'buğday',fish:'balık',gold:'altın'};
     toast(`Sandıktan +${accepted} ${names[loot.good]}`);
   }
@@ -370,7 +385,7 @@ world.onDelivery=(source,store,resource,amount)=>{
   const endX=rect.left+rect.width/2,endY=rect.top+rect.height/2;
   const motion=spark.animate([{transform:`translate(${from.x}px,${from.y}px) scale(.7)`,opacity:0},{transform:`translate(${from.x}px,${from.y-25}px) scale(1)`,opacity:1,offset:.2},{transform:`translate(${endX}px,${endY}px) scale(.5)`,opacity:0}],{duration:950,easing:'cubic-bezier(.3,.65,.3,1)'});
   void motion.finished.catch(()=>{}).then(()=>spark.remove());
-  target.animate([{transform:'scale(1)',backgroundColor:'transparent'},{transform:'scale(1.10)',backgroundColor:'#d8e6b4'},{transform:'scale(1)',backgroundColor:'transparent'}],{duration:650});
+  pulseHudResource(target);
   return accepted;
 };
 world.onInspect=(id,x,y,bounds)=>{
