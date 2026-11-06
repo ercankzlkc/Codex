@@ -81,3 +81,12 @@ export function sampleReefCurrent(uniforms:OceanUniforms,x:number,z:number,out:{
   out.x=(.65*Math.sin(a)+.35*Math.sin(b))*.075*current+Math.max(-.38,Math.min(.38,sx))*.3*thaw;
   out.y=(.48*Math.cos(a*.83)+.26*Math.sin(b))*.060*current+Math.max(-.38,Math.min(.38,sz))*.3*thaw;
 }
+
+/** CPU counterpart of seaWave, used by floating props. */
+export function oceanSurface(x:number,z:number,time:number,winter:number){
+  const a=x*.88+z*1.31-time*.72,b=x*1.93-z*.62+time*.55,c=x*-2.7+z*3.8-time*.94;
+  const strength=1-winter;
+  return {height:(.022*Math.sin(a)+.011*Math.sin(b)+.0035*Math.sin(c))*strength,
+    dx:(.022*Math.cos(a)*.88+.011*Math.cos(b)*1.93+.0035*Math.cos(c)*-2.7)*strength,
+    dz:(.022*Math.cos(a)*1.31+.011*Math.cos(b)*-.62+.0035*Math.cos(c)*3.8)*strength};
+}

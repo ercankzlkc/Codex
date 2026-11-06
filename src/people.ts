@@ -120,6 +120,10 @@ export class PersonVisual {
     if(motion==='fish_idle')this.fishingBase=[...this.arms,...this.elbows,...(this.spine?[this.spine]:[])].map(joint=>joint.bone.quaternion.clone());
     return blocked;
   }
+  sitOnBench(){
+    if(this.spine)this.pose(this.spine,.06);
+    for(let i=0;i<2;i++){this.pose(this.legs[i],-Math.PI*.47);this.pose(this.knees[i],Math.PI*.48);this.pose(this.arms[i],-.32,i===0?.08:-.08);this.pose(this.elbows[i],-.35)}
+  }
   setFishingClock(time:number|null){this.fishingClock=time}
   get walkSpeed(){return this.playback?.walkSpeed??.4}
   get hasAnimations(){return this.playback!==null}

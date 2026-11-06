@@ -1,3 +1,5 @@
+import {cozyFlowerGeometry} from './models';
+import {discoveryModel} from './discovery-model';
 import * as T from 'three';
 import {Game,cards} from './game';
 import {position,fromWorld} from './hex';
@@ -9,7 +11,7 @@ import {residentName,wishes} from './village-personality';
 export class CozyVillage{
   private game:Game|null=null;
   private root=new T.Group();private blooms=new T.Group();
-  private flowerMat=new T.MeshLambertMaterial({color:0xf4bbbd,transparent:true,depthWrite:false});
+  private flowerMat=new T.MeshLambertMaterial({color:0xffffff,vertexColors:true,transparent:true,depthWrite:false});
   private leafMat=new T.PointsMaterial({color:0xd79750,size:.045,transparent:true,depthWrite:false});
   private fireMat=new T.PointsMaterial({color:0xe5dc94,size:.025,transparent:true,depthWrite:false});
   private leafPositions=new Float32Array(64*3);private firePositions=new Float32Array(32*3);
@@ -17,8 +19,9 @@ export class CozyVillage{
   private panel:HTMLElement;private toggle:HTMLButtonElement;private collect:HTMLButtonElement;
   private completed=new Set<number>();private journal:string[]=[];private signature='';private clock=0;private nextDiscovery=35;
   private lamps:T.MeshStandardMaterial[]=[];
+  private opening=-1;private rewarded=false;
   private discovery:T.Group|null=null;private discoveryType=0;private uiClock=0;
-  constructor(private scene:T.Scene){
+  constructor(private scene:T.Scene,private sampleSea:(x:number,z:number)=>{height:number;dx:number;dz:number}){
     this.root.add(this.blooms);scene.add(this.root);
     const leafGeo=new T.BufferGeometry();leafGeo.setAttribute('position',new T.BufferAttribute(this.leafPositions,3));
     const fireGeo=new T.BufferGeometry();fireGeo.setAttribute('position',new T.BufferAttribute(this.firePositions,3));
@@ -36,7 +39,7 @@ export class CozyVillage{
     });
   }
   bind(game:Game){this.reset();this.game=game;this.render()}
-  reset(){this.game=null;this.completed.clear();this.journal=[];this.signature='';this.clock=0;this.nextDiscovery=35;this.panel.hidden=true;this.collect.hidden=true;this.clearBlooms();this.removeDiscovery()}
+  reset(){this.game=null;this.completed.clear();this.journal=[];this.signature='';this.clock=0;this.nextDiscovery=15;this.opening=-1;this.rewarded=false;this.panel.hidden=true;this.collect.hidden=true;this.clearBlooms();this.removeDiscovery()}
   private clearBlooms(){for(const child of this.blooms.children){if(child instanceof T.Mesh)child.geometry.dispose()}this.blooms.clear()}
   private removeDiscovery(){if(this.discovery){this.root.remove(this.discovery);this.discovery.traverse(o=>{if(o instanceof T.Mesh){o.geometry.dispose();(o.material as T.Material).dispose()}});this.discovery=null}}
   private render(){
@@ -48,25 +51,26 @@ export class CozyVillage{
     let location:T.Vector3|null=null;
     for(let i=0;i<30;i++){const p=points[Math.floor(Math.random()*points.length)],a=Math.random()*Math.PI*2,x=p.x+Math.cos(a)*2.6,z=p.z+Math.sin(a)*2.6;if(!game.board.has(fromWorld(x,z))){location=new T.Vector3(x,SEA_Y+.08,z);break}}
     if(!location)return;
-    this.discoveryType=Math.floor(Math.random()*3);const group=new T.Group();group.position.copy(location);
-    const material=new T.MeshStandardMaterial({color:[0x83b7a3,0xb48c5a,0xebd8b4][this.discoveryType],roughness:.65});
-    const shape=this.discoveryType===0?new T.CylinderGeometry(.055,.065,.23,8):this.discoveryType===1?new T.BoxGeometry(.27,.16,.19):new T.SphereGeometry(.11,8,5);
-    const object=new T.Mesh(shape,material);if(this.discoveryType===0)object.rotation.z=.7;if(this.discoveryType===2)object.scale.set(1,.35,1.2);group.add(object);this.root.add(group);this.discovery=group;
+    this.discoveryType=Math.floor(Math.random()*3);const group=discoveryModel(this.discoveryType);group.position.copy(location);this.root.add(group);this.discovery=group;this.opening=-1;this.rewarded=false;this.collect.disabled=false;
     this.collect.textContent=['✧ Mesaj şişesi','✧ Sürüklenen sandık','✧ Deniz kabuğu'][this.discoveryType];this.collect.hidden=false;
   }
   private claimDiscovery(){
-    if(!this.game||!this.discovery)return;
+    if(!this.game||!this.discovery||this.opening>=0)return;
+    this.opening=0;this.collect.disabled=true;this.collect.textContent='✧ Açılıyor…';
+  }
+  private rewardDiscovery(){
+    if(!this.game||!this.discovery||this.rewarded)return;this.rewarded=true;
     const gold=[3,6,2][this.discoveryType];this.game.gold+=gold;
     const stories=[`Bir denizci not bırakmış: “Yolum yine bu sakin koya düşsün.” +${gold} altın.`,`Sandıkta eski bir ticaret kesesi buldun. +${gold} altın.`,`İnci gibi bir kabuk… Köylüler onu köyün uğuru sayıyor. +${gold} altın.`];
-    this.journal.unshift(stories[this.discoveryType]);this.journal=this.journal.slice(0,6);this.removeDiscovery();this.collect.hidden=true;this.nextDiscovery=this.clock+70+Math.random()*40;this.render();window.dispatchEvent(new CustomEvent('cozy-change',{detail:'Kıyıda küçük bir hazine buldun.'}));
+    this.journal.unshift(stories[this.discoveryType]);this.journal=this.journal.slice(0,6);this.collect.textContent=`+${gold} altın · Kıyıdan bir hatıra`;this.nextDiscovery=this.clock+70+Math.random()*40;this.render();window.dispatchEvent(new CustomEvent('cozy-change',{detail:'Kıyıda küçük bir hazine buldun.'}));
   }
   update(dt:number,camera:T.Camera){
     const game=this.game;if(!game)return;this.clock+=dt;
     const signature=[...game.board].map(([id,k])=>`${id}:${k}`).join('|');
     if(signature!==this.signature){
       this.signature=signature;this.clearBlooms();
-      const tiles=[...game.board.keys()].slice(0,40),flowers=new T.InstancedMesh(new T.SphereGeometry(.026,5,3),this.flowerMat,tiles.length*5),pose=new T.Object3D();let index=0;
-      for(const id of tiles){const p=position(id);for(let j=0;j<5;j++){const a=j*2.4+id,r=.58+(j%2)*.08;pose.position.set(p.x+Math.cos(a)*r,LAND_Y+.045,p.z+Math.sin(a)*r);pose.scale.set(1,.5,1);pose.updateMatrix();flowers.setMatrixAt(index++,pose.matrix)}}
+      const tiles=[...game.board.keys()].slice(0,40),flowers=new T.InstancedMesh(cozyFlowerGeometry(),this.flowerMat,tiles.length*5),pose=new T.Object3D();let index=0;
+      for(const id of tiles){const p=position(id);for(let j=0;j<5;j++){const a=j*2.4+id,r=.58+(j%2)*.08;pose.position.set(p.x+Math.cos(a)*r,LAND_Y+.005,p.z+Math.sin(a)*r);pose.scale.setScalar(.85+(j%3)*.12);pose.updateMatrix();flowers.setMatrixAt(index++,pose.matrix)}}
       flowers.instanceMatrix.needsUpdate=true;flowers.computeBoundingSphere();this.blooms.add(flowers);
       this.lamps=[];this.scene.traverse(object=>{if(object.userData.cozyLantern&&object instanceof T.Mesh)this.lamps.push(object.material as T.MeshStandardMaterial)});
       for(const resident of game.residents){if(!this.completed.has(resident.id)&&[...game.board.values()].includes(wishes[resident.id%3].kind)){this.completed.add(resident.id);game.happy=Math.min(100,game.happy+3);window.dispatchEvent(new CustomEvent('cozy-change',{detail:`${residentName(resident.id)}: “${wishes[resident.id%3].thanks}” +3 refah`}))}}
@@ -82,7 +86,18 @@ export class CozyVillage{
     this.leaves.visible=this.leafMat.opacity>.01;this.fireflies.visible=this.fireMat.opacity>.01;
     for(const mat of this.lamps){mat.emissive.set('#ffb650');mat.emissiveIntensity=climate.night.value*1.3}
     if(!this.discovery&&this.clock>=this.nextDiscovery){this.spawnDiscovery();this.nextDiscovery=this.clock+35}
-    if(this.discovery){this.discovery.position.y=SEA_Y+.08+Math.sin(this.clock*1.5)*.025;this.discovery.rotation.z=Math.sin(this.clock*.8)*.08;
+    if(this.discovery){
+      const wave=this.sampleSea(this.discovery.position.x,this.discovery.position.z);
+      this.discovery.position.y=SEA_Y+.035+wave.height;
+      this.discovery.rotation.set(Math.atan(wave.dz),.15, -Math.atan(wave.dx));
+      if(this.opening>=0){
+        this.opening+=dt;const t=this.opening,lid=this.discovery.userData.lid as T.Group|undefined,prizes=this.discovery.userData.prizes as T.Group;
+        if(lid)lid.rotation.x=-T.MathUtils.smoothstep(t,0,.8)*1.65;
+        prizes.visible=t>.35;
+        prizes.children.forEach((coin,i)=>{coin.visible=i<[3,6,2][this.discoveryType];const phase=coin.userData.phase,progress=T.MathUtils.clamp((t-.35-i*.04)/1.5,0,1);coin.position.set(Math.cos(phase)*progress*.22,.12+Math.sin(progress*Math.PI)*.4+progress*.12,Math.sin(phase)*progress*.22);coin.rotation.set(t*2,phase+t,t*.7);coin.scale.setScalar(1-T.MathUtils.smoothstep(t,1.8,2.5))});
+        if(t>.8)this.rewardDiscovery();
+        if(t>2.7){this.removeDiscovery();this.collect.hidden=true;this.opening=-1;return}
+      }
       const p=this.discovery.position.clone().add(new T.Vector3(0,.3,0)).project(camera);this.collect.hidden=p.z< -1||p.z>1;this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
     }
     

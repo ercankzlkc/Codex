@@ -12,7 +12,7 @@ const seasons=[
   {name:'Kış',symbol:'❄',color:'#a3d8ee',tint:'#edf6fb',hint:'Kar ve donmuş kıyılar'},
 ] as const;
 const mix=(a:number,b:number,t:number)=>a+(b-a)*t;
-const DAY_SECONDS=200, DAYS_PER_SEASON=3;
+const DAY_SECONDS=10, DAYS_PER_SEASON=3;
 const SEASON_SECONDS=DAY_SECONDS*DAYS_PER_SEASON, YEAR_SECONDS=SEASON_SECONDS*4;
 /** Three days per season; each day represents a month. */
 export class SeasonCycle{

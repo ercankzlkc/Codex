@@ -160,7 +160,7 @@ export class World {
     sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00006;sun.shadow.normalBias=.006;
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
-    this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);this.cozy=new CozyVillage(this.scene);
+    this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);this.cozy=new CozyVillage(this.scene,(x,z)=>this.environment.sampleSea(x,z));
     this.villagers=new Villagers(this.scene,{
       ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),

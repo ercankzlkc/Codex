@@ -55,6 +55,7 @@ export class Environment {
     }
   }
 
+  sampleSea(x:number,z:number){return this.water.surfaceAt(x,z)}
   setShoreOpenings(board:ReadonlyMap<number,unknown>,openings:Map<number,number>){
     this.shoreOpenings=openings;this.syncFences(board);
   }

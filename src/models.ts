@@ -218,22 +218,29 @@ function harbor(){
 }
 export function model(kind: Kind): T.Group {
   if(['bench','lantern','well'].includes(kind)){
-    const g=new T.Group();
+    const g=new T.Group(),wood=0x91714f,trim=0x586c61,stone=0xaaa995;
     if(kind==='bench'){
-      for(const x of [-.22,.22]){box(g,0x566455,x,.13,0,.045,.26,.26);box(g,0x566455,x,.33,-.1,.045,.25,.045)}
-      for(let i=0;i<3;i++)box(g,0xbc8d56,0,.26,-.09+i*.09,.58,.035,.07);
-      for(let i=0;i<2;i++)box(g,0xb18453,0,.37+i*.08,-.12,.58,.055,.035);
+      for(const x of [-.145,.145]){box(g,trim,x,.085,0,.035,.17,.15);box(g,wood,x,.215,-.065,.03,.22,.035)}
+      for(let i=0;i<3;i++)box(g,0xb39a70,0,.17,-.06+i*.055,.39,.025,.045);
+      for(let i=0;i<2;i++)box(g,wood,0,.245+i*.045,-.075,.39,.035,.025);
+      for(const x of [-.18,.18])box(g,trim,x,.205,.015,.025,.025,.17);
+      const cushion=box(g,0x9bab8b,.105,.19,.01,.09,.018,.105);cushion.rotation.y=.06;
     }else if(kind==='lantern'){
-      part(g,new T.CylinderGeometry(.08,.12,.1,8),0xa3a58f,0,.05,0);box(g,0x675644,0,.40,0,.055,.7,.055);
-      const glow=box(g,0xffd28b,0,.79,0,.16,.21,.16);glow.userData.cozyLantern=true;
-      part(g,new T.ConeGeometry(.17,.13,4),0x557365,0,.96,0);box(g,0x675644,0,.67,0,.22,.04,.22);
+      for(let i=0;i<5;i++){const a=i*1.26;box(g,stone,Math.cos(a)*.10,.025,Math.sin(a)*.10,.09,.05,.09)}
+      box(g,wood,0,.26,0,.035,.49,.035);box(g,wood,.065,.48,0,.16,.028,.035);
+      const glow=box(g,0xe8c78b,.12,.395,0,.095,.13,.095);glow.userData.cozyLantern=true;
+      for(const x of [.073,.167])for(const z of [-.047,.047])box(g,trim,x,.395,z,.012,.15,.012);
+      box(g,trim,.12,.32,0,.125,.025,.125);part(g,new T.ConeGeometry(.105,.075,4),trim,.12,.50,0);
     }else{
-      part(g,new T.CylinderGeometry(.27,.30,.29,12,1,true),0xaaa68b,0,.15,0);
-      part(g,new T.CylinderGeometry(.22,.22,.02,12),0x3e7376,0,.07,0);
-      for(const x of [-.3,.3])box(g,0x8e704a,x,.43,0,.05,.65,.05);
-      part(g,new T.ConeGeometry(.48,.25,4),0x9c654a,0,.86,0);
+      for(let layer=0;layer<2;layer++)for(let i=0;i<10;i++){const a=(i+(layer%2)*.5)*Math.PI/5;const brick=box(g,i%3?stone:0x999f8c,Math.sin(a)*.15,.045+layer*.075,Math.cos(a)*.15,.095,.065,.075);brick.rotation.y=a}
+      part(g,new T.CylinderGeometry(.112,.112,.015,12),0x4d7775,0,.06,0);
+      for(const x of [-.205,.205])box(g,wood,x,.26,0,.03,.49,.035);
+      const roof=new T.Group();roof.position.y=.51;g.add(roof);
+      for(const sign of [-1,1]){const tile=box(roof,0x997252,sign*.085,0,0,.19,.035,.37);tile.rotation.z=-sign*.4}
+      box(g,wood,0,.31,0,.42,.025,.025);
+      part(g,new T.CylinderGeometry(.035,.03,.05,8),0x9b805b,.11,.205,.06);
+      box(g,trim,.11,.24,.06,.01,.035,.01);
     }
-    for(let i=0;i<9;i++){const a=i*2.4;ball(g,i%2?0xe6b683:0xc5a4b9,Math.cos(a)*.44,.045,Math.sin(a)*.44,.04)}
     return g;
   }
   if(kind==='harbor'){if(!templates.has(kind))templates.set(kind,harbor());return templates.get(kind)!.clone()}
@@ -260,3 +267,17 @@ export function model(kind: Kind): T.Group {
   return template.clone();
 }
 
+
+export function cozyFlowerGeometry(){
+  const parts:T.BufferGeometry[]=[];
+  const add=(geometry:T.BufferGeometry,color:number,matrix:T.Matrix4)=>{
+    geometry.applyMatrix4(matrix);const c=new T.Color(color),colors=new Float32Array(geometry.getAttribute('position').count*3);
+    for(let i=0;i<colors.length;i+=3){colors[i]=c.r;colors[i+1]=c.g;colors[i+2]=c.b}
+    geometry.setAttribute('color',new T.BufferAttribute(colors,3));parts.push(geometry);
+  };
+  const pose=new T.Object3D();pose.position.set(0,.035,0);pose.updateMatrix();add(new T.CylinderGeometry(.003,.004,.07,4),0x66865c,pose.matrix);
+  for(let i=0;i<5;i++){const a=i*Math.PI*2/5;pose.position.set(Math.cos(a)*.017,.07,Math.sin(a)*.017);pose.rotation.set(.2,a,0);pose.scale.set(1,.28,.65);pose.updateMatrix();add(new T.SphereGeometry(.018,5,3),0xe5b9a5,pose.matrix)}
+  pose.position.set(0,.074,0);pose.rotation.set(0,0,0);pose.scale.set(1,.4,1);pose.updateMatrix();add(new T.SphereGeometry(.009,5,3),0xd5ae59,pose.matrix);
+  pose.position.set(.012,.026,0);pose.rotation.set(0,0,-.5);pose.scale.set(1,.25,.45);pose.updateMatrix();add(new T.SphereGeometry(.021,4,2),0x779467,pose.matrix);
+  const result=mergeGeometries(parts)!;for(const part of parts)part.dispose();return result;
+}

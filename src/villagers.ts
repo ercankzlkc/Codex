@@ -1,3 +1,4 @@
+import {ResidentCard} from './resident-card';
 import {residentName,wishes} from './village-personality';
 import * as T from 'three';
 import {PeopleLibrary,type PersonVisual} from './people';
@@ -24,6 +25,9 @@ export interface VillageHooks {
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
+  private benchVisits=new WeakMap<Citizen,{tile:number;until:number;seated:boolean}>();
+  private residentCard=new ResidentCard();private pointer:{x:number;y:number}|null=null;
+
   private contacts=new WeakMap<Citizen,{distance:number;approaching:boolean;lastHit:number;job:Citizen['job'];tips?:T.Vector3[]}>();
   private contactPoint=new T.Vector3();
   private updateToolContact(c:Citizen){
@@ -67,7 +71,10 @@ export class Villagers {
   private buckets=new Map<string,Citizen[]>();
   private people=new PeopleLibrary();
   private frameTargets:ReturnType<Game['workTargets']>|null=null;
-  constructor(scene:T.Scene,private hooks:VillageHooks,private overlay:HTMLElement){scene.add(this.root)}
+  constructor(scene:T.Scene,private hooks:VillageHooks,private overlay:HTMLElement){scene.add(this.root);
+    window.addEventListener('pointermove',event=>{this.pointer=event.target instanceof HTMLCanvasElement&&!event.buttons?{x:event.clientX,y:event.clientY}:null;if(!this.pointer)this.residentCard.hide()});
+    window.addEventListener('blur',()=>{this.pointer=null;this.residentCard.hide()});
+  }
   assignedTo(id:number){return this.citizens.filter(c=>c.job?.source===id).length}
   assignedCounts(){return Object.fromEntries(WORK_CATEGORIES.map(k=>[k,this.citizens.filter(c=>c.job?.category===k).length])) as Record<WorkCategory,number>}
   get working(){return this.citizens.filter(c=>c.job!==null).length}
@@ -78,6 +85,7 @@ export class Villagers {
   }
   private releaseJob(c:Citizen){this.nav?.cancel(c.id);if(c.job)this.hooks.harvestProgress(c.job.source,c.id,0);c.job=null;c.unload=null;c.bundle.scale.setScalar(1);c.stage='idle';c.path=[];c.retry=.1;c.bundle.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.waitReason='';c.target=null}
   reset(game:Game){
+    this.residentCard.reset();this.benchVisits=new WeakMap();this.pointer=null;
     for(const c of this.citizens){c.visual?.dispose();c.status.remove();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
     this.flights=[];this.root.clear();this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
   }
@@ -135,9 +143,17 @@ export class Villagers {
     if(!c.visual)return;
     c.visual.setFishingClock(c.stage==='working'&&c.job?.category==='fish'?c.clock:null);
     c.visual.update(c.body,c.arms,c.legs,c.bundle.visible);
+    const visit=this.benchVisits.get(c);
+    if(visit&&c.stage==='idle'&&!c.job&&!c.path.length&&this.game?.board.get(visit.tile)==='bench'){
+      const p=position(visit.tile),yaw=this.hooks.yaw(visit.tile),seat=new T.Vector3(p.x+Math.sin(yaw)*.015,LAND_Y-.055,p.z+Math.cos(yaw)*.015);
+      if(!visit.seated&&Math.hypot(c.root.position.x-seat.x,c.root.position.z-seat.z)<.13){visit.seated=true;visit.until=this.time+12;c.restUntil=visit.until}
+      if(visit.seated&&this.time<visit.until){c.root.position.copy(seat);c.root.rotation.y=yaw;c.visual.sitOnBench()}
+      else if(visit.seated)this.benchVisits.delete(c);
+    }else if(visit&&(c.job||this.game?.board.get(visit.tile)!=='bench'))this.benchVisits.delete(c);
     c.visual.grip(c.axe,'axe');c.visual.grip(c.rod,'rod');c.visual.grip(c.pickaxe,'pickaxe');
   }
   private motionFor(c:Citizen):PersonMotion{
+    if(this.benchVisits.get(c)?.seated&&this.time<c.restUntil&&!c.job)return 'hold';
     if(c.path.length)return c.bundle.visible?'carry':'walk';
     if(c.bundle.visible||c.stage==='unloading'||c.stage==='to-store')return 'hold';
     if(c.stage==='picking')return 'pick';
@@ -153,6 +169,7 @@ export class Villagers {
   private fishTiming(){return {launch:.7,land:1.35,pull:5.8,total:7.5}}
 
   private findJob(c:Citizen){
+    if(this.benchVisits.get(c)?.seated&&this.time<c.restUntil)return false;
     if(this.nav!.waiting(c.id))return false;
     const g=this.game!,here=fromWorld(c.root.position.x,c.root.position.z),targets=this.frameTargets??g.workTargets(),counts=this.assignedCounts();
     const options=[...g.board.keys()].map(source=>({source,recipe:g.productAt(source),category:g.categoryFor(source)}))
@@ -171,6 +188,8 @@ export class Villagers {
     return false;
   }
   private wander(c:Citizen){
+    const benches=[...this.game!.board].filter(([id,kind])=>kind==='bench'&&this.hooks.ready(id)&&!this.citizens.some(other=>other!==c&&this.benchVisits.get(other)?.tile===id));
+    for(const [tile] of benches){const p=position(tile),yaw=this.hooks.yaw(tile);if(this.route(c,tile,new T.Vector3(p.x+Math.sin(yaw)*.015,LAND_Y,p.z+Math.cos(yaw)*.015))){this.benchVisits.set(c,{tile,until:Infinity,seated:false});c.restUntil=this.time+30;return}}
     const here=fromWorld(c.root.position.x,c.root.position.z),choices=[here,...adjacent(here)].filter(id=>this.game!.board.has(id)&&this.hooks.ready(id));if(!choices.length)return;
     const destinations=choices.filter(id=>['bench','well','lantern','garden'].includes(this.game!.board.get(id)!));
     const pool=destinations.length?destinations:choices;
@@ -272,6 +291,14 @@ export class Villagers {
     }
   }
   updateStatuses(camera:T.Camera,width:number,height:number,detailTile:number){
+    let hovered:Citizen|null=null,best=Infinity;
+    if(this.pointer&&!document.querySelector('dialog[open]')&&!document.body.classList.contains('is-dragging')){
+      const ortho=camera as T.OrthographicCamera,pixels=height/((ortho.top-ortho.bottom)/ortho.zoom);
+      for(const c of this.citizens){const p=c.root.position.clone();p.y+=.25;p.project(camera);if(p.z< -1||p.z>1)continue;
+        const distance=Math.hypot((p.x+1)*width/2-this.pointer.x,(1-p.y)*height/2-this.pointer.y);
+        if(distance<Math.max(12,Math.min(32,pixels*.22))&&distance<best){hovered=c;best=distance}}
+    }
+    if(hovered&&this.pointer){const state=hovered.job?(hovered.stage==='to-store'?'Ürünleri depoya taşıyor':statusNames[hovered.job.category??'rest']??'Çalışıyor'):this.benchVisits.get(hovered)?.seated?'Bankta dinleniyor':'Köyde geziniyor';this.residentCard.show(hovered.id,hovered.visual?.root??null,state,this.pointer.x,this.pointer.y)}else this.residentCard.hide();
     const v=new T.Vector3();
     for(const c of this.citizens){
       if(detailTile<0||fromWorld(c.root.position.x,c.root.position.z)!==detailTile){c.status.hidden=true;continue}
@@ -328,7 +355,7 @@ export class Villagers {
         c.retry=1.5+(c.id%7)*.10;
         const found=this.findJob(c),waiting=this.nav.waiting(c.id);if(waiting)c.retry=.12;
         if(!found&&!waiting&&!c.path.length&&this.time>=c.restUntil){
-          if(c.visual?.hasAnimations&&Math.random()<.5)c.restUntil=this.time+10+Math.random()*8;
+          if(![...this.game!.board.values()].includes('bench')&&c.visual?.hasAnimations&&Math.random()<.5)c.restUntil=this.time+10+Math.random()*8;
           else this.wander(c);
         }
       }
