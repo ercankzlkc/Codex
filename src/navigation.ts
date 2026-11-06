@@ -46,7 +46,8 @@ export class Walkways {
       if(kind==='store'&&(rect(-.51,-.25,.26,.59)||rect(.25,.51,.26,.59)))return false;
       // The centre tower projects behind the main house.
       if(id===CENTER&&rect(-.60,-.1,-.48,.04))return false;
-    }else if(kind==='harbor'){if(rect(-.49,.01,-.46,-.02)||rect(.2,.42,-.32,.23))return false}
+    }else if(['bench','lantern','well'].includes(kind??'')){if(rect(-.34,.34,-.25,.30))return false}
+    else if(kind==='harbor'){if(rect(-.49,.01,-.46,-.02)||rect(.2,.42,-.32,.23))return false}
     else if(kind==='fisher'){if(rect(-.34,.34,-.57,.16))return false}
     else if(kind==='berry'){if(rect(-.50,.50,-.57,.40,.75))return false}
     else if(kind==='farm'){if(lx<-.31&&lx>-.45&&lz>-.5&&lz<.42)return false}

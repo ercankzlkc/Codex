@@ -344,7 +344,7 @@ function reset(){
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
- <p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. 60 nüfusta Liman kartı hediye edilir; limanı kurup gelen tüccara ürün satarak altın kazanırsın. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
+ <p>Sol alttaki Köy Defteri’nden dekorasyon kartları seçebilir, köylülerin isimlerini ve dileklerini görebilirsin. Dilekleri gerçekleştirmek refah kazandırır. Denizde beliren keşiflere tıklayarak küçük hazineler toplayabilirsin.</p><p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. 60 nüfusta Liman kartı hediye edilir; limanı kurup gelen tüccara ürün satarak altın kazanırsın. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
  <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir. + bir köylüyü o işe geçirir, − boşta bırakır; boşta kimse yoksa + başka işten birini aktarır. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
@@ -353,6 +353,13 @@ get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy<
 document.addEventListener('keydown',e=>{
   if(e.key.toLowerCase()==='h'&&!e.repeat&&!e.ctrlKey&&!e.altKey&&!e.metaKey&&!dialog.open&&!(e.target instanceof Element&&e.target.closest('input,textarea,select,[contenteditable]'))){e.preventDefault();game.grantResources();renderHud();toast('Odun, taş, çilek, buğday, balık ve altın +1.000')}
   if(e.key==='Escape'&&!dialog.open){closeWork();drag.cancel();select(null)}});
+window.addEventListener('cozy-card',event=>{
+  if(locked||handBusy||dialog.open)return;
+  const card=cards.find(c=>c.id===(event as CustomEvent).detail);if(!card)return;
+  drag.cancel();select(null);const index=game.hand.reduce((last,c,i)=>c.id!=='harbor'?i:last,-1);
+  if(index>=0)game.hand[index]=card;else game.hand.push(card);render(true);toast(`${card.name} kartı eline eklendi`);
+});
+window.addEventListener('cozy-change',event=>{renderHud();toast((event as CustomEvent).detail)});
 setupSettings(world,sound,modal,dialog);
 reset();
 

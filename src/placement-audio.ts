@@ -9,6 +9,9 @@ export interface PlacementAudioCue {
 
 /** One short positional material voice as each tile emerges. */
 export const placementAudio: Readonly<Record<Kind, PlacementAudioCue>> = {
+  bench:{files:['placement-timber-1'],volume:.25,rate:[.95,1.05]},
+  lantern:{files:['placement-door'],volume:.22,rate:[1,1]},
+  well:{files:['placement-stone'],volume:.25,rate:[1,1]},
   forest: { files: ['harvest-leaves-1', 'harvest-leaves-2'], volume: .22, rate: [.94, 1.08] },
   stone: { files: ['placement-stone', 'harvest-stone-crumble'], volume: .24, rate: [.86, 1.00] },
   berry: { files: ['harvest-leaves-1', 'harvest-leaves-2'], volume: .18, rate: [1.10, 1.22] },

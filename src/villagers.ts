@@ -1,3 +1,4 @@
+import {residentName,wishes} from './village-personality';
 import * as T from 'three';
 import {PeopleLibrary,type PersonVisual} from './people';
 import type {PersonMotion} from './motions';
@@ -146,6 +147,7 @@ export class Villagers {
       if(c.job.resource==='stone')return 'stone';
       return c.job.category==='farm'?'farm':'berry';
     }
+    if(c.stage==='idle'&&this.time<c.restUntil&&this.game?.board.get(fromWorld(c.root.position.x,c.root.position.z))==='well')return 'eat';
     return 'idle';
   }
   private fishTiming(){return {launch:.7,land:1.35,pull:5.8,total:7.5}}
@@ -170,7 +172,10 @@ export class Villagers {
   }
   private wander(c:Citizen){
     const here=fromWorld(c.root.position.x,c.root.position.z),choices=[here,...adjacent(here)].filter(id=>this.game!.board.has(id)&&this.hooks.ready(id));if(!choices.length)return;
-    const tile=choices[Math.floor((Math.sin(this.time+c.phase)+1)*.499*choices.length)],p=position(tile),angle=this.time*.7+c.phase;
+    const destinations=choices.filter(id=>['bench','well','lantern','garden'].includes(this.game!.board.get(id)!));
+    const pool=destinations.length?destinations:choices;
+    const tile=pool[Math.floor((Math.sin(this.time*.2+c.phase)+1)*.499*pool.length)],p=position(tile),angle=this.time*.7+c.phase;
+    c.restUntil=this.time+12+Math.random()*8;
     this.route(c,tile,new T.Vector3(p.x+Math.sin(angle)*.70,LAND_Y,p.z+Math.cos(angle)*.70));
   }
   private move(c:Citizen,dt:number){
@@ -273,7 +278,7 @@ export class Villagers {
       const eating=c.eatUntil>this.time&&!c.job&&!c.path.length,carrying=c.bundle.visible;
       const state=c.stage==='unloading'?'unload':eating?(c.hungry?'hungry':'eat'):carrying?(c.waitReason==='full'?'full':'carry'):c.job?(c.job.category??'garden'):'rest';
       const graphic=state==='unload'?'carry':state==='carry'?(c.job?.category??'garden'):state,key=`${state}:${graphic}`;
-      if(key!==c.lastStatus){c.lastStatus=key;c.status.innerHTML=icon(graphic);c.status.dataset.state=state;const label=state==='carry'?`Depoya taşıyor · ${statusNames[graphic]??''}`:statusNames[state]??'Dinleniyor';c.status.setAttribute('aria-label',label);c.status.title=label}
+      if(key!==c.lastStatus){c.lastStatus=key;c.status.innerHTML=icon(graphic);c.status.dataset.state=state;const label=state==='carry'?`Depoya taşıyor · ${statusNames[graphic]??''}`:statusNames[state]??'Dinleniyor';c.status.setAttribute('aria-label',label);c.status.title=`${residentName(c.id)} · ${label}\n${wishes[c.id%3].text}`}
       v.copy(c.root.position);v.y+=.58;v.project(camera);c.status.hidden=v.z< -1||v.z>1;c.status.style.left=`${(v.x+1)*width/2}px`;c.status.style.top=`${(1-v.y)*height/2}px`;const ortho=camera as T.OrthographicCamera,pixels=height/((ortho.top-ortho.bottom)/ortho.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);
       c.status.style.opacity=String(c.birth*fade);c.status.style.setProperty('--status-scale',String(.35+.65*fade));c.status.hidden=c.status.hidden||fade<.01||detailTile<0||fromWorld(c.root.position.x,c.root.position.z)!==detailTile;
     }
