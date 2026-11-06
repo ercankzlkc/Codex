@@ -1,3 +1,4 @@
+import {shipIce} from '../shipping-ice';
 import * as T from 'three';
 import {torchLight,torchField} from '../torch-light';
 import {climate} from '../climate';
@@ -23,6 +24,7 @@ export class TropicalWater {
   private transitionEnd=LAND_END;
   private pendingEdges:ShoreEdge[]|null=null;
   private readonly uniforms={
+    uShippingLane:shipIce.lane,uShippingOpen:shipIce.open,
     uTorchLights:torchLight,uTorchField:torchField.map,uTorchRegion:torchField.region,
     uNight:climate.night,uFreeze:climate.winter,uAutumn:climate.autumn,uSummer:climate.summer,
     uWakes:{value:Array.from({length:WAKE_COUNT},()=>new T.Vector4(0,0,-10,0))},

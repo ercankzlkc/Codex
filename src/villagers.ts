@@ -74,6 +74,7 @@ export class Villagers {
     window.addEventListener('pointermove',event=>{this.pointer=event.target instanceof HTMLCanvasElement&&!event.buttons?{x:event.clientX,y:event.clientY}:null;if(!this.pointer)this.residentCard.hide()});
     window.addEventListener('blur',()=>{this.pointer=null;this.residentCard.hide()});
   }
+  createGuest(id:number){return this.people.create(id)}
   assignedTo(id:number){return this.citizens.filter(c=>c.job?.source===id).length}
   assignedCounts(){return Object.fromEntries(WORK_CATEGORIES.map(k=>[k,this.citizens.filter(c=>c.job?.category===k).length])) as Record<WorkCategory,number>}
   get working(){return this.citizens.filter(c=>c.job!==null).length}

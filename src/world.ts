@@ -1,4 +1,7 @@
-import {MERCHANT_ARRIVAL,MERCHANT_DOCKED,MERCHANT_DEPARTURE,SEASON_SECONDS} from './calendar';
+import {merchantRouteOpen} from './merchant-route';
+import {ShippingIce,shipIce} from './shipping-ice';
+import type {PersonVisual} from './people';
+import {MERCHANT_DOCKED,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END} from './calendar';
 import {CozyVillage} from './cozy-village';
 import * as T from 'three';
 import {FenceTorches} from './torches';
@@ -129,6 +132,10 @@ export class World {
   valid=(_i:number)=>false;
   onHover=(_i:number)=>{};
   onMerchant=()=>{};
+  private shippingIce:ShippingIce;
+  private routeKey='';private blockedNotice=false;
+  private crewVisuals=new WeakMap<T.Object3D,{visual:PersonVisual;body:T.Group;arms:T.Group[];legs:T.Group[]}>();
+  private shipPrevious=new T.Vector3();private shipWakeTime=0;
   private transferAge=10;private transferSelling=true;private lastMerchant=false;
   showTradeTransfer(selling:boolean){this.transferAge=0;this.transferSelling=selling}
   private merchantRay=new T.Raycaster();
@@ -165,7 +172,7 @@ export class World {
     sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.00006;sun.shadow.normalBias=.006;
     this.scene.add(sun,sun.target);
     this.environment=new Environment(this.scene);this.environment.setSun(this.sun.position.clone().sub(this.sun.target.position));
-    this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);this.cozy=new CozyVillage(this.scene,(x,z)=>this.environment.sampleSea(x,z));
+    this.shippingIce=new ShippingIce(this.scene);this.seasons=new SeasonCycle(this.scene,this.sun,this.ambient);this.cozy=new CozyVillage(this.scene,(x,z)=>this.environment.sampleSea(x,z));
     this.villagers=new Villagers(this.scene,{
       ready:id=>this.ready(id),yaw:id=>this.buildings.get(id)?.rotation.y??0,resourceReady:id=>this.resourceReady(id),pickTree:(id,index)=>this.pickTree(id,index),workPoint:(id,index)=>this.workPoint(id,index),obstacles:id=>this.obstacles(id),pickup:(id,index,take)=>this.pickup(id,index,take),
       harvest:(id,resource,index,actor)=>this.harvest(id,resource,index,actor),
@@ -212,7 +219,7 @@ export class World {
 
   set onFenceBreak(callback:()=>void){this.environment.onFenceBreak=callback}
   set onFenceBuild(callback:()=>void){this.environment.onFenceBuild=callback}
-  bindGame(game:Game){this.lastMerchant=false;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
+  bindGame(game:Game){this.shippingIce.reset();this.routeKey='';this.blockedNotice=false;this.lastMerchant=false;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
   private ready(id:number){return this.board.has(id)&&this.buildings.has(id)&&!this.builds.some(b=>b.id===id)&&!this.demolitions.some(d=>d.id===id)}
   private pickTree(id:number,preferred:number){
     for(let j=0;j<3;j++){const index=(preferred+j)%3;if(!this.treeCycles.has(`${id}:${index}`)&&this.buildings.get(id)?.children.some(t=>t.userData.treeIndex===index))return index}
@@ -700,6 +707,12 @@ export class World {
       for(const piece of drop.pieces){const wx=drop.group.position.x+piece.mesh.position.x*.85-center.x,wz=drop.group.position.z+piece.mesh.position.z*.85-center.z,r=Math.hypot(wx,wz);if(r>.63){piece.mesh.position.x=(center.x+wx/r*.63-drop.group.position.x)/.85;piece.mesh.position.z=(center.z+wz/r*.63-drop.group.position.z)/.85;piece.velocity.x*=-.2;piece.velocity.z*=-.2}}
     }
     for(const decor of this.storageDecor.values()){const t=this.time-(decor.userData.upgradedAt??-99);decor.scale.setScalar(1+(t<1?Math.sin(t*Math.PI)*.13:0))}
+    if(this.game){
+      const id=this.game.harborId,dock=id===undefined?null:this.buildings.get(id),key=`${[...this.board.keys()].join(',')}:${id}:${dock?.rotation.y.toFixed(3)}`;
+      if(key!==this.routeKey){this.routeKey=key;this.game.merchantRouteOpen=id!==undefined&&!!dock&&merchantRouteOpen(this.board,id,dock.rotation.y)}
+      if(id!==undefined&&this.ready(id)&&!this.game.merchantRouteOpen&&!this.blockedNotice){this.blockedNotice=true;window.dispatchEvent(new CustomEvent('merchant-blocked'))}
+      if(this.game.merchantRouteOpen)this.blockedNotice=false;
+    }
     let remaining=dt,firstStep=true;
     while(remaining>0){
       const step=Math.min(.065,remaining);this.villagers.update(step,firstStep?2:0);
@@ -708,28 +721,49 @@ export class World {
     this.transferAge+=realDt;
     if(this.game?.merchantPresent&&!this.lastMerchant)window.dispatchEvent(new CustomEvent('merchant-arrived'));
     this.lastMerchant=!!this.game?.merchantPresent;
+    let iceBow:T.Vector3|null=null,iceDirection=new T.Vector3(0,0,1);
+    shipIce.open.value.y=Math.max(0,shipIce.open.value.y-realDt*.015);
     for(const [id,kind] of this.board)if(kind==='harbor'){
       const dock=this.buildings.get(id),ship=dock?.getObjectByName('merchant');if(!dock||!ship||!this.game)continue;
-      const t=this.game.tradeClock;ship.visible=t>=MERCHANT_ARRIVAL&&this.ready(id);
-      const approach=t<MERCHANT_DOCKED?1-T.MathUtils.smoothstep(t,MERCHANT_ARRIVAL,MERCHANT_DOCKED):t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,SEASON_SECONDS):0;
-      ship.position.set(1.12,(SEA_Y-LAND_Y)/BUILDING_SCALE,1.8+approach*7);
-      const point=ship.getWorldPosition(new T.Vector3()),wave=this.environment.sampleSea(point.x,point.z);
+      const t=this.game.merchantAge;ship.visible=t>=0&&this.game.merchantRouteOpen&&this.ready(id);
+      const approach=t<MERCHANT_DOCKED?1-T.MathUtils.smoothstep(t,0,MERCHANT_DOCKED):t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END):0;
+      ship.position.set(1.12,(SEA_Y-LAND_Y)/BUILDING_SCALE,2.6+approach*5.0);
+      const point=ship.getWorldPosition(new T.Vector3());
+      if(ship.visible){
+        const direction=new T.Vector3(0,0,t<MERCHANT_DOCKED?-1:1).applyQuaternion(dock.getWorldQuaternion(new T.Quaternion()));
+        if(this.shipPrevious.distanceTo(point)<1&&this.shipPrevious.distanceTo(point)>.005){
+          this.shipWakeTime+=realDt;if(this.shipWakeTime>.13){this.shipWakeTime=0;
+            for(const side of [-1,1])this.environment.stir(point.x-direction.x*.7+direction.z*.38*side,point.z-direction.z*.7-direction.x*.38*side,direction.x,direction.z,.5,.32);
+          }
+        }
+        const far=dock.localToWorld(new T.Vector3(1.12,0,10));
+        if(t<MERCHANT_DOCKED||shipIce.open.value.y<.01)shipIce.lane.value.set(far.x,far.z,point.x+direction.x*1.15,point.z+direction.z*1.15);
+        shipIce.open.value.y=1;
+        if(t<MERCHANT_DOCKED||t>MERCHANT_DEPARTURE){iceBow=point.clone().addScaledVector(direction,1.15);iceBow.y=SEA_Y+.03;iceDirection=direction}
+        this.shipPrevious.copy(point);
+      }
+      const wave=this.environment.sampleSea(point.x,point.z);
       ship.position.y+=wave.height/BUILDING_SCALE;ship.rotation.x=wave.dz;ship.rotation.z=-wave.dx;
-      ship.rotation.y=t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,SEASON_SECONDS)*.35:0;
+      ship.rotation.y=t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END)*.35:0;
       const bridge=dock.getObjectByName('merchant-gangway');if(bridge)bridge.visible=this.game.merchantPresent;
       for(let i=0;i<3;i++){
         const crew=dock.getObjectByName(`merchant-crew-${i}`);if(!crew)continue;
         const origin=crew.userData.origin as T.Vector3,walk=Math.sin(this.time*.9+i*2),busy=this.game.merchantPresent;
         crew.visible=i<2?ship.visible:busy;
+        if(!this.crewVisuals.has(crew)){
+          const visual=this.villagers.createGuest(8+i);if(visual){visual.root.scale.setScalar(1/BUILDING_SCALE);crew.add(visual.root);this.crewVisuals.set(crew,{visual,body:new T.Group(),arms:[new T.Group(),new T.Group()],legs:[new T.Group(),new T.Group()]})}
+        }
+        const actor=this.crewVisuals.get(crew);if(actor){actor.arms.forEach(arm=>arm.rotation.x=-.8);actor.visual.animate(realDt,busy?'carry':'idle',busy?.16:0);actor.visual.update(actor.body,actor.arms,actor.legs,busy)}
         crew.position.copy(origin);if(busy){crew.position.z+=walk*(i===2?.25:.22);crew.position.y+=Math.abs(Math.sin(this.time*6+i))*.01;crew.rotation.y=walk>0?0:Math.PI}
         if(i===2&&busy){
           const t=this.transferAge<3?this.transferAge:(this.time%6)*.5,progress=t<1.5?T.MathUtils.smoothstep(t,0,1.5):1-T.MathUtils.smoothstep(t,1.5,3);
           const inbound=this.transferAge<3&&!this.transferSelling?1-progress:progress;
-          crew.position.set(T.MathUtils.lerp(.15,1.05,inbound),T.MathUtils.lerp(.06,.22,inbound)+Math.abs(Math.sin(t*12))*.006,T.MathUtils.lerp(.70,.90,inbound));crew.rotation.y=(t<1.5?1:-1)*(this.transferAge<3&&!this.transferSelling?-1:1)*Math.PI/2;
+          crew.position.set(T.MathUtils.lerp(.15,1.05,inbound),T.MathUtils.lerp(.06,.22,inbound)+Math.abs(Math.sin(t*12))*.006,T.MathUtils.lerp(1.25,1.9,inbound));crew.rotation.y=(t<1.5?1:-1)*(this.transferAge<3&&!this.transferSelling?-1:1)*Math.PI/2;
           const cargo=crew.getObjectByName('carried-crate');if(cargo)cargo.visible=t<1.5;
         }
       }
     }
+    this.shippingIce.update(realDt,iceBow,iceDirection,climate.winter.value);
     this.detailTile=this.detailPointer&&!this.selected&&!document.querySelector('dialog[open]')?this.grid.pick(this.detailPointer.x,this.detailPointer.y,this.cameraControl.camera,this.el):-1;
     this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight,this.detailTile);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}

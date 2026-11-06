@@ -6,12 +6,19 @@ export const WAKE_COUNT = 16;
 export const WAKE_LIFE = 1.6;
 
 export const seaWaves = /* glsl */ `
+uniform vec4 uShippingLane;uniform vec2 uShippingOpen;
+float shipMelt(vec2 p){
+  vec2 a=uShippingLane.xy,b=uShippingLane.zw,v=b-a;
+  float t=clamp(dot(p-a,v)/max(.001,dot(v,v)),0.,1.);
+  return (1.-smoothstep(uShippingOpen.x*.75,uShippingOpen.x,length(p-a-v*t)))*uShippingOpen.y;
+}
+
 vec3 seaWave(vec2 p) {
   vec2 a=vec2(.88,1.31), b=vec2(1.93,-.62), c=vec2(-2.7,3.8);
   float pa=dot(p,a)-uTime*.72, pb=dot(p,b)+uTime*.55, pc=dot(p,c)-uTime*.94;
   float h=.022*sin(pa)+.011*sin(pb)+.0035*sin(pc);
   vec2 gradient=.022*cos(pa)*a+.011*cos(pb)*b+.0035*cos(pc)*c;
-  return vec3(h,gradient)*(1.-uFreeze);
+  return vec3(h,gradient)*(1.-uFreeze*(1.-shipMelt(p)));
 }
 vec2 seaCurrent(vec2 p) {
   float a=dot(p,vec2(.88,1.31))-uTime*.72;

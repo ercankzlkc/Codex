@@ -200,12 +200,15 @@ function harbor(){
     part(g,new T.CylinderGeometry(.046,.046,.035,8),0xd1bb91,x,.075,z);
   }
   box(g,0xd4c5a0,-.25,.3,-.24,.48,.6,.44);
-  const roof=part(g,new T.ConeGeometry(.43,.27,4),0x608786,-.25,.7,-.24);roof.rotation.y=Math.PI/4;
+  const boothRoof=new T.Group();boothRoof.position.set(-.25,0,-.24);g.add(boothRoof);tiledRoof(boothRoof,.51,.50,.61,.19,0x9d7254);
+  windowFrame(g,-.25,.34,.0,false);box(g,0x735e48,-.25,.17,.01,.13,.32,.025);
+  for(const x of [-.49,-.01])box(g,0x8a7557,x,.31,-.02,.025,.60,.025);
+  const rope=new T.Mesh(new T.TorusGeometry(.065,.012,5,12),material(0xb6a27a));rope.rotation.y=Math.PI/2;rope.position.set(.36,.10,.5);g.add(rope);
   crate(g,.28,.12);barrel(g,.3,-.22);
   const sign=box(g,0x355f60,.38,.49,-.08,.3,.22,.04);
   box(g,0xcbb17a,.38,.48,-.05,.04,.15,.02);sign.rotation.y=-.1;
   for(let i=0;i<3;i++){crate(g,-.27+i*.25,.90);if(i%2===0)crate(g,-.27+i*.25,1.13)}
-  const ship=new T.Group();ship.name='merchant';ship.position.set(1.12,-.31,1.8);
+  const ship=new T.Group();ship.name='merchant';ship.position.set(1.12,-.31,2.6);
   const hullPoints:number[]=[],widths=[.03,.38,.62,.65,.58,.3,.015],zs=[-1.65,-1.35,-.8,0,.85,1.4,1.65];
   const ring=(i:number)=>[[-widths[i],.20],[-widths[i]*.9,-.10],[0,-.35],[widths[i]*.9,-.10],[widths[i],.20]];
   for(let i=0;i<zs.length-1;i++)for(let side=0;side<4;side++){
@@ -219,25 +222,34 @@ function harbor(){
     box(ship,0x4d6962,side*widths[i],.29,zs[i],.045,.20,.045);
     if(i<zs.length-2)beam(ship,0xa98d60,new T.Vector3(side*widths[i],.37,zs[i]),new T.Vector3(side*widths[i+1],.37,zs[i+1]),.035);
   }
-  box(ship,0xd0c5a4,0,.46,-.97,.73,.50,.53);box(ship,0x587873,0,.74,-.97,.85,.07,.66);
+  box(ship,0xd0c5a4,0,.46,-.97,.73,.50,.53);const cabinRoof=new T.Group();cabinRoof.position.set(0,0,-.97);ship.add(cabinRoof);tiledRoof(cabinRoof,.76,.58,.72,.20,0x647e70);
   for(const x of [-.23,.23])box(ship,0x476a70,x,.5,-.69,.15,.13,.018);
   for(const z of [-.38,.70]){
     box(ship,0x7e674b,0,1.02,z,.055,1.7,.055);box(ship,0x7e674b,0,1.62,z,1.13,.045,.045);
-    const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute([-.53,1.59,z,.53,1.59,z,.43,.88,z+.15,-.53,1.59,z,.43,.88,z+.15,-.40,.88,z+.15],3));sail.computeVertexNormals();
-    const cloth=part(ship,sail,0xf0e3be);(cloth.material as T.MeshStandardMaterial).side=T.DoubleSide;
-    box(ship,0x6b9187,0,1.23,z+.1,.13,.52,.025);
+    const vertices:number[]=[],colors:number[]=[];
+    const sailPoint=(u:number,v:number)=>{const width=.53-.12*v;return new T.Vector3((u-.5)*2*width,1.59-v*.71,z+Math.sin(u*Math.PI)*Math.sin(v*Math.PI)*.12+v*.11)};
+    for(let row=0;row<6;row++)for(let col=0;col<6;col++){
+      const a=sailPoint(col/6,row/6),b=sailPoint((col+1)/6,row/6),c=sailPoint(col/6,(row+1)/6),d=sailPoint((col+1)/6,(row+1)/6);
+      const color=new T.Color(col===2?0x9bb2a0:row%2?0xe4d8b5:0xeee2c0);
+      for(const point of [a,b,c,c,b,d]){vertices.push(point.x,point.y,point.z);colors.push(color.r,color.g,color.b)}
+    }
+    const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute(vertices,3));sail.setAttribute('color',new T.Float32BufferAttribute(colors,3));sail.computeVertexNormals();
+    const cloth=new T.Mesh(sail,new T.MeshStandardMaterial({vertexColors:true,roughness:.95,side:T.DoubleSide}));cloth.castShadow=true;cloth.receiveShadow=true;ship.add(cloth);
+    for(const side of [-1,1])beam(ship,0xc2b48b,new T.Vector3(side*.53,1.59,z),new T.Vector3(side*.41,.88,z+.11),.009);
     beam(ship,0x9e987c,new T.Vector3(0,1.85,z),new T.Vector3(.56,.3,z+.45),.012);
   }
+  for(let i=0;i<20;i++)box(ship,i%3?0xae956b:0xc5ae7d,0,.226,-1.0+i*.105,.91,.018,.093);
+  for(const side of [-1,1])for(let i=1;i<zs.length-2;i++)for(const y of [.09,-.03])beam(ship,0x9e8057,new T.Vector3(side*widths[i]*.96,y,zs[i]),new T.Vector3(side*widths[i+1]*.96,y,zs[i+1]),.022);
   for(const x of [-.25,.25])for(const z of [.05,.35])crate(ship,x,z);
   for(const z of [-1.25,1.10])barrel(ship,.22,z);
+  const anchor=new T.Group();anchor.position.set(-.53,.05,1.02);ship.add(anchor);box(anchor,0x59635b,0,0,0,.025,.20,.025);box(anchor,0x59635b,0,-.06,0,.15,.025,.025);
+  const rescue=part(ship,new T.TorusGeometry(.09,.019,5,12),0xc8bb91,-.62,.24,.1);rescue.rotation.y=Math.PI/2;
   const pennant=part(ship,new T.ConeGeometry(.10,.34,3),0xb88f5c,0,1.93,-.38);pennant.rotation.z=Math.PI/2;
   const crew=(parent:T.Group,x:number,z:number,index:number)=>{
     const worker=new T.Group();worker.name=`merchant-crew-${index}`;worker.position.set(x,index===2?.06:.22,z);worker.userData.origin=new T.Vector3(x,index===2?.06:.22,z);parent.add(worker);
-    box(worker,index%2?0x6b8d84:0x9e8e71,0,.15,0,.10,.16,.065);ball(worker,0xd7b58d,0,.28,0,.055);part(worker,new T.ConeGeometry(.065,.065,8),0x566f65,0,.34,0);
-    for(const side of [-1,1]){box(worker,0x626e62,side*.027,.045,0,.035,.09,.04);const arm=box(worker,0xa48b69,side*.065,.16,.045,.035,.12,.035);arm.rotation.x=-.8}
-    const cargo=new T.Group();cargo.name='carried-crate';cargo.position.set(0,.13,.12);worker.add(cargo);box(cargo,0xae8e5e,0,0,0,.12,.12,.12);
+    const cargo=new T.Group();cargo.name='carried-crate';cargo.position.set(0,.28,.17);worker.add(cargo);box(cargo,0xae8e5e,0,0,0,.12,.12,.12);
   };
-  const bridge=box(g,0xbba377,.66,.14,.84,.84,.035,.22);bridge.name='merchant-gangway';
+  const bridge=box(g,0xbba377,.60,.14,1.575,1.11,.035,.24);bridge.rotation.y=-Math.atan2(.65,.9);bridge.name='merchant-gangway';
   crew(ship,-.22,-.42,0);crew(ship,.27,.65,1);crew(g,.15,.7,2);
   g.add(ship);return g;
 }

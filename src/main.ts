@@ -258,7 +258,7 @@ function showMilestones(){
 function openProgress(){
   modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>`<section class="${game.reached.has(m.population)?'reached':''}"><b>${m.population} nüfus · ${m.name}</b><span>${m.description}</span><small>${cards.filter(c=>c.unlock===m.population).map(c=>c.name).join(' · ')||'Gelişmiş ticaret'} · +${m.gold} altın</small></section>`).join('')}</div><button data-close>Oyuna dön</button>`,'progress');
 }
-let tradeQuantity=5;
+let tradeQuantity=5;let tradeMode:'sell'|'buy'='sell';
 function openTrade(){
   if(game.harborId===undefined){
     modal(`<div class="merchant-heading"><span>${icon('harbor')}</span><small>KIYIDAN UZAK LİMANLARA</small><h1>Bir ticaret iskelesi kur</h1><p>Her mevsimin üçüncü günü tüccar gemisi koyuna uğrar. Yanaşabilmesi için kıyıda bir iskeleye ihtiyacı var.</p></div><div class="dock-blueprint"><img src="${thumbs.harbor}" alt="Ticaret iskelesi önizlemesi"><div><b>Ticaret İskelesi</b><p>Kurulum: 12 odun · 6 taş<br>Bir köyde bir ticaret iskelesi.</p></div></div><button data-dock-card>İskele kartını elime al</button><button data-close>Oyuna dön</button>`,'trade');
@@ -266,20 +266,38 @@ function openTrade(){
       const card=cards.find(c=>c.id==='harbor')!;if(!game.hand.includes(card))game.hand.push(card);render(true);void closeDialog();toast('Ticaret İskelesi kartı eline eklendi');
     });return;
   }
-  const active=game.merchantPresent;
-  modal(`<div class="merchant-heading"><span>${icon('harbor')}</span><small>YELKEN TİCARET KUMPANYASI</small><h1>${active?'Tüccar iskelenizde':'Ufukta bir sonraki yolculuk'}</h1><p>${active?`Yanaşma süresi: ${game.merchantCountdown} sn · ${game.tradeCapacity-game.tradeSold} ürün daha alabilir.`:`Her mevsimin 3. günü gelir. Ticarete ${game.merchantCountdown} sn kaldı.`} Ticaret açıkken zaman durur.</p></div>
-    <div class="merchant-wallet"><span>${icon('gold')} <b>${game.gold}</b> altın</span><span>${icon('carry')} <b>${game.totalStorageFree}</b> boş depo yeri</span></div>
-    <div class="trade-quantity"><span>İşlem miktarı</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-pressed="${tradeQuantity===n}">${n} adet</button>`).join('')}</div>
-    <div class="merchant-goods"><div class="merchant-columns"><span>Ürün / senin stoğun</span><span>Sat · altın kazan</span><span>Al · gemiden</span></div>${TRADE_GOODS.map(item=>{
-      const sell=Math.min(tradeQuantity,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold),buy=Math.min(tradeQuantity,game.merchantCargo[item.id],Math.floor(game.gold/game.buyPrice(item.id)),game.totalStorageFree);
-      return `<article class="merchant-good"><div class="merchant-item">${icon(item.id)}<span><b>${item.name}</b><small>Sende ${game.tradeStock(item.id)} · Gemide ${game.merchantCargo[item.id]}</small></span></div><div><button data-sell="${item.id}" ${!active||sell<=0?'disabled':''}>${sell||tradeQuantity} sat <b>+${(sell||tradeQuantity)*item.price} ${icon('gold')}</b></button><small>Birim: ${item.price} altın</small></div><div><button data-buy="${item.id}" ${!active||buy<=0?'disabled':''}>${buy||tradeQuantity} al <b>−${(buy||tradeQuantity)*game.buyPrice(item.id)} ${icon('gold')}</b></button><small>${!game.totalStorageFree?'Depon dolu':game.merchantCargo[item.id]===0?'Gemide kalmadı':game.gold<game.buyPrice(item.id)?'Altın yetersiz':`Birim: ${game.buyPrice(item.id)} altın`}</small></div></article>`
-    }).join('')}</div><p class="merchant-note">İşlemler miktar, altın ve stok sınırına göre ayarlanır. Yiyecekleri köylülerine ayırmayı unutma.</p><button data-close>Güzel yolculuklar · Oyuna dön</button>`,'trade');
+  const active=game.merchantPresent,blocked=!game.merchantRouteOpen;
+  modal(`<div class="trade-story"><div class="trade-ports"><span data-village-ledger>${icon('crest')}<small>Senin köyün</small></span><span class="trade-sea">∿ ∿ ∿</span><span data-ship-ledger>${icon('harbor')}<small>Gezgin tüccar</small></span></div><h1>${blocked?'Su yolu kapalı':active?'Hoş geldin, komşu':'Yolculuk devam ediyor'}</h1><p>${blocked?'Gemi iskeleye ulaşamıyor. İskele yönünde açık denize uzanan geniş bir su yolu bırak.':active?'Biraz paylaş, biraz keşfet. Bugün ne takas edelim?':`Gemi her mevsimin son günü yola çıkar. ${game.merchantAge>=0?'Yavaşça yanaşıyor…':`Yanaşmaya yaklaşık ${game.merchantCountdown} sn.`}`}</p></div>
+    <div class="trade-purse"><span data-gold-ledger>${icon('gold')} <b>${game.gold}</b> altın</span><span>${game.totalStorageFree} boş depo yeri</span></div>
+    <div class="trade-choice"><button data-trade-mode="sell" aria-pressed="${tradeMode==='sell'}">Ürünlerimi sat</button><button data-trade-mode="buy" aria-pressed="${tradeMode==='buy'}">Gemiden al</button></div>
+    <div class="trade-quantity"><span>Kaç tane?</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-pressed="${tradeQuantity===n}">${n}</button>`).join('')}</div>
+    <div class="trade-basket">${TRADE_GOODS.map(item=>{
+      const selling=tradeMode==='sell',price=selling?item.price:game.buyPrice(item.id);
+      const amount=selling?Math.min(tradeQuantity,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold):Math.min(tradeQuantity,game.merchantCargo[item.id],Math.floor(game.gold/price),game.totalStorageFree);
+      const hint=!active?(blocked?'Su yolu kapalı':'Gemi henüz yanaşmadı'):amount>0?`${amount} adet · ${amount*price} altın`:selling?(game.tradeStock(item.id)===0?'Stoğun yok':'Geminin yükü dolu'):!game.totalStorageFree?'Depon dolu':!game.merchantCargo[item.id]?'Gemide kalmadı':'Altın yetersiz';
+      return `<article class="trade-product"><span class="trade-product-icon">${icon(item.id)}</span><div><strong>${item.name}</strong><small>Sende ${game.tradeStock(item.id)} · Gemide ${game.merchantCargo[item.id]}</small><span>Tanesi ${price} altın</span></div><button data-exchange="${item.id}" ${!active||amount<=0?'disabled':''}>${selling?'Sat':'Al'}<small>${hint}</small></button></article>`;
+    }).join('')}</div><p class="trade-footnote">${active?`Gemi ${game.tradeCapacity-game.tradeSold} ürün daha alabilir. `:''}Bu pencere açıkken zaman durur.</p><div class="trade-receipt" role="status" aria-live="polite"></div><button data-close>Şimdilik bu kadar · Oyuna dön</button>`,'trade');
+  dialog.querySelectorAll<HTMLButtonElement>('[data-trade-mode]').forEach(button=>button.onclick=()=>{tradeMode=button.dataset.tradeMode as 'sell'|'buy';openTrade()});
   dialog.querySelectorAll<HTMLButtonElement>('[data-quantity]').forEach(button=>button.onclick=()=>{tradeQuantity=Number(button.dataset.quantity);openTrade()});
-  for(const action of ['sell','buy'] as const)dialog.querySelectorAll<HTMLButtonElement>(`[data-${action}]`).forEach(button=>button.onclick=()=>{
-    const good=button.dataset[action] as TradeGood,count=action==='sell'?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
-    if(count){world.showTradeTransfer(action==='sell');renderHud();renderStorage();sound.play('reward');openTrade()}
+  dialog.querySelectorAll<HTMLButtonElement>('[data-exchange]').forEach(button=>button.onclick=()=>{
+    const good=button.dataset.exchange as TradeGood,selling=tradeMode==='sell',count=selling?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
+    if(count){world.showTradeTransfer(selling);renderHud();renderStorage();sound.play('reward');openTrade();animateTrade(good,count,selling)}
   });
 }
+function animateTrade(good:TradeGood,count:number,selling:boolean){
+  const origin=dialog.getBoundingClientRect(),village=dialog.querySelector('[data-village-ledger]')!.getBoundingClientRect(),ship=dialog.querySelector('[data-ship-ledger]')!.getBoundingClientRect(),wallet=dialog.querySelector('[data-gold-ledger]')!.getBoundingClientRect();
+  const point=(rect:DOMRect)=>({x:rect.left+rect.width/2-origin.left,y:rect.top+rect.height/2-origin.top+dialog.scrollTop});
+  const fly=(graphic:string,from:DOMRect,to:DOMRect,index:number)=>{
+    if(dialog.querySelectorAll('.trade-flight').length>=24)return;
+    const a=point(from),b=point(to),node=document.createElement('span');node.className='trade-flight';node.innerHTML=icon(graphic);dialog.append(node);
+    const animation=node.animate([{transform:`translate(${a.x}px,${a.y}px) scale(.6)`,opacity:0},{transform:`translate(${a.x}px,${a.y-14}px) scale(1)`,opacity:1,offset:.15},{transform:`translate(${(a.x+b.x)/2}px,${Math.min(a.y,b.y)-38-index*4}px) scale(1.1)`,opacity:1,offset:.5},{transform:`translate(${b.x}px,${b.y}px) scale(.45)`,opacity:0}],{duration:850,delay:index*95,easing:'cubic-bezier(.2,.65,.3,1)',fill:'both'});
+    void animation.finished.catch(()=>{}).then(()=>node.remove());
+  };
+  for(let i=0;i<Math.min(4,count);i++){fly(good,selling?village:ship,selling?ship:village,i);fly('gold',selling?ship:wallet,selling?wallet:ship,i+2)}
+  const receipt=dialog.querySelector('.trade-receipt')!;receipt.textContent=`${count} ${TRADE_GOODS.find(item=>item.id===good)!.name.toLocaleLowerCase('tr-TR')} ${selling?'satıldı · Altınların kesene eklendi.':'alındı · Ürünler depolarına yerleşti.'}`;
+  receipt.animate([{opacity:0,transform:'translateY(5px)'},{opacity:1,transform:'translateY(0)'}],{duration:350});
+}
+window.addEventListener('merchant-blocked',()=>toast('Gemi yolu kapalı · İskele yönünde açık denize uzanan geniş bir geçit bırak'));
 window.addEventListener('merchant-arrived',()=>toast('Ticaret gemisi yanaştı · Gemiye tıklayarak alışveriş yapabilirsin'));
 world.onMerchant=()=>{if(!handBusy&&!locked)openTrade()};
 get('[data-progress]').onclick=()=>{closeWork();openProgress()};
@@ -312,7 +330,7 @@ world.onInspect=(id,x,y,bounds)=>{
   else if(kind==='store')lines.push(`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapasiteyi yükselt');
   else if(product){lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,...(['berry','farm'].includes(kind??'')?[`Toplama: ${harvestSeconds(kind==='farm'?'farm':'berry',product.amount).toLocaleString('tr-TR')} sn / çalışan · yol hariç`]:[]),'Ürünler depoya taşınır');}
   else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} sakinin evi`,'Sakinler yakındaki işlere yürüyerek gider');
-  else if(kind==='harbor')lines.push(game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Limanı seçerek ticaret yap');
+  else if(kind==='harbor')lines.push(!game.merchantRouteOpen?'Su yolu kapalı · İskele yönünde geniş bir geçit aç':game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Limanı seçerek ticaret yap');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
   if(game.hasTorches(id))lines.push('Meşaleler · 1 odun / gece / karo',game.torchLit(id)?'Meşaleler yanıyor · gece üretimi normal':'Gece için yakıt gerekir');

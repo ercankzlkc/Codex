@@ -163,7 +163,7 @@ void main() {
   opacity=mix(opacity,.94,foam);
   // Freeze the entire visible ocean, with stable fine cracks and a gradual frost front.
   float frostNoise=waterNoise(p*.8)*.6+waterNoise(p*3.1)*.4;
-  float freeze=smoothstep(frostNoise*.32,.48+frostNoise*.32,uFreeze);
+  float freeze=smoothstep(frostNoise*.32,.48+frostNoise*.32,uFreeze)*(1.-shipMelt(p));
   // Open the ice over the landing hex before the shared land-rise starts at .6s.
   vec2 iceDelta=abs(p-uLanding.xy);
   float hexDistance=max(iceDelta.x,iceDelta.x*.5+iceDelta.y*.8660254);

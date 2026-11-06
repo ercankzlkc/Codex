@@ -1,4 +1,5 @@
-import {SEASON_SECONDS,MERCHANT_DOCKED,MERCHANT_DEPARTURE} from './calendar';
+import {gameSpeed} from './game-speed';
+import {SEASON_SECONDS,MERCHANT_ARRIVAL,MERCHANT_DOCKED,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END} from './calendar';
 import { CENTER, adjacent, canGrow,axial } from './hex.ts';
 export type Kind =
   | 'stone' | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
@@ -105,6 +106,7 @@ export class Game {
   milestoneQueue:Milestone[]=[];
   harborReward=false;
   tradeClock=0;
+  merchantAge=-1;merchantRouteOpen=false;private merchantSeason=0;private visitedSeason=-1;
   tradeSold=0;
   merchantCargo:Record<TradeGood,number>={wood:30,stone:25,berry:20,wheat:20,fish:15};
   get totalStorageFree(){return [...this.storageStocks.keys()].reduce((total,id)=>total+this.storageFree(id),0)}
@@ -118,9 +120,9 @@ export class Game {
     this.gold-=count*price;this.merchantCargo[good]-=count;return count;
   }
   get harborId(){return [...this.board].find(([,kind])=>kind==='harbor')?.[0]}
-  get merchantPresent(){return this.harborId!==undefined&&this.tradeClock>=MERCHANT_DOCKED&&this.tradeClock<MERCHANT_DEPARTURE}
+  get merchantPresent(){return this.harborId!==undefined&&this.merchantRouteOpen&&this.merchantAge>=MERCHANT_DOCKED&&this.merchantAge<MERCHANT_DEPARTURE}
   get tradeCapacity(){return this.reached.has(100)?80:40}
-  get merchantCountdown(){return Math.ceil(this.merchantPresent?MERCHANT_DEPARTURE-this.tradeClock:this.tradeClock<MERCHANT_DOCKED?MERCHANT_DOCKED-this.tradeClock:SEASON_SECONDS-this.tradeClock+MERCHANT_DOCKED)}
+  get merchantCountdown(){return Math.ceil(this.merchantPresent?MERCHANT_DEPARTURE-this.merchantAge:this.merchantAge>=0?Math.max(0,MERCHANT_DOCKED-this.merchantAge):(this.tradeClock<MERCHANT_ARRIVAL?MERCHANT_ARRIVAL-this.tradeClock:SEASON_SECONDS-this.tradeClock+MERCHANT_ARRIVAL)/Math.max(1,gameSpeed.value)+MERCHANT_DOCKED)}
   get nextMilestone(){return MILESTONES.find(m=>!this.reached.has(m.population))}
   private unlockMilestones(){
     this.peakPopulation=Math.max(this.peakPopulation,this.people);
@@ -194,7 +196,10 @@ export class Game {
   }
   tick(dt:number){
     if(this.paused)return;
-    {const next=this.tradeClock+dt;if(next>=SEASON_SECONDS){this.tradeSold=0;this.merchantCargo={wood:30,stone:25,berry:20,wheat:20,fish:15}}this.tradeClock=next%SEASON_SECONDS}
+    {const next=this.tradeClock+dt;if(next>=SEASON_SECONDS)this.merchantSeason++;this.tradeClock=next%SEASON_SECONDS}
+    if(this.harborId!==undefined&&this.merchantRouteOpen&&this.tradeClock>=MERCHANT_ARRIVAL&&this.visitedSeason!==this.merchantSeason&&this.merchantAge<0){this.visitedSeason=this.merchantSeason;this.merchantAge=0;this.tradeSold=0;this.merchantCargo={wood:30,stone:25,berry:20,wheat:20,fish:15}}
+    if(!this.merchantRouteOpen&&this.merchantAge>=0)this.merchantAge=-1;
+    if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
     this.meal+=dt*this.people/30;
     const due=Math.floor(this.meal);if(!due)return;
     this.meal-=due;
