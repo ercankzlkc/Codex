@@ -261,6 +261,8 @@ function openProgress(){
 }
 let tradeQuantity=5;let tradeMode:'sell'|'buy'='sell';
 function openTrade(){
+  const continuing=dialog.open&&dialog.dataset.kind==='trade',basketScroll=continuing?dialog.querySelector('.trade-basket')?.scrollTop??0:0;
+  dialog.dataset.tradeView=game.harborId===undefined?'harbor':'market';
   if(game.harborId===undefined){
     modal(`<div class="merchant-heading"><span>${icon('harbor')}</span><small>KIYIDAN UZAK LİMANLARA</small><h1>Bir ticaret iskelesi kur</h1><p>Her mevsimin üçüncü günü tüccar gemisi koyuna uğrar. Yanaşabilmesi için kıyıda bir iskeleye ihtiyacı var.</p></div><div class="dock-blueprint"><img src="${thumbs.harbor}" alt="Ticaret iskelesi önizlemesi"><div><b>Ticaret İskelesi</b><p>Kurulum: 12 odun · 6 taş<br>Bir köyde bir ticaret iskelesi.</p></div></div><button data-dock-card>İskele kartını elime al</button><button data-close>Oyuna dön</button>`,'trade');
     dialog.querySelector('[data-dock-card]')!.addEventListener('click',()=>{
@@ -268,30 +270,39 @@ function openTrade(){
     });return;
   }
   const active=game.merchantPresent,blocked=!game.merchantRouteOpen;
-  modal(`<div class="trade-story"><div class="trade-ports"><span data-village-ledger>${icon('crest')}<small>Senin köyün</small></span><span class="trade-sea">∿ ∿ ∿</span><span data-ship-ledger>${icon('harbor')}<small>Gezgin tüccar</small></span></div><h1>${blocked?'Su yolu kapalı':active?'Hoş geldin, komşu':'Yolculuk devam ediyor'}</h1><p>${blocked?'Gemi iskeleye ulaşamıyor. İskele yönünde açık denize uzanan geniş bir su yolu bırak.':active?'Biraz paylaş, biraz keşfet. Bugün ne takas edelim?':`Gemi her mevsimin son günü yola çıkar. ${game.merchantAge>=0?'Yavaşça yanaşıyor…':`Yanaşmaya yaklaşık ${game.merchantCountdown} sn.`}`}</p></div>
-    <div class="trade-purse"><span data-gold-ledger>${resourceArt('gold')} <b>${game.gold}</b> altın</span><span>${game.totalStorageFree} boş depo yeri</span></div>
-    <div class="trade-choice"><button data-trade-mode="sell" aria-pressed="${tradeMode==='sell'}">Ürünlerimi sat</button><button data-trade-mode="buy" aria-pressed="${tradeMode==='buy'}">Gemiden al</button></div>
-    <div class="trade-quantity"><span>Kaç tane?</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-pressed="${tradeQuantity===n}">${n}</button>`).join('')}</div>
-    <div class="trade-basket">${TRADE_GOODS.map(item=>{
+  modal(`<div class="trade-layout${continuing?'':' trade-enter'}">
+    <aside class="trade-sidebar">
+      <div class="trade-story"><div class="trade-ports"><span data-village-ledger>${icon('crest')}<small>Senin köyün</small></span><span class="trade-sea" aria-hidden="true">∿ ∿</span><span data-ship-ledger>${icon('harbor')}<small>Gezgin tüccar</small></span></div><small class="trade-eyebrow">YELKEN KOYU · TİCARET</small><h1>${blocked?'Su yolu kapalı':active?'Hoş geldin, komşu':'Ufukta bir yolculuk'}</h1><p>${blocked?'İskele yönünde açık denize uzanan geniş bir su yolu bırak.':active?'Köyünden bir parça paylaş. Uzak kıyılardan yeni şeyler getir.':`Gemi her mevsimin son günü gelir. ${game.merchantAge>=0?'Yavaşça yanaşıyor…':`Yanaşmaya yaklaşık ${game.merchantCountdown} sn.`}`}</p></div>
+      <div class="trade-purse"><span data-gold-ledger>${resourceArt('gold')}<span><small>Hazinen</small><b>${game.gold}</b> altın</span></span><span class="trade-storage">${icon('carry')}<span><b>${game.totalStorageFree}</b> boş depo yeri</span></span></div>
+      <div class="trade-market-note"><span class="trade-status${blocked?' is-blocked':active?' is-ready':''}"><i></i>${blocked?'Gemi yolu kapalı':active?'Gemi iskelende':'Gemi yolda'}</span>${active?`<p>Bu ziyarette <b>${Math.max(0,game.tradeCapacity-game.tradeSold)} ürün</b> daha satabilirsin.</p>`:''}<div class="trade-price-guide"><span>↘</span><p>Sattıkça fiyat düşer.</p><span>↗</span><p>Aldıkça fiyat yükselir.</p></div><p class="trade-footnote">Toplam, her ürünün değişen fiyatıyla hesaplanır. Yeni ziyaretlerde piyasa yavaşça dengelenir.</p></div>
+      <span class="trade-unhurried">Acele yok, köyün seni bekler.</span>
+    </aside>
+    <section class="trade-main">
+      <header class="trade-toolbar"><div class="trade-topline"><div><h2>${tradeMode==='sell'?'Köyünden gemiye':'Gemiden köyüne'}</h2><p>${tradeMode==='sell'?'Fazlalıklarını paylaş, hazineni büyüt.':'Köyünün ihtiyacı olanları seç.'}</p></div><span class="trade-visit-label">MEVSİMLİK PAZAR</span></div><div class="trade-controls"><div class="trade-choice" aria-label="Alışveriş yönü"><button data-trade-mode="sell" aria-pressed="${tradeMode==='sell'}">Ürünlerimi sat</button><button data-trade-mode="buy" aria-pressed="${tradeMode==='buy'}">Gemiden al</button></div><div class="trade-quantity" aria-label="İşlem miktarı"><span>Adet</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-label="${n} adet" aria-pressed="${tradeQuantity===n}">${n}</button>`).join('')}</div></div></header>
+      <div class="trade-basket" tabindex="0" aria-label="Takas ürünleri">${TRADE_GOODS.map(item=>{
       const selling=tradeMode==='sell',quote=game.tradeQuote(item.id,tradeMode,tradeQuantity),price=quote.first,amount=quote.count;
-      const hint=!active?(blocked?'Su yolu kapalı':'Gemi henüz yanaşmadı'):amount>0?`${amount} adet · ${quote.total} altın`:selling?(game.tradeStock(item.id)===0?'Stoğun yok':'Geminin yükü dolu'):!game.totalStorageFree?'Depon dolu':!game.merchantCargo[item.id]?'Gemide kalmadı':'Altın yetersiz';
+      const hint=!active?(blocked?'Su yolu kapalı':'Gemi bekleniyor'):selling?(game.tradeStock(item.id)===0?'Stoğun yok':'Geminin yükü dolu'):!game.totalStorageFree?'Depon dolu':!game.merchantCargo[item.id]?'Gemide kalmadı':'Altın yetersiz';
       const pressure=game.marketPressure[item.id],trend=pressure>3?'Azalan stok':pressure< -3?'Bol ürün':'Dengeli';
-      return `<article class="trade-product"><span class="trade-product-icon">${resourceArt(item.id)}</span><div><strong>${item.name}</strong><small>Sende ${game.tradeStock(item.id)} · Gemide ${game.merchantCargo[item.id]}</small><span>İlk ürün ${price} altın <em class="market-trend ${pressure>3?'scarce':pressure< -3?'abundant':''}">${pressure>3?'↗':pressure< -3?'↘':'↔'} ${trend}</em></span>${amount>1&&quote.next!==price?`<small class="market-forecast">Bu işlemden sonra ${quote.next} altın ${quote.next>price?'↗':'↘'}</small>`:''}</div><button data-exchange="${item.id}" ${!active||amount<=0?'disabled':''}>${selling?'Sat':'Al'}<small>${hint}</small></button></article>`;
-    }).join('')}</div><p class="trade-footnote">${active?`Gemi ${game.tradeCapacity-game.tradeSold} ürün daha alabilir. `:''}Sattıkça fiyat düşer, aldıkça yükselir. Toplam tutar her ürünün değişen fiyatını içerir. Yeni ziyaretlerde piyasa yavaşça dengelenir. Bu pencere açıkken zaman durur.</p><div class="trade-receipt" role="status" aria-live="polite"></div><button data-close>Şimdilik bu kadar · Oyuna dön</button>`,'trade');
-  dialog.querySelectorAll<HTMLButtonElement>('[data-trade-mode]').forEach(button=>button.onclick=()=>{tradeMode=button.dataset.tradeMode as 'sell'|'buy';openTrade()});
-  dialog.querySelectorAll<HTMLButtonElement>('[data-quantity]').forEach(button=>button.onclick=()=>{tradeQuantity=Number(button.dataset.quantity);openTrade()});
+      return `<article class="trade-product"><span class="trade-product-icon">${resourceArt(item.id)}</span><div class="trade-product-copy"><div class="trade-product-title"><strong>${item.name}</strong><em class="market-trend ${pressure>3?'scarce':pressure< -3?'abundant':''}">${pressure>3?'↗':pressure< -3?'↘':'↔'} ${trend}</em></div><small class="trade-stock">Sende <b>${game.tradeStock(item.id)}</b><i>·</i>Gemide <b>${game.merchantCargo[item.id]}</b></small><span class="trade-unit-price">İlk ürün <b>${price} altın</b>${amount>1&&quote.next!==price?`<small class="market-forecast">Sonra ${quote.next} altın ${quote.next>price?'↗':'↘'}</small>`:''}</span></div><button data-exchange="${item.id}" aria-label="${item.name}: ${active&&amount>0?`${amount} adet ${selling?'sat':'al'}, toplam ${quote.total} altın`:hint}" ${!active||amount<=0?'disabled':''}>${active&&amount>0?`<b>${amount} adet ${selling?'sat':'al'}</b><small>${selling?'+':'−'}${quote.total} altın ${icon('gold')}</small>`:`<b>${selling?'Sat':'Al'}</b><small>${hint}</small>`}</button></article>`;
+    }).join('')}</div>
+      <footer class="trade-footer"><div class="trade-receipt" role="status" aria-live="polite">${active?'Alışveriş için bir ürün seç.':'Gemi yanaştığında alışveriş başlayacak.'}</div><button data-close>Oyuna dön <span aria-hidden="true">↗</span></button></footer>
+    </section>
+  </div>`,'trade');
+  dialog.querySelector('.trade-basket')!.scrollTop=basketScroll;
+  dialog.querySelectorAll<HTMLButtonElement>('[data-trade-mode]').forEach(button=>button.onclick=()=>{tradeMode=button.dataset.tradeMode as 'sell'|'buy';openTrade();dialog.querySelector<HTMLButtonElement>(`[data-trade-mode="${tradeMode}"]`)!.focus({preventScroll:true})});
+  dialog.querySelectorAll<HTMLButtonElement>('[data-quantity]').forEach(button=>button.onclick=()=>{tradeQuantity=Number(button.dataset.quantity);openTrade();dialog.querySelector<HTMLButtonElement>(`[data-quantity="${tradeQuantity}"]`)!.focus({preventScroll:true})});
   dialog.querySelectorAll<HTMLButtonElement>('[data-exchange]').forEach(button=>button.onclick=()=>{
     const good=button.dataset.exchange as TradeGood,selling=tradeMode==='sell',quote=game.tradeQuote(good,tradeMode,tradeQuantity),count=selling?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
-    if(count){world.showTradeTransfer(selling);renderHud();renderStorage();sound.play('reward');openTrade();animateTrade(good,count,selling,quote.total)}
+    if(count){world.showTradeTransfer(selling);renderHud();renderStorage();sound.play('reward');openTrade();animateTrade(good,count,selling,quote.total);dialog.querySelector<HTMLButtonElement>(`[data-exchange="${good}"]:not(:disabled)`)?.focus({preventScroll:true})}
   });
 }
 function animateTrade(good:TradeGood,count:number,selling:boolean,total:number){
   const origin=dialog.getBoundingClientRect(),village=dialog.querySelector('[data-village-ledger]')!.getBoundingClientRect(),ship=dialog.querySelector('[data-ship-ledger]')!.getBoundingClientRect(),wallet=dialog.querySelector('[data-gold-ledger]')!.getBoundingClientRect();
-  const point=(rect:DOMRect)=>({x:rect.left+rect.width/2-origin.left,y:rect.top+rect.height/2-origin.top+dialog.scrollTop});
+  const point=(rect:DOMRect)=>({x:rect.left+rect.width/2-origin.left-dialog.clientLeft+dialog.scrollLeft,y:rect.top+rect.height/2-origin.top-dialog.clientTop+dialog.scrollTop});
   const fly=(graphic:string,from:DOMRect,to:DOMRect,index:number)=>{
     if(dialog.querySelectorAll('.trade-flight').length>=24)return;
     const a=point(from),b=point(to),node=document.createElement('span');node.className='trade-flight';node.innerHTML=resourceArt(graphic)||icon(graphic);dialog.append(node);
-    const animation=node.animate([{transform:`translate(${a.x}px,${a.y}px) scale(.6)`,opacity:0},{transform:`translate(${a.x}px,${a.y-14}px) scale(1)`,opacity:1,offset:.15},{transform:`translate(${(a.x+b.x)/2}px,${Math.min(a.y,b.y)-38-index*4}px) scale(1.1)`,opacity:1,offset:.5},{transform:`translate(${b.x}px,${b.y}px) scale(.45)`,opacity:0}],{duration:850,delay:index*95,easing:'cubic-bezier(.2,.65,.3,1)',fill:'both'});
+    const animation=node.animate([{transform:`translate(${a.x}px,${a.y}px) scale(.6)`,opacity:0},{transform:`translate(${a.x}px,${a.y-14}px) scale(1)`,opacity:1,offset:.15},{transform:`translate(${(a.x+b.x)/2}px,${Math.max(18,Math.min(a.y,b.y)-36-index*3)}px) scale(1.1)`,opacity:1,offset:.5},{transform:`translate(${b.x}px,${b.y}px) scale(.45)`,opacity:0}],{duration:850,delay:index*95,easing:'cubic-bezier(.2,.65,.3,1)',fill:'both'});
     void animation.finished.catch(()=>{}).then(()=>node.remove());
   };
   for(let i=0;i<Math.min(4,count);i++){fly(good,selling?village:ship,selling?ship:village,i);fly('gold',selling?ship:wallet,selling?wallet:ship,i+2)}

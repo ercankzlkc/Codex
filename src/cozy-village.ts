@@ -105,7 +105,7 @@ export class CozyVillage{
         if(t>.8)this.rewardDiscovery();
         if(t>2.7){this.removeDiscovery();this.collect.hidden=true;this.opening=-1;return}
       }
-      const p=this.discovery.position.clone().add(new T.Vector3(0,.3,0)).project(camera);this.collect.hidden=p.z< -1||p.z>1;this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
+      const p=this.discovery.position.clone().add(new T.Vector3(0,.35,0)).project(camera);this.collect.hidden=p.z< -1||p.z>1;this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
     }
     
   }

@@ -115,7 +115,7 @@ export class TropicalWater {
       `);
 
     };
-    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v5-cozy':'lagoon-rock-disturbance-v5-cozy-solid';
+    mat.customProgramCacheKey=()=> sand?'lagoon-sand-disturbance-v6-swell':'lagoon-rock-disturbance-v6-swell-solid';
     return mat;
   }
 
@@ -189,7 +189,8 @@ export class TropicalWater {
   setSun(direction:T.Vector3){this.uniforms.uSunDirection.value.copy(direction).normalize()}
   stir(x:number,z:number,dx:number,dz:number,strength:number,length:number,gain=1){
     if(![x,z,dx,dz,strength,length,gain].every(Number.isFinite)||climate.winter.value>.8||this.depthAt(x,z)<.04)return false;
-    // Never replace a visibly young wave. A bounded pool also limits rapid-pointer GPU work.
+    // The pool spans a full stroke's two soft ripples at the normal pointer cadence.
+    // Never replace a visibly young wave; both its surface and reef response fade together.
     let index=0;
     const wakes=this.uniforms.uWakes.value,now=this.uniforms.uTime.value;
     for(let i=1;i<WAKE_COUNT;i++)if(wakes[i].z<wakes[index].z)index=i;

@@ -135,7 +135,7 @@ export class World {
   private shippingIce:ShippingIce;
   private routeKey='';private blockedNotice=false;
   private crewVisuals=new WeakMap<T.Object3D,{visual:PersonVisual;body:T.Group;arms:T.Group[];legs:T.Group[]}>();
-  private shipPrevious=new T.Vector3();private shipWakeTime=0;
+  private shipPrevious=new T.Vector3();private shipPreviousValid=false;private shipWakeTime=0;
   private transferAge=10;private transferSelling=true;private lastMerchant=false;
   showTradeTransfer(selling:boolean){this.transferAge=0;this.transferSelling=selling}
   private merchantRay=new T.Raycaster();
@@ -219,7 +219,7 @@ export class World {
 
   set onFenceBreak(callback:()=>void){this.environment.onFenceBreak=callback}
   set onFenceBuild(callback:()=>void){this.environment.onFenceBuild=callback}
-  bindGame(game:Game){this.shippingIce.reset();this.routeKey='';this.blockedNotice=false;this.lastMerchant=false;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
+  bindGame(game:Game){this.shippingIce.reset();this.routeKey='';this.blockedNotice=false;this.lastMerchant=false;this.shipPreviousValid=false;this.shipWakeTime=0;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
   private ready(id:number){return this.board.has(id)&&this.buildings.has(id)&&!this.builds.some(b=>b.id===id)&&!this.demolitions.some(d=>d.id===id)}
   private pickTree(id:number,preferred:number){
     for(let j=0;j<3;j++){const index=(preferred+j)%3;if(!this.treeCycles.has(`${id}:${index}`)&&this.buildings.get(id)?.children.some(t=>t.userData.treeIndex===index))return index}
@@ -437,7 +437,7 @@ export class World {
     this.setHover(i);return i;
   }
   private stirSea(event:PointerEvent){
-    if(event.buttons||this.selected||this.editing>=0||this.game?.paused||document.hidden||document.querySelector('dialog[open]')||event.pointerType==='touch'){
+    if(event.buttons||this.selected||this.game?.paused||document.hidden||document.querySelector('dialog[open]')||event.pointerType==='touch'){
       this.lastSea=null;this.seaPointerSpeed=0;return;
     }
     const r=this.renderer.domElement.getBoundingClientRect();
@@ -451,7 +451,9 @@ export class World {
       this.lastSea={x,z,time:now};this.seaPointerSpeed=0;return;
     }
     const elapsed=now-previous.time,dx=x-previous.x,dz=z-previous.z,distance=Math.hypot(dx,dz);
-    if(distance>1.5){this.lastSea={x,z,time:now};this.seaPointerSpeed=0;return}
+    const camera=this.cameraControl.camera,worldPerPixel=(camera.right-camera.left)/Math.max(.1,camera.zoom)/r.width;
+    // A normal screen-space sweep must keep working when zoomed out over open sea.
+    if(distance>Math.max(1.5,worldPerPixel*140)){this.lastSea={x,z,time:now};this.seaPointerSpeed=0;return}
     // Accumulate small movements instead of losing them on high-rate mice.
     if(elapsed<.105||distance<.018)return;
     this.lastSea={x,z,time:now};
@@ -728,23 +730,30 @@ export class World {
       const t=this.game.merchantAge;ship.visible=t>=0&&this.game.merchantRouteOpen&&this.ready(id);
       const approach=t<MERCHANT_DOCKED?1-T.MathUtils.smoothstep(t,0,MERCHANT_DOCKED):t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END):0;
       ship.position.set(1.12,(SEA_Y-LAND_Y)/BUILDING_SCALE,2.6+approach*5.0);
-      const point=ship.getWorldPosition(new T.Vector3());
+      ship.rotation.y=t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END)*.35:0;
+      const point=ship.getWorldPosition(new T.Vector3()),wave=this.environment.sampleSea(point.x,point.z);
+      ship.position.y+=wave.height/BUILDING_SCALE;ship.rotation.x=wave.dz;ship.rotation.z=-wave.dx;
       if(ship.visible){
-        const direction=new T.Vector3(0,0,t<MERCHANT_DOCKED?-1:1).applyQuaternion(dock.getWorldQuaternion(new T.Quaternion()));
-        if(this.shipPrevious.distanceTo(point)<1&&this.shipPrevious.distanceTo(point)>.005){
-          this.shipWakeTime+=realDt;if(this.shipWakeTime>.13){this.shipWakeTime=0;
-            for(const side of [-1,1])this.environment.stir(point.x-direction.x*.7+direction.z*.38*side,point.z-direction.z*.7-direction.x*.38*side,direction.x,direction.z,.5,.32);
+        const travelSign=t<MERCHANT_DOCKED?-1:1;
+        const direction=new T.Vector3(0,0,travelSign).applyQuaternion(dock.getWorldQuaternion(new T.Quaternion()));
+        const moved=Math.hypot(point.x-this.shipPrevious.x,point.z-this.shipPrevious.z);
+        const moving=this.shipPreviousValid&&moved>.00001&&moved<1;
+        if(moving){
+          direction.set(point.x-this.shipPrevious.x,0,point.z-this.shipPrevious.z).normalize();
+          this.shipWakeTime+=realDt;
+          if(this.shipWakeTime>.13){
+            const sweptLength=T.MathUtils.clamp(moved/Math.max(.001,realDt)*this.shipWakeTime,.03,.38);this.shipWakeTime=0;
+            for(const side of [-1,1])this.environment.stir(point.x-direction.x*.7+direction.z*.38*side,point.z-direction.z*.7-direction.x*.38*side,direction.x,direction.z,.5,sweptLength);
           }
         }
+        // The contact point follows the real hull tip, including the departure turn.
+        const contact=ship.localToWorld(new T.Vector3(0,0,travelSign*1.53));contact.y=SEA_Y+.025;
         const far=dock.localToWorld(new T.Vector3(1.12,0,10));
-        if(t<MERCHANT_DOCKED||shipIce.open.value.y<.01)shipIce.lane.value.set(far.x,far.z,point.x+direction.x*1.15,point.z+direction.z*1.15);
+        if(t<MERCHANT_DOCKED||shipIce.open.value.y<.01)shipIce.lane.value.set(far.x,far.z,contact.x,contact.z);
         shipIce.open.value.y=1;
-        if(t<MERCHANT_DOCKED||t>MERCHANT_DEPARTURE){iceBow=point.clone().addScaledVector(direction,1.15);iceBow.y=SEA_Y+.03;iceDirection=direction}
-        this.shipPrevious.copy(point);
-      }
-      const wave=this.environment.sampleSea(point.x,point.z);
-      ship.position.y+=wave.height/BUILDING_SCALE;ship.rotation.x=wave.dz;ship.rotation.z=-wave.dx;
-      ship.rotation.y=t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END)*.35:0;
+        if(moving&&(t<MERCHANT_DOCKED||t>MERCHANT_DEPARTURE)){iceBow=contact;iceDirection=direction}
+        this.shipPrevious.copy(point);this.shipPreviousValid=true;
+      }else{this.shipPreviousValid=false;this.shipWakeTime=0}
       const bridge=dock.getObjectByName('merchant-gangway');if(bridge)bridge.visible=this.game.merchantPresent;
       for(let i=0;i<3;i++){
         const crew=dock.getObjectByName(`merchant-crew-${i}`);if(!crew)continue;
@@ -763,7 +772,8 @@ export class World {
         }
       }
     }
-    this.shippingIce.update(realDt,iceBow,iceDirection,climate.winter.value);
+    if(this.game?.harborId===undefined)this.shipPreviousValid=false;
+    this.shippingIce.update(realDt,iceBow,iceDirection,climate.winter.value,.62);
     this.detailTile=this.detailPointer&&!this.selected&&!document.querySelector('dialog[open]')?this.grid.pick(this.detailPointer.x,this.detailPointer.y,this.cameraControl.camera,this.el):-1;
     this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight,this.detailTile);this.updateStorageLabels();
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}

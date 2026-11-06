@@ -153,10 +153,15 @@ void main() {
   pigment=mix(pigment,vec3(.86,.93,.87)*mix(.75,1.,sunVisibility),foam*.58);
   pigment+=max(ring,0.)*vec3(.21,.32,.29);
   pigment=mix(pigment,vec3(.73,.93,.88),clamp(arrivalFoam*gate,0.,.5));
-  // A faint sky catch makes a slow stroke readable even away from the sun highlight.
-  pigment=mix(pigment,vec3(.64,.85,.84),clamp(disturbance.w*.045+max(wake,0.)*.8,0.,.08));
-  pigment+=max(wake,0.)*vec3(.22,.32,.30);
-  pigment*=1.+min(wake,0.)*.07;
+  // Surface reflection survives where there is no visible seabed. Broad crests catch
+  // the sky while their return troughs darken; these are moving water, not foam lines.
+  float swell=clamp(wake*24.,-.65,.65);
+  vec2 lightAcross=normalize(uSunDirection.xz+vec2(.17,.11));
+  float faceLight=dot(wakeSlope,lightAcross)*.32;
+  pigment*=1.+clamp(faceLight+min(swell,0.)*.13,-.17,.12);
+  float skyCatch=clamp(disturbance.w*.18+max(swell,0.)*.12,0.,.24);
+  skyCatch*=.72+.28*waterNoise(p*3.4+flow*.22);
+  pigment=mix(pigment,vec3(.64,.85,.86),skyCatch*.68);
   float opticalDepth=max(0.,depth-.25)/max(.50,eye.y);
   float opacity=1.-.88*exp(-.86*opticalDepth);
   opacity=mix(opacity,1.,smoothstep(2.38,3.25,depth));
