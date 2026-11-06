@@ -204,16 +204,41 @@ function harbor(){
   crate(g,.28,.12);barrel(g,.3,-.22);
   const sign=box(g,0x355f60,.38,.49,-.08,.3,.22,.04);
   box(g,0xcbb17a,.38,.48,-.05,.04,.15,.02);sign.rotation.y=-.1;
-  const ship=new T.Group();ship.name='merchant';ship.position.set(.68,-.31,1.14);
-  const hull=part(ship,new T.SphereGeometry(.38,10,6),0x6b5140,0,.08,0);hull.scale.set(.66,.55,1.5);
-  box(ship,0xc8ac7e,0,.2,0,.42,.07,.86);
-  for(const x of [-.2,.2])box(ship,0x8e704e,x,.27,0,.045,.13,.83);
-  box(ship,0x755d44,0,.64,-.05,.035,.93,.035);
-  box(ship,0x755d44,0,.96,-.05,.58,.027,.03);
-  const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute([-.26,.94,-.04,.26,.94,-.04,.19,.43,.035,-.26,.94,-.04,.19,.43,.035,-.18,.43,.035],3));sail.computeVertexNormals();
-  const cloth=part(ship,sail,0xeee0b9);(cloth.material as T.MeshStandardMaterial).side=T.DoubleSide;
-  box(ship,0x658c8a,0,.68,.015,.10,.45,.02);
-  crate(ship,.09,.3);barrel(ship,-.08,-.27);
+  for(let i=0;i<3;i++){crate(g,-.27+i*.25,.90);if(i%2===0)crate(g,-.27+i*.25,1.13)}
+  const ship=new T.Group();ship.name='merchant';ship.position.set(1.12,-.31,1.8);
+  const hullPoints:number[]=[],widths=[.03,.38,.62,.65,.58,.3,.015],zs=[-1.65,-1.35,-.8,0,.85,1.4,1.65];
+  const ring=(i:number)=>[[-widths[i],.20],[-widths[i]*.9,-.10],[0,-.35],[widths[i]*.9,-.10],[widths[i],.20]];
+  for(let i=0;i<zs.length-1;i++)for(let side=0;side<4;side++){
+    const a=ring(i)[side],b=ring(i+1)[side],c=ring(i)[side+1],d=ring(i+1)[side+1];
+    hullPoints.push(a[0],a[1],zs[i],b[0],b[1],zs[i+1],c[0],c[1],zs[i],c[0],c[1],zs[i],b[0],b[1],zs[i+1],d[0],d[1],zs[i+1]);
+  }
+  const hullGeo=new T.BufferGeometry();hullGeo.setAttribute('position',new T.Float32BufferAttribute(hullPoints,3));hullGeo.computeVertexNormals();
+  const hull=part(ship,hullGeo,0x71533d);(hull.material as T.MeshStandardMaterial).side=T.DoubleSide;
+  for(let i=0;i<zs.length-1;i++){const length=zs[i+1]-zs[i];box(ship,i%2?0xb49a70:0xc1aa7d,0,.19,(zs[i]+zs[i+1])/2,Math.max(.08,(widths[i]+widths[i+1])*.95),.055,length+.015)}
+  for(const side of [-1,1])for(let i=1;i<zs.length-1;i++){
+    box(ship,0x4d6962,side*widths[i],.29,zs[i],.045,.20,.045);
+    if(i<zs.length-2)beam(ship,0xa98d60,new T.Vector3(side*widths[i],.37,zs[i]),new T.Vector3(side*widths[i+1],.37,zs[i+1]),.035);
+  }
+  box(ship,0xd0c5a4,0,.46,-.97,.73,.50,.53);box(ship,0x587873,0,.74,-.97,.85,.07,.66);
+  for(const x of [-.23,.23])box(ship,0x476a70,x,.5,-.69,.15,.13,.018);
+  for(const z of [-.38,.70]){
+    box(ship,0x7e674b,0,1.02,z,.055,1.7,.055);box(ship,0x7e674b,0,1.62,z,1.13,.045,.045);
+    const sail=new T.BufferGeometry();sail.setAttribute('position',new T.Float32BufferAttribute([-.53,1.59,z,.53,1.59,z,.43,.88,z+.15,-.53,1.59,z,.43,.88,z+.15,-.40,.88,z+.15],3));sail.computeVertexNormals();
+    const cloth=part(ship,sail,0xf0e3be);(cloth.material as T.MeshStandardMaterial).side=T.DoubleSide;
+    box(ship,0x6b9187,0,1.23,z+.1,.13,.52,.025);
+    beam(ship,0x9e987c,new T.Vector3(0,1.85,z),new T.Vector3(.56,.3,z+.45),.012);
+  }
+  for(const x of [-.25,.25])for(const z of [.05,.35])crate(ship,x,z);
+  for(const z of [-1.25,1.10])barrel(ship,.22,z);
+  const pennant=part(ship,new T.ConeGeometry(.10,.34,3),0xb88f5c,0,1.93,-.38);pennant.rotation.z=Math.PI/2;
+  const crew=(parent:T.Group,x:number,z:number,index:number)=>{
+    const worker=new T.Group();worker.name=`merchant-crew-${index}`;worker.position.set(x,index===2?.06:.22,z);worker.userData.origin=new T.Vector3(x,index===2?.06:.22,z);parent.add(worker);
+    box(worker,index%2?0x6b8d84:0x9e8e71,0,.15,0,.10,.16,.065);ball(worker,0xd7b58d,0,.28,0,.055);part(worker,new T.ConeGeometry(.065,.065,8),0x566f65,0,.34,0);
+    for(const side of [-1,1]){box(worker,0x626e62,side*.027,.045,0,.035,.09,.04);const arm=box(worker,0xa48b69,side*.065,.16,.045,.035,.12,.035);arm.rotation.x=-.8}
+    const cargo=new T.Group();cargo.name='carried-crate';cargo.position.set(0,.13,.12);worker.add(cargo);box(cargo,0xae8e5e,0,0,0,.12,.12,.12);
+  };
+  const bridge=box(g,0xbba377,.66,.14,.84,.84,.035,.22);bridge.name='merchant-gangway';
+  crew(ship,-.22,-.42,0);crew(ship,.27,.65,1);crew(g,.15,.7,2);
   g.add(ship);return g;
 }
 export function model(kind: Kind): T.Group {

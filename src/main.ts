@@ -18,7 +18,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${icon('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
- <div class="tools"><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog" title="Ayarlar">${icon('settings')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
+ <div class="tools"><button id="trade-open" aria-label="Deniz ticareti" title="Deniz ticareti">${icon('harbor')}</button><button id="help" aria-label="Oyun rehberi" title="Oyun rehberi">${icon('help')}</button><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog" title="Ayarlar">${icon('settings')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
  <aside id="food-details" hidden role="tooltip"></aside>
@@ -248,26 +248,44 @@ async function refreshHand(){
 function showMilestones(){
   if(dialog.open||!game.milestoneQueue.length)return;
   const m=game.milestoneQueue.shift()!;
-  const unlocked=cards.filter(c=>c.unlock===m.population);
+  const unlocked=cards.filter(c=>c.unlock===m.population||m.population===60&&c.id==='harbor'&&game.harborId===undefined);
   modal(`<div class="milestone-heading"><span class="milestone-seal">${icon('crest')}</span><small>YERLEŞİMİN GELİŞTİ · ${m.population} NÜFUS</small><h1>${m.name}</h1><p>${m.description}</p></div>
-    <div class="milestone-reward">${icon('gold')} +${m.gold} altın <span>${m.population===60?'Liman kartı eline eklendi':'Hazinene eklendi'}</span></div>
-    ${unlocked.length?`<p class="unlock-caption">${m.population===60?'SANA HEDİYE':'KART HAVUZUNA EKLENDİ'}</p><div class="modal-cards">${unlocked.map((c,i)=>`<article class="card tone-${c.id}" style="--unlock-delay:${180+i*180}ms">${cardFace(c)}</article>`).join('')}</div>`:'<p>Tüccar kapasitesi: ziyaret başına 40 ürün.</p>'}
+    <div class="milestone-reward">${icon('gold')} +${m.gold} altın <span>${m.population===60&&game.harborId===undefined?'İskele kartı eline eklendi':'Hazinene eklendi'}</span></div>
+    ${unlocked.length?`<p class="unlock-caption">${m.population===60?'SANA HEDİYE':'KART HAVUZUNA EKLENDİ'}</p><div class="modal-cards">${unlocked.map((c,i)=>`<article class="card tone-${c.id}" style="--unlock-delay:${180+i*180}ms">${cardFace(c)}</article>`).join('')}</div>`:`<p>Tüccar alış kapasitesi: ziyaret başına ${game.tradeCapacity} ürün.</p>`}
     <div class="milestone-actions"><button data-close>Devam Et</button></div>`,'milestone');
   sound.play('reward');
 }
 function openProgress(){
   modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>`<section class="${game.reached.has(m.population)?'reached':''}"><b>${m.population} nüfus · ${m.name}</b><span>${m.description}</span><small>${cards.filter(c=>c.unlock===m.population).map(c=>c.name).join(' · ')||'Gelişmiş ticaret'} · +${m.gold} altın</small></section>`).join('')}</div><button data-close>Oyuna dön</button>`,'progress');
 }
+let tradeQuantity=5;
 function openTrade(){
   if(game.harborId===undefined){
-    modal(`<small>DENİZ TİCARETİ</small><h1>Limanını kur</h1><p>60 nüfusta Liman kartı hediye edilir. Kıyıya ${icon('wood')} 24 odun ve ${icon('stone')} 16 taş karşılığında kurabilirsin.</p><div class="modal-cards"><article class="card tone-harbor">${cardFace(cards.find(c=>c.id==='harbor')!)}</article></div><p>Tüccar gemisi 2 dakikada bir gelir ve 40 saniye bekler. Fazla ürünlerini satarak altın kazanırsın.</p><button data-close>Oyuna dön</button>`,'trade');return;
+    modal(`<div class="merchant-heading"><span>${icon('harbor')}</span><small>KIYIDAN UZAK LİMANLARA</small><h1>Bir ticaret iskelesi kur</h1><p>Her mevsimin üçüncü günü tüccar gemisi koyuna uğrar. Yanaşabilmesi için kıyıda bir iskeleye ihtiyacı var.</p></div><div class="dock-blueprint"><img src="${thumbs.harbor}" alt="Ticaret iskelesi önizlemesi"><div><b>Ticaret İskelesi</b><p>Kurulum: 12 odun · 6 taş<br>Bir köyde bir ticaret iskelesi.</p></div></div><button data-dock-card>İskele kartını elime al</button><button data-close>Oyuna dön</button>`,'trade');
+    dialog.querySelector('[data-dock-card]')!.addEventListener('click',()=>{
+      const card=cards.find(c=>c.id==='harbor')!;if(!game.hand.includes(card))game.hand.push(card);render(true);void closeDialog();toast('Ticaret İskelesi kartı eline eklendi');
+    });return;
   }
-  modal(`<small>LİMAN · DENİZ TİCARETİ</small><h1>${game.merchantPresent?'Tüccar limanda':'Bir sonraki gemi yolda'}</h1><p>${game.merchantPresent?`Kalan süre ${game.merchantCountdown} saniye · ${game.tradeCapacity-game.tradeSold} ürün daha alabilir.`:`Gemi ${game.merchantCountdown} saniye sonra gelecek.`} Pencere açıkken oyun durur.</p><p class="milestone-reward">${icon('gold')} ${game.gold} altın</p><div class="trade-list">${TRADE_GOODS.map(item=>`<div>${icon(item.id)}<span><b>${item.name}</b><small>${game.tradeStock(item.id)} stok · tanesi ${item.price} altın</small></span><button data-sell="${item.id}" ${!game.merchantPresent||game.tradeStock(item.id)<1||game.tradeSold>=game.tradeCapacity?'disabled':''}>${Math.min(5,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold)} adet sat</button></div>`).join('')}</div><p>Satış stoklarından düşer. Köylülerin yiyeceğini ve inşaat malzemelerini ayırmayı unutma.</p><button data-close>Oyuna dön</button>`,'trade');
-  dialog.querySelectorAll<HTMLButtonElement>('[data-sell]').forEach(button=>button.onclick=()=>{if(game.sell(button.dataset.sell as TradeGood)){render();renderStorage();sound.play('reward');openTrade()}});
+  const active=game.merchantPresent;
+  modal(`<div class="merchant-heading"><span>${icon('harbor')}</span><small>YELKEN TİCARET KUMPANYASI</small><h1>${active?'Tüccar iskelenizde':'Ufukta bir sonraki yolculuk'}</h1><p>${active?`Yanaşma süresi: ${game.merchantCountdown} sn · ${game.tradeCapacity-game.tradeSold} ürün daha alabilir.`:`Her mevsimin 3. günü gelir. Ticarete ${game.merchantCountdown} sn kaldı.`} Ticaret açıkken zaman durur.</p></div>
+    <div class="merchant-wallet"><span>${icon('gold')} <b>${game.gold}</b> altın</span><span>${icon('carry')} <b>${game.totalStorageFree}</b> boş depo yeri</span></div>
+    <div class="trade-quantity"><span>İşlem miktarı</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-pressed="${tradeQuantity===n}">${n} adet</button>`).join('')}</div>
+    <div class="merchant-goods"><div class="merchant-columns"><span>Ürün / senin stoğun</span><span>Sat · altın kazan</span><span>Al · gemiden</span></div>${TRADE_GOODS.map(item=>{
+      const sell=Math.min(tradeQuantity,game.tradeStock(item.id),game.tradeCapacity-game.tradeSold),buy=Math.min(tradeQuantity,game.merchantCargo[item.id],Math.floor(game.gold/game.buyPrice(item.id)),game.totalStorageFree);
+      return `<article class="merchant-good"><div class="merchant-item">${icon(item.id)}<span><b>${item.name}</b><small>Sende ${game.tradeStock(item.id)} · Gemide ${game.merchantCargo[item.id]}</small></span></div><div><button data-sell="${item.id}" ${!active||sell<=0?'disabled':''}>${sell||tradeQuantity} sat <b>+${(sell||tradeQuantity)*item.price} ${icon('gold')}</b></button><small>Birim: ${item.price} altın</small></div><div><button data-buy="${item.id}" ${!active||buy<=0?'disabled':''}>${buy||tradeQuantity} al <b>−${(buy||tradeQuantity)*game.buyPrice(item.id)} ${icon('gold')}</b></button><small>${!game.totalStorageFree?'Depon dolu':game.merchantCargo[item.id]===0?'Gemide kalmadı':game.gold<game.buyPrice(item.id)?'Altın yetersiz':`Birim: ${game.buyPrice(item.id)} altın`}</small></div></article>`
+    }).join('')}</div><p class="merchant-note">İşlemler miktar, altın ve stok sınırına göre ayarlanır. Yiyecekleri köylülerine ayırmayı unutma.</p><button data-close>Güzel yolculuklar · Oyuna dön</button>`,'trade');
+  dialog.querySelectorAll<HTMLButtonElement>('[data-quantity]').forEach(button=>button.onclick=()=>{tradeQuantity=Number(button.dataset.quantity);openTrade()});
+  for(const action of ['sell','buy'] as const)dialog.querySelectorAll<HTMLButtonElement>(`[data-${action}]`).forEach(button=>button.onclick=()=>{
+    const good=button.dataset[action] as TradeGood,count=action==='sell'?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
+    if(count){world.showTradeTransfer(action==='sell');renderHud();renderStorage();sound.play('reward');openTrade()}
+  });
 }
+window.addEventListener('merchant-arrived',()=>toast('Ticaret gemisi yanaştı · Gemiye tıklayarak alışveriş yapabilirsin'));
+world.onMerchant=()=>{if(!handBusy&&!locked)openTrade()};
 get('[data-progress]').onclick=()=>{closeWork();openProgress()};
 get('#reroll-toggle').onclick=()=>{void refreshHand()};
 get('#tile-trade').onclick=openTrade;
+get('#trade-open').onclick=openTrade;
 
 let deliveryHudFrame=0;
 const deliveryPulses=new Map<Resource,number>();
@@ -344,7 +362,7 @@ function reset(){
 }
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
- <p>Sol alttaki Köy Defteri’nden köylülerin portrelerini, isimlerini, dileklerini ve kıyı keşiflerini görebilirsin. Dilekleri gerçekleştirmek refah kazandırır. Denizde beliren keşiflere tıklayarak küçük hazineler toplayabilirsin.</p><p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. 60 nüfusta Liman kartı hediye edilir; limanı kurup gelen tüccara ürün satarak altın kazanırsın. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
+ <p>Sol alttaki Köy Defteri’nden köylülerin portrelerini, isimlerini, dileklerini ve kıyı keşiflerini görebilirsin. Dilekleri gerçekleştirmek refah kazandırır. Denizde beliren keşiflere tıklayarak küçük hazineler toplayabilirsin.</p><p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. Deniz ticareti düğmesinden iskele kartını alıp kıyıya kurabilirsin. Her mevsimin 3. günü gemi gelir; gemiye tıklayıp alış ve satış yapabilirsin. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
  <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Her ev iki, büyük ev dört yeni sakin getirir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 2 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir. + bir köylüyü o işe geçirir, − boşta bırakır; boşta kimse yoksa + başka işten birini aktarır. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>

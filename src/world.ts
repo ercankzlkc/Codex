@@ -1,3 +1,4 @@
+import {MERCHANT_ARRIVAL,MERCHANT_DOCKED,MERCHANT_DEPARTURE,SEASON_SECONDS} from './calendar';
 import {CozyVillage} from './cozy-village';
 import * as T from 'three';
 import {FenceTorches} from './torches';
@@ -127,6 +128,10 @@ export class World {
   hover=-1;
   valid=(_i:number)=>false;
   onHover=(_i:number)=>{};
+  onMerchant=()=>{};
+  private transferAge=10;private transferSelling=true;private lastMerchant=false;
+  showTradeTransfer(selling:boolean){this.transferAge=0;this.transferSelling=selling}
+  private merchantRay=new T.Raycaster();
   onPick=(_i:number)=>{};
   onTileSelect=(_i:number)=>{};
   onSoundFrame=(_camera:T.OrthographicCamera,_focus:T.Vector3,_birds:readonly T.Object3D[],_shore:readonly ShoreEdge[],_land:ReadonlyMap<number,unknown>)=>{};
@@ -184,6 +189,7 @@ export class World {
       if(e.button!==0)return;
       if(this.selected){const i=this.point(e.clientX,e.clientY);if(i>=0)this.onPick(i)}
       else if(!this.placing&&!document.querySelector('dialog[open]')){
+        if(this.pickMerchant(e.clientX,e.clientY)){this.onMerchant();return}
         const i=this.grid.pick(e.clientX,e.clientY,this.cameraControl.camera,this.el);
         this.editTile(this.board.has(i)?i:-1);
       }
@@ -206,7 +212,7 @@ export class World {
 
   set onFenceBreak(callback:()=>void){this.environment.onFenceBreak=callback}
   set onFenceBuild(callback:()=>void){this.environment.onFenceBuild=callback}
-  bindGame(game:Game){this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
+  bindGame(game:Game){this.lastMerchant=false;this.transferAge=10;this.game=game;this.cozy.bind(game);this.villagers.reset(game)}
   private ready(id:number){return this.board.has(id)&&this.buildings.has(id)&&!this.builds.some(b=>b.id===id)&&!this.demolitions.some(d=>d.id===id)}
   private pickTree(id:number,preferred:number){
     for(let j=0;j<3;j++){const index=(preferred+j)%3;if(!this.treeCycles.has(`${id}:${index}`)&&this.buildings.get(id)?.children.some(t=>t.userData.treeIndex===index))return index}
@@ -371,8 +377,14 @@ export class World {
     this.trails.count=this.trailPoints.length;this.trails.instanceMatrix.needsUpdate=true;
   }
   screenPoint(id:number,y=.7){const p=position(id),v=new T.Vector3(p.x,y,p.z).project(this.cameraControl.camera);return {x:(v.x+1)*this.el.clientWidth/2,y:(1-v.y)*this.el.clientHeight/2}}
+  private pickMerchant(x:number,y:number){
+    const rect=this.el.getBoundingClientRect();this.merchantRay.setFromCamera(new T.Vector2((x-rect.left)/rect.width*2-1,1-(y-rect.top)/rect.height*2),this.cameraControl.camera);
+    for(const [id,kind] of this.board){if(kind!=='harbor'||!this.ready(id))continue;const ship=this.buildings.get(id)?.getObjectByName('merchant');if(ship?.visible&&this.merchantRay.intersectObject(ship,true).length)return true}
+    return false;
+  }
   private inspectPointer(event:PointerEvent){
     this.detailPointer=event.buttons?null:{x:event.clientX,y:event.clientY};
+    if(this.pickMerchant(event.clientX,event.clientY)&&!this.selected){this.renderer.domElement.style.cursor='var(--cursor-point)';this.onInspect(-1,0,0,null);return}
     if(this.selected||event.buttons||document.querySelector('dialog[open]')){this.onInspect(-1,0,0,null);return}
     const id=this.grid.pick(event.clientX,event.clientY,this.cameraControl.camera,this.el);
     if(!this.board.has(id)){this.onInspect(-1,0,0,null);this.renderer.domElement.style.cursor='';return}
@@ -693,13 +705,30 @@ export class World {
       const step=Math.min(.065,remaining);this.villagers.update(step,firstStep?2:0);
       firstStep=false;remaining=Math.max(0,remaining-step);
     }
+    this.transferAge+=realDt;
+    if(this.game?.merchantPresent&&!this.lastMerchant)window.dispatchEvent(new CustomEvent('merchant-arrived'));
+    this.lastMerchant=!!this.game?.merchantPresent;
     for(const [id,kind] of this.board)if(kind==='harbor'){
-      const ship=this.buildings.get(id)?.getObjectByName('merchant');if(!ship||!this.game)continue;
-      const t=this.game.tradeClock;
-      ship.visible=t<52;
-      const approach=t<6?1-t/6:t>46?(t-46)/6:0;
-      ship.position.set(.68,(SEA_Y-LAND_Y)/BUILDING_SCALE+.025*Math.sin(this.time*1.5),1.14+approach*4);
-      ship.rotation.y=t>46?Math.PI:0;ship.rotation.z=Math.sin(this.time*1.2)*.035;
+      const dock=this.buildings.get(id),ship=dock?.getObjectByName('merchant');if(!dock||!ship||!this.game)continue;
+      const t=this.game.tradeClock;ship.visible=t>=MERCHANT_ARRIVAL&&this.ready(id);
+      const approach=t<MERCHANT_DOCKED?1-T.MathUtils.smoothstep(t,MERCHANT_ARRIVAL,MERCHANT_DOCKED):t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,SEASON_SECONDS):0;
+      ship.position.set(1.12,(SEA_Y-LAND_Y)/BUILDING_SCALE,1.8+approach*7);
+      const point=ship.getWorldPosition(new T.Vector3()),wave=this.environment.sampleSea(point.x,point.z);
+      ship.position.y+=wave.height/BUILDING_SCALE;ship.rotation.x=wave.dz;ship.rotation.z=-wave.dx;
+      ship.rotation.y=t>=MERCHANT_DEPARTURE?T.MathUtils.smoothstep(t,MERCHANT_DEPARTURE,SEASON_SECONDS)*.35:0;
+      const bridge=dock.getObjectByName('merchant-gangway');if(bridge)bridge.visible=this.game.merchantPresent;
+      for(let i=0;i<3;i++){
+        const crew=dock.getObjectByName(`merchant-crew-${i}`);if(!crew)continue;
+        const origin=crew.userData.origin as T.Vector3,walk=Math.sin(this.time*.9+i*2),busy=this.game.merchantPresent;
+        crew.visible=i<2?ship.visible:busy;
+        crew.position.copy(origin);if(busy){crew.position.z+=walk*(i===2?.25:.22);crew.position.y+=Math.abs(Math.sin(this.time*6+i))*.01;crew.rotation.y=walk>0?0:Math.PI}
+        if(i===2&&busy){
+          const t=this.transferAge<3?this.transferAge:(this.time%6)*.5,progress=t<1.5?T.MathUtils.smoothstep(t,0,1.5):1-T.MathUtils.smoothstep(t,1.5,3);
+          const inbound=this.transferAge<3&&!this.transferSelling?1-progress:progress;
+          crew.position.set(T.MathUtils.lerp(.15,1.05,inbound),T.MathUtils.lerp(.06,.22,inbound)+Math.abs(Math.sin(t*12))*.006,T.MathUtils.lerp(.70,.90,inbound));crew.rotation.y=(t<1.5?1:-1)*(this.transferAge<3&&!this.transferSelling?-1:1)*Math.PI/2;
+          const cargo=crew.getObjectByName('carried-crate');if(cargo)cargo.visible=t<1.5;
+        }
+      }
     }
     this.detailTile=this.detailPointer&&!this.selected&&!document.querySelector('dialog[open]')?this.grid.pick(this.detailPointer.x,this.detailPointer.y,this.cameraControl.camera,this.el):-1;
     this.villagers.updateStatuses(this.cameraControl.camera,this.el.clientWidth,this.el.clientHeight,this.detailTile);this.updateStorageLabels();
