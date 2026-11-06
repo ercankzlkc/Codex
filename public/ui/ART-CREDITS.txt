@@ -1,2 +1,5 @@
 resource-atlas.png: Bu proje için üretilmiş dokuz kaynak görseli (3×3 saydam atlas).
 Odun, taş, yiyecek, altın, nüfus, refah, çilek, buğday, balık.
+
+coastal-frame.png: Bu proje için üretilmiş, saydam merkezli boyalı ahşap arayüz çerçevesi.
+coastal-paper.png: Bu proje için üretilmiş, tekrarlanabilir kâğıt yüzey dokusu.

@@ -8,22 +8,23 @@
 }
 :root {
   --ui-font: 'Baloo 2', sans-serif;
-  --ui-ink: #333b39;
-  --ui-muted: #68746c;
-  --ui-paper: color-mix(in srgb, var(--palette-paper, #efede5) 18%, #efede5);
-  --ui-paper-deep: #e3e3d8;
-  --ui-pine: color-mix(in srgb, var(--palette-accent, #66806d) 18%, #66806d);
-  --ui-sage: #b7c6b6;
-  --ui-gold: #d9c58e;
+  --ui-ink: #284e4a;
+  --ui-muted: #596650;
+  --ui-paper: #efe5cc;
+  --ui-paper-deep: #e0d6ba;
+  --ui-pine: #486c60;
+  --ui-sage: #b2bea0;
+  --ui-gold: #b9975c;
   --ui-coral: #ad705f;
-  --ui-stroke: #b7bdb5;
-  --ui-shadow: 0 4px 14px #142c3029;
+  --ui-stroke: #b4aa86;
+  --ui-shadow: 0 5px 17px #183e3633;
   --ui-radius: 5px;
-  --ui-panel-top: 88px;
+  --ui-panel-top: 98px;
+  --ui-rail-height: 68px;
   --ui-header-y: 16px;
   --ui-rail-left: max(16px, calc((100vw - 1540px) / 2));
-  --card-w: clamp(160px, 10vw, 184px);
-  --card-h: clamp(212px, 22vh, 238px);
+  --card-w: clamp(194px, 14vw, 224px);
+  --card-h: calc(var(--card-w) * 1.4);
   font-family: var(--ui-font);
   color: var(--ui-ink);
   font-size: 15px;
@@ -49,7 +50,7 @@ svg { flex-shrink: 0; }
   top: var(--ui-header-y);
   left: var(--ui-rail-left);
   right: var(--ui-rail-left);
-  height: 58px;
+  height: var(--ui-rail-height);
   background: var(--ui-paper);
   border: 1px solid #ffffff80;
   border-bottom-color: #667c7080;
@@ -65,7 +66,7 @@ svg { flex-shrink: 0; }
   right: calc(var(--ui-rail-left) + 174px);
   width: auto;
   max-width: none;
-  height: 58px;
+  height: var(--ui-rail-height);
   margin: 0;
   padding: 0 6px;
   display: block;
@@ -93,6 +94,7 @@ svg { flex-shrink: 0; }
 }
 .kingdom-hud .resource {
   position: relative;
+  isolation: isolate;
   display: flex;
   flex: 1 1 0;
   align-items: center;
@@ -111,7 +113,7 @@ svg { flex-shrink: 0; }
 }
 .kingdom-hud .resource + .resource::before {
   left: 0;
-  top: 16px;
+  top: 21px;
   width: 1px;
   height: 26px;
   background: #bac1b675;
@@ -175,10 +177,21 @@ svg { flex-shrink: 0; }
 .kingdom-hud .resource[data-resource=people] em { background: #2c3c39; }
 .kingdom-hud button.resource { border: 0; background: none; font: inherit; }
 .kingdom-hud button.resource:hover, .kingdom-hud button.resource[aria-expanded=true],
-.kingdom-hud .resource[data-resource=food]:hover { background: #cdd8cb66; }
+.kingdom-hud .resource[data-resource=food]:hover { background: none; }
+.kingdom-hud button.resource:hover::after,
+.kingdom-hud button.resource[aria-expanded=true]::after,
+.kingdom-hud .resource[data-resource=food]:hover::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 9px 3px;
+  border-radius: 3px;
+  background: #b4c39e55;
+  pointer-events: none;
+}
 .kingdom-hud .resource b[data-change=up] { color: #5c805b; }
 .kingdom-hud .resource b[data-change=down] { color: #aa705f; }
-.population-track { left: 12px; right: 12px; bottom: 5px; height: 2px; border: 0; border-radius: 0; background: #d6dbd1; }
+.population-track { left: 12px; right: 12px; bottom: 10px; height: 2px; border: 0; border-radius: 0; background: #d6dbd1; }
 .population-track i { height: 100%; background: #779475; border-radius: 0; transition: width .4s; }
 
 #season-hud {
@@ -191,7 +204,7 @@ svg { flex-shrink: 0; }
   gap: 12px;
   width: 240px;
   min-width: 0;
-  height: 58px;
+  height: var(--ui-rail-height);
   padding: 5px 0;
   border: 0;
   border-radius: 0;
@@ -223,14 +236,15 @@ svg { flex-shrink: 0; }
   align-items: center;
   flex-direction: row;
   gap: 3px;
-  height: 58px;
+  height: var(--ui-rail-height);
   padding: 0 0 0 12px;
   border: 0;
-  border-left: 1px solid #bac1b675;
+  border-left: 0;
   border-radius: 0;
   background: none;
   box-shadow: none;
 }
+.tools::before { content: ''; position: absolute; left: 0; top: 16px; bottom: 16px; width: 1px; background: #b4aa8666; }
 .tools button { position: relative; width: 32px; height: 32px; padding: 7px; border: 0; outline: 0; border-radius: 3px; background: none; color: #66766a; box-shadow: none; transition: background .14s, color .14s; }
 .tools button svg { width: 18px; height: 18px; }
 .tools button:hover, .tools button:focus-visible { transform: none; color: #304c3c; background: #d5ddd0; }
@@ -240,7 +254,7 @@ svg { flex-shrink: 0; }
 .tools button::after { content: attr(aria-label); position: absolute; right: 0; top: calc(100% + 15px); bottom: auto; width: max-content; max-width: 180px; padding: 7px 10px; border: 0; border-radius: 4px; background: #2c3c39; color: #f1f0e8; font-size: 12px; line-height: 1.4; font-weight: 500; box-shadow: var(--ui-shadow); opacity: 0; transform: translateY(-3px); transition: opacity .14s, transform .14s; pointer-events: none; }
 .tools button:hover::after, .tools button:focus-visible::after { opacity: 1; transform: none; }
 
-#log { z-index: 18; top: 88px; left: 50%; right: auto; max-width: min(580px, calc(100vw - 48px)); padding: 9px 14px; border: 0; border-radius: 4px; background: #2c3c39ed; color: #f1f0e8; font-size: 13px; font-weight: 500; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; box-shadow: var(--ui-shadow); transform: translate(-50%, -4px); transition: opacity .18s, transform .18s; }
+#log { z-index: 18; top: var(--ui-panel-top); left: 50%; right: auto; max-width: min(580px, calc(100vw - 48px)); padding: 9px 14px; border: 0; border-radius: 4px; background: #2c3c39ed; color: #f1f0e8; font-size: 13px; font-weight: 500; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; box-shadow: var(--ui-shadow); transform: translate(-50%, -4px); transition: opacity .18s, transform .18s; }
 #log.visible { transform: translate(-50%, 0); }
 #placement { bottom: calc(var(--card-h) + 72px); max-width: min(620px, calc(100vw - 320px)); gap: 3px 10px; padding: 9px 13px; border: 1px solid #ffffff33; border-radius: 4px; background: #2c3c39ed; color: #f1f0e8; box-shadow: var(--ui-shadow); text-align: left; }
 #placement strong { color: #f1f0e8; font-size: 15px; font-weight: 650; line-height: 1.3; }
@@ -267,7 +281,7 @@ svg { flex-shrink: 0; }
   .kingdom-hud .resource b { font-size: 21px; }
 }
 @media (max-height: 740px) {
-  :root { --card-h: 212px; --card-w: 160px; }
+  :root { --card-w: 194px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; animation-iteration-count: 1 !important; }

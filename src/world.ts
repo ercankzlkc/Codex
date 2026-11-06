@@ -844,11 +844,23 @@ export class World {
     const images:Record<string,string>={};
     const scene=new T.Scene();scene.add(new T.HemisphereLight(0xfff3dd,0x829578,1.65));
     const light=new T.DirectionalLight(0xffe1b8,2.55);light.position.set(-3,5,4);scene.add(light);
-    const camera=new T.OrthographicCamera(-.96,.96,.75,-.75,.1,20);
-    camera.position.set(2.9,2.25,3.7);camera.lookAt(0,.43,0);
-    const renderer=new T.WebGLRenderer({alpha:true,antialias:true});renderer.setSize(280,220);renderer.toneMapping=T.ACESFilmicToneMapping;
+    const width=480,height=376,aspect=width/height;
+    const camera=new T.OrthographicCamera(-1,1,1,-1,.1,20);
+    const viewOffset=new T.Vector3(2.9,1.82,3.7);
+    const bounds=new T.Box3(),center=new T.Vector3(),corner=new T.Vector3();
+    const renderer=new T.WebGLRenderer({alpha:true,antialias:true});renderer.setSize(width,height);renderer.toneMapping=T.ACESFilmicToneMapping;
     for(const card of cards){
-      const group=model(card.id);if(card.id==='harbor'){group.scale.setScalar(.64);group.position.z=-.22}part(group,new T.CylinderGeometry(.72,.75,.068,6),0x9db77c,0,-.034,0);scene.add(group);
+      const group=model(card.id);part(group,new T.CylinderGeometry(.72,.75,.068,6),0x9db77c,0,-.034,0);scene.add(group);
+      bounds.setFromObject(group);bounds.getCenter(center);
+      camera.position.copy(center).add(viewOffset);camera.lookAt(center);camera.updateMatrixWorld(true);
+      // Fit the full model in view space, including the quay and merchant ship.
+      let halfWidth=0,halfHeight=0;
+      for(let i=0;i<8;i++){
+        corner.set(i&1?bounds.max.x:bounds.min.x,i&2?bounds.max.y:bounds.min.y,i&4?bounds.max.z:bounds.min.z).applyMatrix4(camera.matrixWorldInverse);
+        halfWidth=Math.max(halfWidth,Math.abs(corner.x));halfHeight=Math.max(halfHeight,Math.abs(corner.y));
+      }
+      const viewHeight=Math.max(halfHeight,halfWidth/aspect)*1.1;
+      camera.left=-viewHeight*aspect;camera.right=viewHeight*aspect;camera.top=viewHeight;camera.bottom=-viewHeight;camera.updateProjectionMatrix();
       renderer.render(scene,camera);images[card.id]=renderer.domElement.toDataURL();scene.remove(group);
     }
     renderer.dispose();renderer.forceContextLoss();return images;
