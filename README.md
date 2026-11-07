@@ -52,7 +52,7 @@ Cloudflare Workers & Pages → Create application → GitHub deposu `ercankzlkc/
 
 - Kartları kıyıdaki boş altıgenlere sürükleyin.
 - Seçili kartı veya yapıyı tekerlek / R ile döndürün; Shift + R ters yöndür.
-- Sağ fareyle 360° döndürün, orta fare veya Shift + sağ fareyle kaydırın.
+- Sağ fareyle 360° döndürün, orta fareyi basılı tutup sürükleyerek veya Shift + sağ fareyle kaydırın.
 - Tekerlekle yakınlaşın, Home ile adayı ortalayın, Esc ile seçimi bırakın.
 - Mevcut altıgene tıklayarak döndürün veya yıkın. Merkez korunur; yıkım kaynak vermez.
 - Depoyu seçerek kapasitesini görün veya odunla yükseltin.
@@ -98,4 +98,6 @@ Köylüler iş başındayken yemek animasyonu işi ve alet görünürlüğünü 
 
 Deniz keşifleri yalnızca sandıklardan oluşur. Altın çıkma ihtimali %8’dir (3–6 altın); diğer sandıklarda 5–10 odun, taş, çilek, buğday veya balık bulunur. Kaynaklar kendi HUD alanına uçtuktan sonra envantere eklenir. Depoda yer yoksa kalan içerik açık sandıkta korunur; yer açıldıktan sonra yeniden alınabilir. Tamamen boşalan sandık 8 saniyede altı birim derine iner; yalnızca son derinlik bölümünde silikleşerek kaybolur. Açılma, dalgayla sallanma ve batma oyun hızından bağımsızdır; sandık fareyle oluşturulan su dalgalarının yüksekliğini ve eğimini de izler.
 
-Yanan meşalenin yakınındaki küçük kar alanı ısındıkça erir. Sönünce kar kademeli geri gelir; çatı karı korunur. Geminin kırdığı buz küçük, karla aynı renkte taneler ve az sayıda ince kırıntıyla gösterilir.
+Meşaleler geceleri otomatik yanar ve odun tüketmez. Yanan meşalenin yakınındaki küçük kar alanı ısındıkça erir. Sönünce kar kademeli geri gelir; çatı karı korunur. Geminin kırdığı buz küçük, karla aynı renkte taneler ve az sayıda ince kırıntıyla gösterilir.
+
+Ticaret penceresi ürün ikonlarıyla tek tabloda köy stoğunu, geminin talebini, eksik miktarı ve gemi yükünü gösterir. Alış/satış aynı tablodan yapılır.

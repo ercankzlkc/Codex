@@ -479,12 +479,18 @@ dialog[data-kind=trade] .merchant-heading { text-align: left; }
   }
 }
 
-.trade-manifest { padding: 0 0 18px; border-bottom: 1px solid var(--ui-stroke); }
-.trade-manifest h3 { margin: 0 0 8px; font-size: 18px; }
-.trade-manifest p { margin: 8px 0; color: var(--ui-muted); font-size: 12px; line-height: 1.5; }
-.trade-manifest table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-.trade-manifest th, .trade-manifest td { padding: 8px 5px; text-align: right; border-bottom: 1px solid var(--ui-stroke); }
-.trade-manifest th:first-child { text-align: left; }
-.trade-manifest thead { color: var(--ui-muted); }
-.trade-layout .trade-basket { grid-auto-rows: auto; }
-.trade-layout .trade-product { min-height: 86px; }
+.trade-layout .trade-basket.trade-ledger { display: block; padding-right: 4px; }
+.trade-ledger h3 { margin: 0 0 14px; font-size: 16px; color: var(--ui-muted); }
+.trade-ledger table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.trade-ledger th, .trade-ledger td { padding: 12px 6px; text-align: center; border-bottom: 1px solid var(--ui-stroke); }
+.trade-ledger thead th { color: var(--ui-muted); font-size: 11px; font-weight: 500; white-space: nowrap; }
+.trade-ledger th:first-child { text-align: left; }
+.trade-good-name { display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 600; }
+.trade-good-name .resource-art { flex: 0 0 34px; width: 34px; height: 34px; }
+.trade-good-name small { display: block; margin-top: 5px; color: var(--ui-muted); font-size: 11px; font-weight: 400; white-space: nowrap; }
+.trade-ledger .trade-missing { color: #9b593a; font-weight: 600; }
+.trade-ledger .trade-prepared { color: var(--ui-pine); }
+dialog[data-kind=trade] .trade-ledger button { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; min-width: 78px; min-height: 46px; margin: 0; padding: 9px; border-radius: 5px; font-size: 12px; }
+.trade-ledger button small { font-size: 11px; }
+.trade-ledger .svg-inline--fa, .trade-choice .svg-inline--fa { width: 13px; height: 13px; }
+.dock-blueprint .resource-art { display: inline-block; width: 24px; height: 24px; vertical-align: middle; }

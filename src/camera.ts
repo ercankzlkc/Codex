@@ -7,6 +7,7 @@ export class CameraController {
   private readonly element: HTMLElement;
   private readonly target = new THREE.Vector3(0, 0.12, 0);
   private readonly desiredTarget = new THREE.Vector3(0, 0.12, 0);
+  private readonly panOffset = new THREE.Vector3();
   private readonly offset = new THREE.Vector3();
   private readonly spherical = new THREE.Spherical();
   private distance = 20;
@@ -32,7 +33,7 @@ export class CameraController {
     this.islandCenter.set((Math.min(...xs)+Math.max(...xs))/2,.3,(Math.min(...zs)+Math.max(...zs))/2);
     this.islandRadius=Math.max(...points.map(p=>Math.hypot(p.x-this.islandCenter.x,p.z-this.islandCenter.z)))+2.65;
     this.distance=Math.max(20,this.islandRadius*3);this.camera.far=this.distance+this.islandRadius*3+40;
-    this.desiredTarget.copy(this.islandCenter);
+    this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
     this.resize(this.viewportWidth,this.viewportHeight);
     if(immediate){this.target.copy(this.desiredTarget);this.halfHeight=this.desiredHalfHeight;this.applyProjection();this.applyTransform()}
   }
@@ -46,7 +47,7 @@ export class CameraController {
   }
   private viewportHeight = 900;
   private placement = false;
-  private pointer: { id: number; x: number; y: number } | null = null;
+  private pointer: { id: number; x: number; y: number; pan: boolean } | null = null;
   private disposed = false;
   private readonly cleanup = new AbortController();
 
@@ -61,6 +62,7 @@ export class CameraController {
     element.addEventListener('lostpointercapture', this.onPointerUp, { signal });
     element.addEventListener('wheel', this.onWheel, { passive: false, signal });
     element.addEventListener('contextmenu', this.onContextMenu, { signal });
+    element.addEventListener('auxclick', this.onAuxClick, { signal });
     window.addEventListener('keydown', this.onKeyDown, { signal });
     window.addEventListener('blur', this.onBlur, { signal });
     this.resize(element.clientWidth || 1280, element.clientHeight || 900);
@@ -93,8 +95,8 @@ export class CameraController {
     }
     this.yaw = THREE.MathUtils.lerp(this.yaw, this.desiredYaw, motion);
     this.pitch = THREE.MathUtils.lerp(this.pitch, this.desiredPitch, motion);
-    this.desiredTarget.copy(this.islandCenter);
-    if(!this.placement)this.target.lerp(this.islandCenter, motion);
+    this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
+    if(!this.placement)this.target.lerp(this.desiredTarget, motion);
     const nextZoom = THREE.MathUtils.lerp(this.camera.zoom, this.desiredZoom, zoom);
     if (Math.abs(nextZoom - this.camera.zoom) > 0.000001) {
       this.camera.zoom = nextZoom;
@@ -117,7 +119,8 @@ export class CameraController {
   /** Ease back to the opening composition. */
   reset(): void {
     this.releasePointer();
-    this.desiredTarget.copy(this.islandCenter);
+    this.panOffset.set(0,0,0);
+    this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
     this.desiredYaw = Math.PI / 4;
     this.desiredPitch = 0.86;
     this.desiredZoom = 1;
@@ -154,9 +157,8 @@ export class CameraController {
     // A wrapper may also contain floating DOM feedback. Never steal a HUD gesture.
     if (event.target instanceof HTMLElement && event.target.closest('button, input, dialog, [data-card]')) return;
     event.preventDefault();
-    if(event.button===1){this.reset();return}
-    this.desiredTarget.copy(this.islandCenter);
-    this.pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
+    this.pointer = { id: event.pointerId, x: event.clientX, y: event.clientY, pan: event.button===1 || event.shiftKey };
     this.element.setPointerCapture(event.pointerId);
     this.element.style.cursor = 'var(--cursor-grab)';
   };
@@ -167,7 +169,15 @@ export class CameraController {
     const dy = event.clientY - this.pointer.y;
     this.pointer.x = event.clientX;
     this.pointer.y = event.clientY;
-    this.desiredTarget.copy(this.islandCenter);
+    this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
+    if(this.pointer.pan){
+      const scale=(this.camera.top-this.camera.bottom)/(this.viewportHeight*this.camera.zoom);
+      const horizontal=-dx*scale,vertical=dy*scale/Math.max(.2,Math.cos(this.pitch));
+      this.panOffset.x+=horizontal*Math.cos(this.yaw)+vertical*Math.sin(this.yaw);
+      this.panOffset.z+=-horizontal*Math.sin(this.yaw)+vertical*Math.cos(this.yaw);
+      this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
+      return;
+    }
     this.desiredYaw -= dx * 0.0035;
     this.desiredPitch = THREE.MathUtils.clamp(this.desiredPitch - dy * 0.0007, .80, this.maxPitch());
   };
@@ -190,6 +200,7 @@ export class CameraController {
     this.desiredZoom = THREE.MathUtils.clamp(this.desiredZoom * Math.exp(-delta * 0.001), 0.80, 3.2);
   };
 
+  private onAuxClick = (event: MouseEvent): void => {if(event.button===1)event.preventDefault()};
   private onContextMenu = (event: MouseEvent): void => event.preventDefault();
   private onBlur = (): void => this.releasePointer();
   private onKeyDown = (event: KeyboardEvent): void => {
