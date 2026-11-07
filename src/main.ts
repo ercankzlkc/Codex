@@ -27,7 +27,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div class="hud-rail" aria-hidden="true"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
- <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
+ <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="hand-visibility" aria-label="Kartları gizle" aria-controls="hand" aria-expanded="true">${icon('eye')}</button><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
  <div class="tools"><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog">${icon('settings')}</button><button id="restart" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
@@ -51,6 +51,14 @@ let previewCell=-1;
 let editedTile=-1;
 let handBusy=false,handMotion=0;
 
+get<HTMLButtonElement>('#hand-visibility').onclick=()=>{
+  const wrap=get('.hand-wrap'),hidden=!wrap.classList.contains('cards-hidden');
+  if(hidden){drag.cancel();select(null)}
+  wrap.classList.toggle('cards-hidden',hidden);hand.inert=hidden;
+  const button=get<HTMLButtonElement>('#hand-visibility');
+  button.innerHTML=icon(hidden?'eyeHidden':'eye');button.setAttribute('aria-expanded',String(!hidden));button.setAttribute('aria-label',hidden?'Kartları göster':'Kartları gizle');
+  world.cameraControl.resize(get('#world').clientWidth,get('#world').clientHeight);
+};
 function affordable(c:Card) { return game.canAfford(c); }
 function select(c:Card|null,carrying=false) {
   if(!c)pendingPlacement=null;
@@ -146,7 +154,7 @@ hand.addEventListener('pointerover',event=>{
   if(b&&!b.disabled&&!b.contains(event.relatedTarget as Node|null)&&!locked&&!selected)sound.play('hover');
 });
 const drag=new CardDrag(hand,{
-  canStart:i=>!handBusy&&pendingPlacement===null&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
+  canStart:i=>!hand.inert&&!handBusy&&pendingPlacement===null&&!dialog.open&&!!game.hand[i]&&affordable(game.hand[i]),
   start:i=>{const card=game.hand[i];select(card,true);void sound.dragCard(card.id)},
   move:(x,y)=>world.valid(dragPosition(x,y)),
   drop:(x,y)=>commit(dragPosition(x,y)),

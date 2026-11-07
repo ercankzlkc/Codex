@@ -77,7 +77,7 @@ export class CameraController {
     const topReserved = 68;
     const cardHeight = Math.min(212, Math.max(188, safeHeight * .22));
     const hand=document.querySelector<HTMLElement>('.hand-wrap'),hasCards=!!hand?.querySelector('.card');
-    const bottomReserved=hand&&hasCards?Math.max(132,safeHeight-hand.getBoundingClientRect().top+12):cardHeight+50;
+    const bottomReserved=hand?.classList.contains('cards-hidden')?64:hand&&hasCards?Math.max(132,safeHeight-hand.getBoundingClientRect().top+12):cardHeight+50;
     const availableHeight = Math.max(safeHeight * 0.43, safeHeight - topReserved - bottomReserved);
     this.viewportWidth=safeWidth;this.viewportHeight=safeHeight;
     this.desiredHalfHeight=Math.max(this.islandRadius/(aspect*.90),(this.islandRadius*.68+.61)*safeHeight/availableHeight);
