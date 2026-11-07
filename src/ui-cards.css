@@ -375,3 +375,10 @@ dialog[data-kind=milestone].closing .modal-cards .card { animation: milestone-ca
   .card, .card .card-art img, #reroll-toggle.card-exchange, .drag-token { transition: none; }
   .card-exchange.refreshing .exchange-icon, dialog[data-kind=milestone] .modal-cards .card, dialog[data-kind=milestone].closing .modal-cards .card { animation: none; }
 }
+
+#reroll-toggle.card-exchange { transition: opacity .25s ease, transform .35s ease, visibility 0s; }
+.cards-hidden #reroll-toggle { opacity: 0; transform: translateY(16px); visibility: hidden; pointer-events: none; transition: opacity .25s ease, transform .35s ease, visibility 0s .35s; }
+#hand-visibility { position: relative; }
+#hand-visibility::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 10px); right: 0; width: max-content; padding: 7px 11px; border: 1px solid var(--ui-stroke); border-radius: 4px; background: var(--ui-paper); color: var(--ui-ink); box-shadow: var(--ui-shadow); font: 600 12px/1.4 var(--ui-font); opacity: 0; transform: translateY(4px); pointer-events: none; transition: opacity .15s, transform .15s; }
+#hand-visibility:hover::after, #hand-visibility:focus-visible::after { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { #reroll-toggle.card-exchange, .cards-hidden #reroll-toggle, #hand-visibility::after { transition: none; } }

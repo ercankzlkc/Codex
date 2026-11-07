@@ -27,7 +27,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div class="hud-rail" aria-hidden="true"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
- <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="hand-visibility" aria-label="Kartları gizle" aria-controls="hand" aria-expanded="true">${icon('eye')}</button><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
+ <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="hand-visibility" aria-label="Kartları gizle" aria-controls="hand" aria-expanded="true" data-tooltip="Kartları gizle">${icon('eye')}</button><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
  <div class="tools"><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog">${icon('settings')}</button><button id="restart" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
@@ -35,6 +35,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <aside id="tile-tooltip" hidden><strong></strong><div></div></aside><dialog></dialog>`;
 const get=<E extends HTMLElement=HTMLElement>(selector:string)=>app.querySelector<E>(selector)!;
 const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=get<HTMLDialogElement>('dialog');
+get('#reroll-toggle').after(get('#hand-visibility'));
 const world=new World(get('#world'));
 new ResizeObserver(()=>world.cameraControl.resize(get('#world').clientWidth,get('#world').clientHeight)).observe(get('.hand-wrap'));
 const thumbs=world.thumbnails();
@@ -56,7 +57,8 @@ get<HTMLButtonElement>('#hand-visibility').onclick=()=>{
   if(hidden){drag.cancel();select(null)}
   wrap.classList.toggle('cards-hidden',hidden);hand.inert=hidden;
   const button=get<HTMLButtonElement>('#hand-visibility');
-  button.innerHTML=icon(hidden?'eyeHidden':'eye');button.setAttribute('aria-expanded',String(!hidden));button.setAttribute('aria-label',hidden?'Kartları göster':'Kartları gizle');
+  button.innerHTML=icon(hidden?'eyeHidden':'eye');button.setAttribute('aria-expanded',String(!hidden));button.setAttribute('aria-label',hidden?'Kartları göster':'Kartları gizle');button.dataset.tooltip=hidden?'Kartları göster':'Kartları gizle';
+  get('#reroll-toggle').inert=hidden;
   world.cameraControl.resize(get('#world').clientWidth,get('#world').clientHeight);
 };
 function affordable(c:Card) { return game.canAfford(c); }
@@ -309,10 +311,23 @@ let pendingSummer=false;
 window.addEventListener('summer-started',()=>{pendingSummer=true});
 function showSummer(){if(pendingSummer&&!dialog.open){pendingSummer=false;openSeasonDetails(1,true)}}
 function openProgress(){
-  modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>{
+  modal(`<header class="dialog-heading"><small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1></header><p class="progress-intro">Nüfusunu artır, yeni kartları aç ve altın kazan. Ödüllerin üzerine gelerek ayrıntıları incele.</p><div class="progress-list">${MILESTONES.map(m=>{
     const reached=game.reached.has(m.population),unlocks=cards.filter(c=>c.unlock===m.population||m.population===60&&c.id==='harbor');
-    return `<section class="${reached?'reached':''}"><header><span class="progress-population">${resourceArt('people')} ${m.population}</span><b>${m.name}</b><span class="progress-check" aria-label="${reached?'Tamamlandı':'Kilitli'}">${reached?'✓':icon('full')}</span></header><div class="progress-rewards">${unlocks.length?unlocks.map(c=>`<span class="progress-unlock"><img src="${thumbs[c.id]}" alt=""><span>${c.name}</span></span>`).join(''):`<span class="progress-unlock">${icon('harbor')}<span>80 ürünlük ticaret</span></span>`}<span class="progress-gold">${resourceArt('gold')} +${m.gold}</span></div></section>`;
-  }).join('')}</div><button data-close>Oyuna dön</button>`,'progress');
+    return `<section class="${reached?'reached':''}"><header><span class="progress-population" aria-label="${m.population} nüfus gerekli">${resourceArt('people')} ${m.population}<small>nüfus</small></span><b>${m.name}</b>${reached?'<span class="progress-earned">Kazanıldı</span>':`<small class="progress-remaining">${Math.max(0,m.population-game.people)} nüfus kaldı</small>`}</header><div class="progress-rewards">${unlocks.length?unlocks.map(c=>`<button class="progress-unlock" data-reward="${c.id}" data-unlock-at="${m.population}" aria-describedby="progress-detail"><img src="${thumbs[c.id]}" alt=""><span>${c.name}<small>${m.population===60?'Hediye kart':'Yeni kart'}</small></span></button>`).join(''):`<button class="progress-unlock" data-reward="trade" data-unlock-at="${m.population}" aria-describedby="progress-detail">${icon('harbor')}<span>80 ürünlük ticaret<small>Daha büyük gemi talebi</small></span></button>`}<span class="progress-gold">${resourceArt('gold')} +${m.gold}<small>altın ödülü</small></span></div></section>`;
+  }).join('')}</div><aside id="progress-detail" class="progress-detail" role="tooltip" hidden></aside><button data-close>Oyuna dön</button>`,'progress');
+  const detail=dialog.querySelector<HTMLElement>('#progress-detail')!;
+  const explanations:Record<string,string>={lumber:'Komşu ormanlardan her teslimatta daha fazla odun alınmasını sağlar. Ormanın yanına yerleştir.',store:'Kaynaklar için ek depo alanı açar. Odun harcayarak kapasitesini yükseltebilirsin.',farm:'Köylüler buğday yetiştirir. Yazın daha hızlı çalışır, kışın üretim durur; erzağını önceden biriktir.',garden:'Köylüler bahçeyle ilgilenerek refah üretir. Komşu evler verimini artırır.',manor:'Dört kişilik yatak açar. Yeterli erzak ve en az 50 refah olduğunda yeni sakinler yerleşir.',festival:'Yiyecek ve altın karşılığında refahı hemen artırır. Tek kullanımlık etkinlik kartıdır.',harbor:'Kıyıya kurulur. Köylüler siparişleri iskeleye taşır; mevsimin son gününde gelen tüccarla alışveriş yapılır.'};
+  dialog.querySelectorAll<HTMLButtonElement>('[data-reward]').forEach(button=>{
+    const show=()=>{
+      const card=cards.find(c=>c.id===button.dataset.reward),at=Number(button.dataset.unlockAt);
+      detail.innerHTML=card?`<div class="reward-detail-heading"><img src="${thumbs[card.id]}" alt=""><div><small>${at} NÜFUS ÖDÜLÜ</small><strong>${card.name}</strong></div></div><p>${explanations[card.id]??card.desc}</p><div class="reward-detail-cost"><span>${card.event?'Kullanım':'Kurulum'} maliyeti</span>${Object.entries(card.cost).map(([key,n])=>`<span>${resourceArt(key)} ${n} ${resourceNames[key]}</span>`).join('')}</div>`:`<div class="reward-detail-heading">${icon('harbor')}<strong>Genişleyen ticaret</strong></div><p>Sonraki ziyaretler için hazırlanan gemi planları toplam 40 yerine 80 ürünlük alış talebi sunar. Üreteceğin fazlayı daha çok satabilirsin.</p>`;
+      detail.hidden=false;const rect=button.getBoundingClientRect(),width=detail.offsetWidth,height=detail.offsetHeight;
+      const right=rect.right+12;detail.style.left=`${Math.max(12,Math.min(innerWidth-width-12,right+width<=innerWidth-12?right:rect.left-width-12))}px`;detail.style.top=`${Math.max(12,Math.min(innerHeight-height-12,rect.top))}px`;
+    };
+    button.onmouseenter=show;button.onfocus=show;button.onclick=show;
+    button.onmouseleave=()=>{detail.hidden=true};button.onblur=()=>{detail.hidden=true};
+  });
+  dialog.onscroll=()=>{detail.hidden=true};
 }
 let tradeQuantity=5;let tradeMode:'sell'|'buy'='sell';
 let tradeViewSignature='';

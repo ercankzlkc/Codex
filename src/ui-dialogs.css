@@ -178,3 +178,22 @@ dialog[data-kind=trade][data-trade-view=market] { width: min(1120px, calc(100vw 
   .trade-action-group button { min-width: 72px; font-size: 10px; }
   .trade-visit-label { display: none; }
 }
+
+.progress-intro { font-size: 13px; }
+.progress-population small { font-size: 11px; font-weight: 500; color: var(--ui-muted); }
+.progress-remaining, .progress-earned { margin-left: auto; font: 500 11px/1.4 var(--ui-font); color: var(--ui-muted); white-space: nowrap; }
+.progress-earned { color: var(--ui-positive); }
+button.progress-unlock { --control-bg: transparent; --control-hover: #e7dcc180; --control-ink: var(--ui-ink); --control-border: transparent; padding: 4px 7px; text-align: left; box-shadow: none; }
+.progress-unlock small { display: block; font-size: 10px; font-weight: 500; color: var(--ui-muted); }
+.progress-gold { flex-wrap: wrap; max-width: 95px; justify-content: flex-end; }
+.progress-gold small { flex: 0 0 100%; text-align: right; font-size: 10px; font-weight: 500; color: var(--ui-muted); }
+.progress-detail { position: fixed; z-index: 10; width: 290px; max-width: calc(100vw - 24px); padding: 16px; pointer-events: none; border: 1px solid #9b8355; border-radius: 5px; background: var(--ui-surface); background-size: auto,512px; color: var(--ui-ink); box-shadow: var(--ui-shadow); }
+.reward-detail-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.reward-detail-heading > img { width: 66px; height: 58px; object-fit: contain; }
+.reward-detail-heading > svg { width: 32px; height: 32px; color: var(--ui-pine); }
+.reward-detail-heading small { display: block; margin-bottom: 4px; color: var(--ui-muted); font-size: 10px; letter-spacing: .8px; }
+.reward-detail-heading strong { font: 700 18px/1.25 var(--ui-display); }
+.progress-detail p { margin: 0; font-size: 13px; }
+.reward-detail-cost { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 10px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--ui-stroke); font-size: 12px; }
+.reward-detail-cost > span:first-child { flex: 0 0 100%; color: var(--ui-muted); font-size: 11px; }
+.reward-detail-cost .resource-art { width: 22px; height: 22px; }
