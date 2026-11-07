@@ -52,6 +52,7 @@ export const TRADE_GOODS=[
   {id:'berry',name:'Çilek',price:3},{id:'wheat',name:'Buğday',price:5},{id:'fish',name:'Balık',price:8},
 ] as const;
 export type TradeGood=typeof TRADE_GOODS[number]['id'];
+export type DockShipment={id:number;season:number;good:TradeGood;amount:number;store:number;harbor:number;state:'reserved'|'carrying'|'staged'};
 type MerchantPlan={season:number;demand:Record<TradeGood,number>;cargo:Record<TradeGood,number>};
 /** A visit's manifest is announced ahead of time and retained until arrival. */
 function merchantPlan(season:number,capacity:number):MerchantPlan{
@@ -117,6 +118,42 @@ export class Game {
   get merchantManifest(){return this.merchantAge>=0?{demand:this.merchantDemand,cargo:this.merchantCargo}:this.upcomingMerchant}
 
   merchantCargo:Record<TradeGood,number>={wood:30,stone:25,berry:20,wheat:20,fish:15};
+  dockShipments:DockShipment[]=[];
+  private shipmentId=0;
+  private get preparationSeason(){return this.merchantAge>=0?this.visitedSeason:this.upcomingMerchant.season}
+  dockAmount(good:TradeGood,stagedOnly=false){return this.dockShipments.filter(s=>s.season===this.preparationSeason&&s.good===good&&(!stagedOnly||s.state==='staged')).reduce((sum,s)=>sum+s.amount,0)}
+  get dockPending(){return this.dockShipments.filter(s=>s.state!=='staged').reduce((sum,s)=>sum+s.amount,0)}
+  prepareDock(good:TradeGood,requested:number){
+    const harbor=this.harborId;if(harbor===undefined||!Number.isFinite(requested)||!TRADE_GOODS.some(item=>item.id===good)||this.merchantDeparting)return 0;
+    let left=Math.min(Math.max(0,Math.floor(requested)),this.tradeStock(good),Math.max(0,this.merchantManifest.demand[good]-this.dockAmount(good)));
+    const total=left;
+    for(const [store,stock] of this.storageStocks){
+      const take=Math.min(left,stock[good]);if(!take)continue;
+      stock[good]-=take;if(good==='wood'||good==='stone')this[good]-=take;else this.foods[good]-=take;
+      // Small loads let several villagers carry an order without oversized bundles.
+      for(let amount=take;amount>0;amount-=Math.min(3,amount))this.dockShipments.push({id:++this.shipmentId,season:this.preparationSeason,good,amount:Math.min(3,amount),store,harbor,state:'reserved'});
+      left-=take;if(!left)break;
+    }
+    return total-left;
+  }
+  private refundDock(shipment:DockShipment){
+    const stock=this.storageStocks.get(CENTER)!;stock[shipment.good]+=shipment.amount;
+    if(shipment.good==='wood'||shipment.good==='stone')this[shipment.good]+=shipment.amount;else this.foods[shipment.good]+=shipment.amount;
+    this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.ceil(this.storageUsed(CENTER)/80)));
+  }
+  private updateDock(){
+    this.dockShipments=this.dockShipments.filter(shipment=>{
+      const expired=shipment.season<this.merchantSeason||(shipment.season===this.visitedSeason&&this.merchantAge<0);
+      if(expired||this.board.get(shipment.harbor)!=='harbor'||!this.storageStocks.has(shipment.store)){this.refundDock(shipment);return false}
+      if(this.merchantPresent&&shipment.season===this.visitedSeason&&shipment.state==='staged'){
+        const item=TRADE_GOODS.find(item=>item.id===shipment.good)!;
+        const quote=quoteMarket(item.price,'sell',shipment.amount,this.marketPressure[shipment.good],Math.min(this.merchantDemand[shipment.good],this.tradeCapacity-this.tradeSold));
+        this.gold+=quote.total;this.marketPressure[shipment.good]=quote.pressure;this.merchantDemand[shipment.good]-=quote.count;this.tradeSold+=quote.count;this.merchantCargo[shipment.good]+=quote.count;
+        shipment.amount-=quote.count;if(!shipment.amount)return false;
+      }
+      return true;
+    });
+  }
   /** Discovery contents use the same physical depots as deliveries and purchases. */
   receiveDiscoveryLoot(good:TradeGood|'gold',amount:number){
     if(!Number.isFinite(amount))return 0;
@@ -134,7 +171,7 @@ export class Game {
   buyPrice(good:TradeGood){return marketPrice(TRADE_GOODS.find(item=>item.id===good)!.price,'buy',this.marketPressure[good])}
   tradeQuote(good:TradeGood,side:MarketSide,amount:number){
     const item=TRADE_GOODS.find(item=>item.id===good);
-    const limit=!item?0:side==='sell'?Math.min(this.tradeStock(good),this.tradeCapacity-this.tradeSold,this.merchantDemand[good]):Math.min(this.merchantCargo[good],this.totalStorageFree);
+    const limit=!item?0:side==='sell'?Math.min(this.tradeStock(good),this.tradeCapacity-this.tradeSold,Math.max(0,this.merchantDemand[good]-this.dockAmount(good))):Math.min(this.merchantCargo[good],this.totalStorageFree);
     return quoteMarket(item?.price??1,side,amount,this.marketPressure[good]??0,limit,this.gold);
   }
   buy(good:TradeGood,amount=1){
@@ -188,7 +225,7 @@ export class Game {
   storageLevels=new Map<number,number>([[CENTER,1]]);
   storageStocks=new Map<number,{wood:number;stone:number;berry:number;wheat:number;fish:number}>([[CENTER,{wood:18,stone:0,berry:8,wheat:4,fish:0}]]);
   storageCapacity(id:number){return this.storageStocks.has(id)?(id===CENTER?80:60)*(this.storageLevels.get(id)??1):0}
-  storageUsed(id:number){const stock=this.storageStocks.get(id);return stock?Object.values(stock).reduce((a,b)=>a+b,0):0}
+  storageUsed(id:number){const stock=this.storageStocks.get(id);return (stock?Object.values(stock).reduce((a,b)=>a+b,0):0)+this.dockShipments.filter(s=>s.store===id&&s.state==='reserved').reduce((sum,s)=>sum+s.amount,0)}
   storageFree(id:number){return Math.max(0,this.storageCapacity(id)-this.storageUsed(id))}
   canStore(id:number,resource:Resource){return this.storageStocks.has(id)&&(resource==='happy'||this.storageFree(id)>0)}
   upgradeCost(id:number){return 12*(this.storageLevels.get(id)??1)}
@@ -232,6 +269,7 @@ export class Game {
     }
     if(!this.merchantRouteOpen&&this.merchantAge>=0)this.merchantAge=-1;
     if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
+    this.updateDock();
     this.meal+=dt*this.people/30;
     const due=Math.floor(this.meal);if(!due)return;
     this.meal-=due;

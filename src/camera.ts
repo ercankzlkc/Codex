@@ -172,10 +172,11 @@ export class CameraController {
     this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
     if(this.pointer.pan){
       const scale=(this.camera.top-this.camera.bottom)/(this.viewportHeight*this.camera.zoom);
-      const horizontal=-dx*scale,vertical=dy*scale/Math.max(.2,Math.cos(this.pitch));
+      const horizontal=-dx*scale,vertical=-dy*scale/Math.max(.2,Math.cos(this.pitch));
       this.panOffset.x+=horizontal*Math.cos(this.yaw)+vertical*Math.sin(this.yaw);
       this.panOffset.z+=-horizontal*Math.sin(this.yaw)+vertical*Math.cos(this.yaw);
       this.desiredTarget.copy(this.islandCenter).add(this.panOffset);
+      this.target.copy(this.desiredTarget);this.applyTransform();
       return;
     }
     this.desiredYaw -= dx * 0.0035;

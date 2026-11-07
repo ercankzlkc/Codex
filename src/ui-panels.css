@@ -392,3 +392,8 @@
   .discovery-pick,
   .need-track i { transition: none; }
 }
+
+.work-symbol .resource-art { width: 32px; height: 32px; }
+#work-summary > span { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+#work-summary .resource-art { width: 28px; height: 28px; }
+#work-summary svg { width: 18px; height: 18px; }

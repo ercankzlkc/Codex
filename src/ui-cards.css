@@ -318,3 +318,7 @@
   .card, #hand .card, .card .card-art img, #reroll-toggle.card-exchange, .drag-token { transition: none; }
   .card-exchange.refreshing .exchange-icon { animation: none; }
 }
+
+.illustrated-word { display: inline; white-space: nowrap; }
+.card .illustrated-word .resource-art { display: inline-block; width: 15px; height: 15px; margin-right: 2px; vertical-align: -3px; }
+.card > small .illustrated-word .resource-art { width: 13px; height: 13px; }

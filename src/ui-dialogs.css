@@ -494,3 +494,23 @@ dialog[data-kind=trade] .trade-ledger button { display: inline-flex; flex-direct
 .trade-ledger button small { font-size: 11px; }
 .trade-ledger .svg-inline--fa, .trade-choice .svg-inline--fa { width: 13px; height: 13px; }
 .dock-blueprint .resource-art { display: inline-block; width: 24px; height: 24px; vertical-align: middle; }
+
+.trade-countdown { display: grid; grid-template-columns: 24px 1fr; gap: 4px 9px; align-items: center; margin: 18px 0 12px; }
+.trade-countdown > svg { width: 24px; height: 24px; grid-row: span 2; }
+.trade-countdown b { font-size: 27px; line-height: 1; font-variant-numeric: tabular-nums; }
+.trade-countdown small { color: var(--ui-muted); font-size: 11px; }
+.trade-dock-summary { font-size: 12px; }
+dialog[data-kind=trade][data-trade-view=market] { width: min(1100px, calc(100vw - 80px)); }
+.trade-ledger .trade-row-actions { min-width: 100px; }
+dialog[data-kind=trade] .trade-row-actions button { min-height: 32px; min-width: 92px; padding: 7px 8px; }
+dialog[data-kind=trade] .trade-row-actions .trade-prepare { display: flex; flex-direction: row; justify-content: center; margin: 5px auto 0; background: var(--menu-alt); color: var(--ui-pine); border: 1px solid var(--ui-stroke); }
+.trade-in-transit { display: block; margin-top: 4px; color: var(--ui-muted); font-size: 10px; white-space: nowrap; }
+.progress-list section header { display: flex; align-items: center; gap: 12px; }
+.progress-list .progress-population { display: inline-flex; flex: none; align-items: center; gap: 5px; min-width: 68px; font-size: 19px; font-weight: 650; color: var(--ui-pine); }
+.progress-list .resource-art { display: inline-block; width: 28px; height: 28px; vertical-align: middle; }
+.progress-list .progress-check { margin-left: auto; font-size: 19px; }
+.progress-list .progress-rewards { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 10px; }
+.progress-list .progress-unlock { display: inline-flex; align-items: center; gap: 7px; }
+.progress-unlock img { width: 46px; height: 46px; object-fit: contain; }
+.progress-unlock > svg { width: 32px; height: 32px; }
+.progress-list .progress-gold { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-weight: 650; color: var(--ui-ink); }

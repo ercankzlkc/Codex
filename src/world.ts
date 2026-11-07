@@ -634,7 +634,7 @@ export class World {
     const dt=this.game?.paused||document.hidden?0:realDt*gameSpeed.value;this.time+=dt;
     this.cameraControl.update(realDt);this.environment.fitWaterView(this.cameraControl.camera,this.cameraControl.audioFocus);this.environment.update(this.time);this.onSoundFrame(this.cameraControl.camera,this.cameraControl.audioFocus,this.environment.soundBirds,this.environment.soundShore,this.board);
     this.grid.update(document.hidden?0:realDt);
-    this.cozy.update(dt,this.cameraControl.camera,this.game?.paused||document.hidden?0:realDt);
+    this.cozy.update(dt,this.cameraControl.camera,this.game?.paused||document.hidden||gameSpeed.value===0?0:realDt);
     this.seasons.update(this.game?.paused||document.hidden?0:dt,this.board,this.cameraControl.audioFocus);
     this.environment.setSun(this.waterSunDirection.subVectors(this.sun.position,this.sun.target.position));
     if(this.game){

@@ -16,6 +16,7 @@ import {setupSettings} from './settings';
 import {createDemoGame} from './demo';
 
 import {icon} from './icons';
+import {gameSpeed} from './game-speed';
 const app=document.querySelector<HTMLElement>('#app')!;
 app.addEventListener('dragstart',event=>event.preventDefault());
 app.addEventListener('selectstart',event=>{if(!(event.target instanceof Element&&event.target.closest('input,textarea')))event.preventDefault()});
@@ -152,14 +153,14 @@ const drag=new CardDrag(hand,{
 });
 const workNames:Record<WorkCategory,string>={stone:'Taş çıkarma',wood:'Odunculuk',berry:'Çilek toplama',farm:'Buğday hasadı',fish:'Balıkçılık',garden:'Bahçe bakımı'};
 const workIcons:Record<WorkCategory,string>={stone:'stone',wood:'wood',berry:'berry',farm:'wheat',fish:'fish',garden:'garden'};
-get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<div class="work-row" data-work="${category}"><span class="work-symbol">${icon(workIcons[category])}</span><div class="work-description"><b>${workNames[category]}</b><small></small></div><div class="worker-stepper" role="group" aria-label="${workNames[category]} işçi sayısı"><button data-worker="${category}" data-delta="-1" aria-label="${workNames[category]} görevinden bir kişi çıkar">−</button><output aria-label="${workNames[category]} için ayrılan kişi">0</output><button data-worker="${category}" data-delta="1" aria-label="${workNames[category]} görevine bir kişi ekle">+</button></div></div>`).join('');
+get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<div class="work-row" data-work="${category}"><span class="work-symbol">${resourceArt(workIcons[category])||icon(workIcons[category])}</span><div class="work-description"><b>${workNames[category]}</b><small></small></div><div class="worker-stepper" role="group" aria-label="${workNames[category]} işçi sayısı"><button data-worker="${category}" data-delta="-1" aria-label="${workNames[category]} görevinden bir kişi çıkar">−</button><output aria-label="${workNames[category]} için ayrılan kişi">0</output><button data-worker="${category}" data-delta="1" aria-label="${workNames[category]} görevine bir kişi ekle">+</button></div></div>`).join('');
 function renderWork(){
   const counts=world.villagers.assignedCounts(),targets=game.workTargets();
   const allocated=Object.values(targets).reduce((a,b)=>a+b,0),free=game.people-allocated;
-  get('#work-summary').innerHTML=`<span><b>${game.people}</b> köylü</span><span class="free-workers"><b>${free}</b> boşta</span>`;
+  get('#work-summary').innerHTML=`<span>${resourceArt('people')}<b>${game.people}</b> köylü</span><span class="free-workers">${icon('rest')}<b>${free}</b> boşta</span>`;
   get('#work-mode-label').textContent=game.autoWorkers?'Otomatik dağılım':'Elle dağılım';
   get<HTMLButtonElement>('[data-work-balance]').disabled=game.autoWorkers;
-  get('#work-hint').textContent=WORK_CATEGORIES.some(c=>game.workCapacity(c))?'＋ Bir köylü ata · − Görevden çıkar. Boşta kimse yoksa + başka işten aktarır.':'Önce bir orman, bahçe veya üretim alanı kur.';
+  get('#work-hint').textContent=game.dockPending?`${game.dockPending} ürün iskeleye taşınmak için ayrıldı.`:WORK_CATEGORIES.some(c=>game.workCapacity(c))?'＋ Bir köylü ata · − Görevden çıkar. Boşta kimse yoksa + başka işten aktarır.':'Önce bir orman, bahçe veya üretim alanı kur.';
   for(const category of WORK_CATEGORIES){
     const row=get(`[data-work="${category}"]`),capacity=game.workCapacity(category),count=targets[category];
     row.hidden=capacity===0;
@@ -239,11 +240,15 @@ function renderHud(){
   renderWork();renderStorage();if(!get('#food-details').hidden)renderFood();
 }
 const resourceNames:Record<string,string>={wood:'odun',stone:'taş',food:'yiyecek',gold:'altın'};
+function illustratedText(text:string){
+  const goods:Record<string,string>={'odun':'wood','taş':'stone','çilek':'berry','buğday':'wheat','balık':'fish','yiyecek':'food','altın':'gold','nüfus':'people','sakin':'people','refah':'happy'};
+  return text.replace(/odun|taş|çilek|buğday|balık|yiyecek|altın|nüfus|sakin|refah/gi,word=>`<span class="illustrated-word">${resourceArt(goods[word.toLocaleLowerCase('tr-TR')])}${word}</span>`);
+}
 function cardFace(c:Card){
   const costs=Object.entries(c.cost);
   const category=c.id==='harbor'?'Liman':c.event?'Etkinlik':c.workers?'Üretim':'Yapı';
   return `<span class="card-top"><span class="costs">${costs.map(([key,n])=>`<span title="${n} ${resourceNames[key]}" aria-label="${n} ${resourceNames[key]}">${resourceArt(key)}<b>${n}</b></span>`).join('')}</span><span class="type">${category}</span></span>
-    <span class="card-art"><img src="${thumbs[c.id]}" alt="" draggable="false"></span><strong>${c.name}</strong><span class="effect">${c.desc}</span><small>${c.bonus}</small>`;
+    <span class="card-art"><img src="${thumbs[c.id]}" alt="" draggable="false"></span><strong>${c.name}</strong><span class="effect">${illustratedText(c.desc)}</span><small>${illustratedText(c.bonus)}</small>`;
 }
 function render(deal=false,withSound=false){
   renderHud();
@@ -279,10 +284,24 @@ function showMilestones(){
   sound.play('reward');
 }
 function openProgress(){
-  modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>`<section class="${game.reached.has(m.population)?'reached':''}"><b>${m.population} nüfus · ${m.name}</b><span>${m.description}</span><small>${cards.filter(c=>c.unlock===m.population).map(c=>c.name).join(' · ')||'Gelişmiş ticaret'} · +${m.gold} altın</small></section>`).join('')}</div><button data-close>Oyuna dön</button>`,'progress');
+  modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>{
+    const reached=game.reached.has(m.population),unlocks=cards.filter(c=>c.unlock===m.population||m.population===60&&c.id==='harbor');
+    return `<section class="${reached?'reached':''}"><header><span class="progress-population">${resourceArt('people')} ${m.population}</span><b>${m.name}</b><span class="progress-check" aria-label="${reached?'Tamamlandı':'Kilitli'}">${reached?'✓':icon('full')}</span></header><div class="progress-rewards">${unlocks.length?unlocks.map(c=>`<span class="progress-unlock"><img src="${thumbs[c.id]}" alt=""><span>${c.name}</span></span>`).join(''):`<span class="progress-unlock">${icon('harbor')}<span>80 ürünlük ticaret</span></span>`}<span class="progress-gold">${resourceArt('gold')} +${m.gold}</span></div></section>`;
+  }).join('')}</div><button data-close>Oyuna dön</button>`,'progress');
 }
 let tradeQuantity=5;let tradeMode:'sell'|'buy'='sell';
+let tradeViewSignature='';
+function tradeSnapshot(){
+  const manifest=game.merchantManifest;
+  return JSON.stringify([game.harborId,game.merchantPresent,game.merchantDeparting,game.merchantAge>=0,game.merchantRouteOpen,game.gold,game.totalStorageFree,tradeMode,tradeQuantity,TRADE_GOODS.map(item=>[game.tradeStock(item.id),manifest.demand[item.id],manifest.cargo[item.id],game.dockAmount(item.id),game.dockAmount(item.id,true),game.marketPressure[item.id]])]);
+}
+function shipCountdown(){return `${String(Math.floor(game.merchantCountdown/60)).padStart(2,'0')}:${String(game.merchantCountdown%60).padStart(2,'0')}`}
+
 function openTrade(){
+  tradeViewSignature=tradeSnapshot();
+  const focused=dialog.contains(document.activeElement)?document.activeElement as HTMLElement:null;
+  const focusAttribute=['data-exchange','data-prepare','data-trade-mode','data-quantity','data-close'].find(attribute=>focused?.hasAttribute(attribute));
+  const focusValue=focusAttribute?focused?.getAttribute(focusAttribute):null;
   const continuing=dialog.open&&dialog.dataset.kind==='trade',basketScroll=continuing?dialog.querySelector('.trade-basket')?.scrollTop??0:0;
   dialog.dataset.tradeView=game.harborId===undefined?'harbor':'market';
   if(game.harborId===undefined){
@@ -294,7 +313,7 @@ function openTrade(){
   const active=game.merchantPresent,blocked=!game.merchantRouteOpen,manifest=game.merchantManifest;
   modal(`<div class="trade-layout${continuing?'':' trade-enter'}">
     <aside class="trade-sidebar">
-      <div class="trade-story"><div class="trade-ports"><span data-village-ledger>${icon('crest')}<small>Senin köyün</small></span><span class="trade-sea" aria-hidden="true">∿ ∿</span><span data-ship-ledger>${icon('harbor')}<small>Gezgin tüccar</small></span></div><small class="trade-eyebrow">YELKEN KOYU · TİCARET</small><h1>${blocked?'Su yolu kapalı':active?'Deniz ticareti':'Tüccar gemisi'}</h1><p>${blocked?'İskele önündeki su yolunu aç.':active?'Gemi iskelende.':`${game.merchantDeparting?'Sonraki gemi gelecek mevsim.':game.merchantAge>=0?'Yanaşıyor…':`Son gün · ${Math.floor(game.merchantCountdown/60)} dk ${game.merchantCountdown%60} sn`}`}</p></div>
+      <div class="trade-story"><div class="trade-ports"><span data-village-ledger>${icon('crest')}<small>Senin köyün</small></span><span class="trade-sea" aria-hidden="true">∿ ∿</span><span data-ship-ledger>${icon('harbor')}<small>Gezgin tüccar</small></span></div><small class="trade-eyebrow">YELKEN KOYU · TİCARET</small><h1>${blocked?'Su yolu kapalı':active?'Deniz ticareti':'Tüccar gemisi'}</h1><div class="trade-countdown" role="timer" aria-label="Gemi sayacı">${icon('harbor')} <b>${shipCountdown()}</b><small>${gameSpeed.value===0?'Oyun duraklatıldı':blocked?'Su yolunu aç':active?'Ayrılmasına':game.merchantDeparting?'Sonraki gemi':'Yanaşmasına'}</small></div><p class="trade-dock-summary">${icon('carry')} ${game.dockPending} yolda · ${TRADE_GOODS.reduce((sum,item)=>sum+game.dockAmount(item.id,true),0)} iskelede</p></div>
       <div class="trade-purse"><span data-gold-ledger>${resourceArt('gold')}<span><small>Hazinen</small><b>${game.gold}</b> altın</span></span><span class="trade-storage">${icon('carry')}<span><b>${game.totalStorageFree}</b> boş depo yeri</span></span></div>
       <div class="trade-market-note"><span class="trade-status${blocked?' is-blocked':active?' is-ready':''}"><i></i>${blocked?'Gemi yolu kapalı':active?'Gemi iskelende':game.merchantDeparting?'Gemi ayrılıyor':'Gemi yolda'}</span>${active?`<p>Bu ziyarette <b>${Object.values(game.merchantDemand).reduce((sum,count)=>sum+count,0)} ürün</b> daha satabilirsin.</p>`:''}</div>
 
@@ -303,23 +322,29 @@ function openTrade(){
       <header class="trade-toolbar"><div class="trade-topline"><div><h2>${tradeMode==='sell'?'Ürün sat':'Ürün satın al'}</h2></div><span class="trade-visit-label">MEVSİMLİK PAZAR</span></div><div class="trade-controls"><div class="trade-choice" aria-label="Alışveriş yönü"><button data-trade-mode="sell" aria-pressed="${tradeMode==='sell'}">${icon('crest')} Sat</button><button data-trade-mode="buy" aria-pressed="${tradeMode==='buy'}">${icon('harbor')} Al</button></div><div class="trade-quantity" aria-label="İşlem miktarı"><span>Adet</span>${[1,5,10].map(n=>`<button data-quantity="${n}" aria-label="${n} adet" aria-pressed="${tradeQuantity===n}">${n}</button>`).join('')}</div></div></header>
       <div class="trade-basket trade-ledger" tabindex="0" aria-label="Tüccar talepleri ve ürünler">
         <h3>${game.merchantAge>=0?'Geminin talepleri':'Son gün gelecek gemi'}</h3>
-        <table><thead><tr><th scope="col">Ürün</th><th scope="col">${icon('crest')} Sende</th><th scope="col">${icon('harbor')} Talep</th><th scope="col">Eksik</th><th scope="col">${icon('carry')} ${game.merchantAge>=0?'Gemide':'Getirecek'}</th><th scope="col">${tradeMode==='sell'?'Sat':'Al'}</th></tr></thead><tbody>${TRADE_GOODS.map(item=>{
+        <table><thead><tr><th scope="col">Ürün</th><th scope="col">${icon('crest')} Sende</th><th scope="col">${icon('harbor')} Talep</th><th scope="col">${icon('carry')} Hazır</th><th scope="col">Eksik</th><th scope="col">${icon('carry')} ${game.merchantAge>=0?'Gemide':'Getirecek'}</th><th scope="col">${tradeMode==='sell'?'Sat':'Al'}</th></tr></thead><tbody>${TRADE_GOODS.map(item=>{
           const selling=tradeMode==='sell',quote=game.tradeQuote(item.id,tradeMode,tradeQuantity),amount=quote.count;
-          const missing=Math.max(0,manifest.demand[item.id]-game.tradeStock(item.id));
-          const hint=!active?(blocked?'Yol kapalı':'Bekleniyor'):selling?(game.merchantDemand[item.id]===0?'Talep yok':game.tradeStock(item.id)===0?'Stok yok':'Yük dolu'):!game.totalStorageFree?'Depo dolu':!game.merchantCargo[item.id]?'Stok yok':'Altın az';
-          return `<tr><th scope="row"><span class="trade-good-name">${resourceArt(item.id)}<span>${item.name}<small>${quote.first} ${icon('gold')} / adet</small></span></span></th><td>${game.tradeStock(item.id)}</td><td>${manifest.demand[item.id]||'—'}</td><td class="${missing?'trade-missing':'trade-prepared'}">${manifest.demand[item.id]?(missing||'✓'):'—'}</td><td>${manifest.cargo[item.id]}</td><td><button data-exchange="${item.id}" aria-label="${item.name}: ${active&&amount>0?`${amount} adet ${selling?'sat':'al'}, ${quote.total} altın`:hint}" ${!active||amount<=0?'disabled':''}>${active&&amount>0?`<b>${amount} ${selling?'sat':'al'}</b><small>${selling?'+':'−'}${quote.total} ${icon('gold')}</small>`:hint}</button></td></tr>`;
+          const reserved=game.dockAmount(item.id),staged=game.dockAmount(item.id,true),needed=Math.max(0,manifest.demand[item.id]-reserved),preparable=Math.min(tradeQuantity,game.tradeStock(item.id),needed);
+          const missing=Math.max(0,needed-game.tradeStock(item.id));
+          const hint=!active?(blocked?'Yol kapalı':'Gemi yok'):selling?(game.merchantDemand[item.id]===0?'Talep yok':game.tradeStock(item.id)===0?'Stok yok':'Yük dolu'):!game.totalStorageFree?'Depo dolu':!game.merchantCargo[item.id]?'Stok yok':'Altın az';
+          return `<tr><th scope="row"><span class="trade-good-name">${resourceArt(item.id)}<span>${item.name}<small>${quote.first} ${icon('gold')} / adet</small></span></span></th><td>${game.tradeStock(item.id)}</td><td>${manifest.demand[item.id]||'—'}</td><td><b>${staged}</b>${reserved>staged?`<small class="trade-in-transit">${reserved-staged} yolda</small>`:''}</td><td class="${missing?'trade-missing':'trade-prepared'}">${manifest.demand[item.id]?(missing||'✓'):'—'}</td><td>${manifest.cargo[item.id]}</td><td class="trade-row-actions"><button data-exchange="${item.id}" aria-label="${item.name}: ${active&&amount>0?`${amount} adet ${selling?'sat':'al'}, ${quote.total} altın`:hint}" ${!active||amount<=0?'disabled':''}>${active&&amount>0?`<b>${amount} ${selling?'sat':'al'}</b><small>${selling?'+':'−'}${quote.total} ${icon('gold')}</small>`:hint}</button>${selling?`<button class="trade-prepare" data-prepare="${item.id}" aria-label="${item.name}: ${preparable} adet iskeleye taşı" ${preparable<=0||game.merchantDeparting?'disabled':''}>${icon('carry')} ${preparable>0?preparable:''} Taşı</button>`:''}</td></tr>`;
         }).join('')}</tbody></table>
       </div>
-      <footer class="trade-footer"><div class="trade-receipt" role="status" aria-live="polite">${active?'Fiyatlar alışverişle değişir.':'Alışveriş gemi yanaşınca açılır.'}</div><button data-close>Oyuna dön <span aria-hidden="true">↗</span></button></footer>
+      <footer class="trade-footer"><div class="trade-receipt" role="status" aria-live="polite">${active?'Fiyatlar alışverişle değişir.':'Taşı: iskeleye ayır. Gemi gelince otomatik satılır.'}</div><button data-close>Oyuna dön <span aria-hidden="true">↗</span></button></footer>
     </section>
   </div>`,'trade');
   dialog.querySelector('.trade-basket')!.scrollTop=basketScroll;
   dialog.querySelectorAll<HTMLButtonElement>('[data-trade-mode]').forEach(button=>button.onclick=()=>{tradeMode=button.dataset.tradeMode as 'sell'|'buy';openTrade();dialog.querySelector<HTMLButtonElement>(`[data-trade-mode="${tradeMode}"]`)!.focus({preventScroll:true})});
   dialog.querySelectorAll<HTMLButtonElement>('[data-quantity]').forEach(button=>button.onclick=()=>{tradeQuantity=Number(button.dataset.quantity);openTrade();dialog.querySelector<HTMLButtonElement>(`[data-quantity="${tradeQuantity}"]`)!.focus({preventScroll:true})});
+  dialog.querySelectorAll<HTMLButtonElement>('[data-prepare]').forEach(button=>button.onclick=()=>{
+    const good=button.dataset.prepare as TradeGood,count=game.prepareDock(good,tradeQuantity);
+    if(count){renderHud();openTrade();dialog.querySelector('.trade-receipt')!.textContent=`${count} ${TRADE_GOODS.find(item=>item.id===good)!.name} iskele için ayrıldı.`}
+  });
   dialog.querySelectorAll<HTMLButtonElement>('[data-exchange]').forEach(button=>button.onclick=()=>{
     const good=button.dataset.exchange as TradeGood,selling=tradeMode==='sell',quote=game.tradeQuote(good,tradeMode,tradeQuantity),count=selling?game.sell(good,tradeQuantity):game.buy(good,tradeQuantity);
     if(count){world.showTradeTransfer(selling);renderHud();renderStorage();sound.play('reward');openTrade();animateTrade(good,count,selling,quote.total);dialog.querySelector<HTMLButtonElement>(`[data-exchange="${good}"]:not(:disabled)`)?.focus({preventScroll:true})}
   });
+  if(focusAttribute)dialog.querySelector<HTMLButtonElement>(`[${focusAttribute}="${CSS.escape(focusValue??'')}"]:not(:disabled)`)?.focus({preventScroll:true});
 }
 function animateTrade(good:TradeGood,count:number,selling:boolean,total:number){
   const origin=dialog.getBoundingClientRect(),village=dialog.querySelector('[data-village-ledger]')!.getBoundingClientRect(),ship=dialog.querySelector('[data-ship-ledger]')!.getBoundingClientRect(),wallet=dialog.querySelector('[data-gold-ledger]')!.getBoundingClientRect();
@@ -417,7 +442,14 @@ world.onInspect=(id,x,y,bounds)=>{
   tooltip.style.left=`${Math.max(pad,Math.min(innerWidth-width-pad,left))}px`;
   tooltip.style.top=`${Math.max(pad,Math.min(innerHeight-height-pad,top))}px`;
 };
-window.setInterval(()=>{renderHud();showMilestones()},200);
+window.setInterval(()=>{
+  renderHud();
+  if(dialog.open&&dialog.dataset.kind==='trade'&&dialog.dataset.tradeView==='market'){
+    if(tradeSnapshot()!==tradeViewSignature)openTrade();
+    const countdown=dialog.querySelector('.trade-countdown b');if(countdown)countdown.textContent=shipCountdown();
+  }
+  showMilestones();
+},200);
 dialog.addEventListener('close',()=>{game.paused=false;window.setTimeout(showMilestones,0)});
 let modalMotion=0;
 async function closeDialog(){
@@ -430,7 +462,7 @@ async function closeDialog(){
 dialog.addEventListener('cancel',e=>{if(dialog.dataset.kind==='milestone'){e.preventDefault();void closeDialog()}});
 function modal(html:string,kind='standard') {
   modalMotion++;dialog.classList.remove('closing');dialog.getAnimations({subtree:true}).forEach(a=>a.cancel());
-  closeWork();game.paused=true;dialog.dataset.kind=kind;
+  closeWork();game.paused=kind!=='trade';dialog.dataset.kind=kind;
   drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
   if(audioButton)audioButton.onclick=()=>{sound.toggle();audioButton.textContent=sound.muted?'Ses kapalı':'Ses açık'};
