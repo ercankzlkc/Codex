@@ -1,4 +1,4 @@
-import {SEASON_ECONOMY,rateLabel} from './season-economy';
+import {SEASON_ECONOMY,SEASON_WORKS,rateLabel} from './season-economy';
 import {resourceArt} from './resource-art';
 import {DAY_SECONDS,DAYS_PER_SEASON,SEASON_SECONDS} from './calendar';
 import * as T from 'three';
@@ -145,7 +145,7 @@ export class SeasonCycle{
     this.hud.querySelector('.clock-orbit')!.textContent=night>.5?'☾':'☀';
     (this.hud.querySelector('.clock-orbit') as HTMLElement).style.transform=`rotate(${cycle*360}deg) translateY(-19px) rotate(${-cycle*360}deg)`;
     this.hud.querySelector('.clock-center')!.textContent=current.symbol;
-    this.hud.querySelector('.season-copy small')!.textContent=`Y${Math.floor(this.elapsed/YEAR_SECONDS)+1} · G${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
+    this.hud.querySelector('.season-copy small')!.textContent=`Yıl ${Math.floor(this.elapsed/YEAR_SECONDS)+1} · Gün ${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
     this.hud.querySelector('.season-copy strong')!.textContent=current.name;
     this.hud.querySelector<HTMLButtonElement>('.season-copy')!.title=`${current.name} · ${Math.floor(this.elapsed/YEAR_SECONDS)+1}. yıl · ${day+1}. gün / 3. Üretim rehberini aç.`;
     this.hud.querySelector('.season-copy>span')!.textContent=`${day+1}. gün / 3 · ${day+1}. ay`;
@@ -156,8 +156,12 @@ export class SeasonCycle{
     if(season!==this.lastSeason){
       if(this.lastSeason>=0&&season===1)window.dispatchEvent(new CustomEvent('summer-started'));
       const economy=SEASON_ECONOMY[season];
-      const summary=(['berry','farm','fish'] as const).map(work=>`<span>${resourceArt(work==='farm'?'wheat':work)}<b>${economy.rates[work]===1?'—':economy.rates[work]===0?'×':`${economy.rates[work]>1?'+':'−'}${Math.round(Math.abs(economy.rates[work]-1)*100)}%`}</b></span>`).join('');
-      const quick=this.hud.querySelector<HTMLButtonElement>('.season-quick')!;quick.innerHTML=summary;quick.title=economy.hint;quick.setAttribute('aria-label',`${economy.name}: Çilek ${rateLabel(economy.rates.berry)}, Buğday ${rateLabel(economy.rates.farm)}, Balık ${rateLabel(economy.rates.fish)}. Tüm etkileri aç.`);
+      const summary=SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>{
+        const rate=economy.rates[work.id],label=rate===1?'—':`${rate>1?'+':'−'}${Math.round(Math.abs(rate-1)*100)}%`;
+        return `<span class="${rate>1?'rate-up':rate<1?'rate-down':'rate-normal'}" title="${work.name}: ${rateLabel(rate)}">${resourceArt(work.graphic)}<b>${label}</b></span>`;
+      }).join('');
+      const quick=this.hud.querySelector<HTMLButtonElement>('.season-quick')!;quick.innerHTML=summary;quick.setAttribute('aria-label',`${economy.name}: ${SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>`${work.name} ${rateLabel(economy.rates[work.id])}`).join(', ')}. Tüm etkileri aç.`);
+
       this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${economy.hint}</p>`;
       this.notice.getAnimations().forEach(a=>a.cancel());this.notice.animate([{opacity:0,transform:'translate(-50%,-12px)'},{opacity:1,transform:'translate(-50%,0)',offset:.12},{opacity:1,transform:'translate(-50%,0)',offset:.72},{opacity:0,transform:'translate(-50%,8px)'}],{duration:2600,fill:'both'});
       this.hud.animate([{transform:'translateY(-5px)',opacity:.5},{transform:'translateY(0)',opacity:1}],{duration:500});

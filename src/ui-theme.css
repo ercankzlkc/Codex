@@ -21,7 +21,7 @@
   --ui-rail-height: 48px;
   --ui-panel-top: 72px;
   --ui-rail-left: max(16px, calc((100vw - 1680px) / 2));
-  --hud-season-width: clamp(330px, 27vw, 410px);
+  --hud-season-width: clamp(440px, 32vw, 510px);
   --card-w: clamp(176px, 11vw, 190px);
   --card-h: calc(var(--card-w) * 1.40);
   --menu-alt: #e7dcc170;
