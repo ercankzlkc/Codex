@@ -1,0 +1,83 @@
+/* One material, typography and interaction system for every in-game surface. */
+:root {
+  --ui-font: 'Baloo 2', 'Segoe UI', sans-serif;
+  --ui-display: Georgia, 'Times New Roman', serif;
+  --ui-ink: #342d21;
+  --ui-muted: #70614c;
+  --ui-paper: #f3ead5;
+  --ui-paper-deep: #e7dcc1;
+  --ui-pine: #344f42;
+  --ui-pine-hover: #426551;
+  --ui-stroke: #c4b28c;
+  --ui-gold: #ac8848;
+  --ui-positive: #416b45;
+  --ui-danger: #a04f3c;
+  --ui-shadow: 0 12px 32px #152b2530, 0 2px 5px #211a1820;
+  --ui-paper-texture: url('/ui/medieval/parchment.png');
+  --royal-seal: url('/ui/medieval/royal-seal.png');
+  --ui-surface: linear-gradient(#f8f3e5ed, #f4ecd9ed), var(--ui-paper-texture);
+  --ui-radius: 6px;
+  --ui-header-y: 10px;
+  --ui-rail-height: 48px;
+  --ui-panel-top: 72px;
+  --ui-rail-left: max(16px, calc((100vw - 1680px) / 2));
+  --hud-season-width: clamp(330px, 27vw, 410px);
+  --card-w: clamp(176px, 11vw, 190px);
+  --card-h: calc(var(--card-w) * 1.40);
+  --menu-alt: #e7dcc170;
+  --menu-selected: #344f42;
+  --control-bg: var(--ui-pine);
+  --control-hover: var(--ui-pine-hover);
+  --control-ink: #fff5de;
+  --control-border: #263e32;
+  color: var(--ui-ink);
+  font: 500 14px/1.45 var(--ui-font);
+  -webkit-font-smoothing: antialiased;
+}
+body, button, input, textarea, select, dialog { font-family: var(--ui-font); }
+body { font-weight: 500; }
+button, input, textarea, select { font-size: inherit; }
+:is(button, input, textarea, select, [tabindex]):focus-visible { outline: 2px solid var(--ui-gold); outline-offset: 3px; }
+button {
+  display: inline-flex; justify-content: center; align-items: center; gap: 7px;
+  min-height: 36px; margin: 0; padding: 8px 16px;
+  border: 1px solid var(--control-border); border-radius: 4px;
+  background: var(--control-bg); color: var(--control-ink);
+  box-shadow: inset 0 1px #ffffff13, 0 1px 2px #211a1812;
+  font-weight: 650; line-height: 1.25; letter-spacing: .05px; text-align: center;
+  transition: background-color .14s, color .14s, border-color .14s, box-shadow .14s;
+}
+:where(button:not(.card)):enabled:hover { background: var(--control-hover); color: var(--control-ink); border-color: var(--control-border); }
+:where(button:not(.card)):enabled:active { box-shadow: inset 0 2px 3px #00000022; }
+:where(button:not(.card)):disabled { color: #6d6251; background: #e2dccf; border-color: #c8bfad; box-shadow: none; opacity: 1; filter: none; cursor: var(--cursor-arrow); }
+button svg { width: 16px; height: 16px; }
+.ui-button--secondary, .trade-prepare, [data-work-balance], [data-audio], [data-tile-left], [data-tile-right] {
+  --control-bg: #f7f1e3; --control-hover: #e9ddc4; --control-ink: var(--ui-ink); --control-border: var(--ui-stroke);
+}
+button[data-tile-delete] { --control-bg: #f4e5db; --control-hover: #ebd3c4; --control-ink: #8a4638; --control-border: #c9a08b; }
+button.ui-icon-button, button[data-work-close], button[data-journal-close], button[data-tile-close], .settings-heading [data-close] {
+  --control-bg: transparent; --control-hover: #e3d8bf; --control-ink: var(--ui-muted); --control-border: transparent;
+  flex: none; min-width: 32px; width: 32px; height: 32px; min-height: 32px; padding: 0; font: 400 24px/1 var(--ui-font); box-shadow: none;
+}
+.ui-tab, [data-season], [data-trade-mode], [data-quantity], [data-journal-tab], .palette-option {
+  --control-bg: #f7f1e3; --control-hover: #e7dcc1; --control-ink: var(--ui-ink); --control-border: var(--ui-stroke);
+}
+:is(.ui-tab, [data-season], [data-trade-mode], [data-quantity], [data-journal-tab], .palette-option)[aria-pressed=true] {
+  --control-bg: var(--ui-pine); --control-hover: var(--ui-pine-hover); --control-ink: #fff5de; --control-border: #294133;
+}
+#village-journal, #work-panel, #tile-editor, #resident-card, #food-details, #tile-tooltip, dialog {
+  border: 1px solid #9b8355; border-radius: var(--ui-radius); border-image: none;
+  background-color: var(--ui-paper); background-image: var(--ui-surface); background-size: auto, 512px 512px;
+  box-shadow: inset 0 0 0 1px #fff7e3, var(--ui-shadow); color: var(--ui-ink);
+}
+h1, h2, h3 { text-wrap: balance; }
+h1, h2, .ui-heading { font-family: var(--ui-display); font-weight: 700; color: var(--ui-ink); letter-spacing: -.35px; }
+p { text-wrap: pretty; }
+small { font-size: 12px; }
+progress { accent-color: var(--ui-pine); }
+input[type=range] { accent-color: var(--ui-pine); cursor: var(--cursor-point); }
+::selection { background: #cfc0a0; color: var(--ui-ink); }
+* { scrollbar-width: thin; scrollbar-color: #b8a37b transparent; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+}

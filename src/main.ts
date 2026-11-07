@@ -2,12 +2,11 @@ import {SEASON_ECONOMY,SEASON_WORKS,RENEWAL_SECONDS,rateLabel} from './season-ec
 import type {ChestLoot} from './chest-loot';
 import {resourceArt} from './resource-art';
 import './style.css';
+import './ui-theme.css';
 import './ui-shell.css';
 import './ui-cards.css';
 import './ui-dialogs.css';
 import './ui-panels.css';
-import './ui-materials.css';
-import './ui-medieval.css';
 import {Vector3} from 'three';
 import {CENTER,position} from './hex';
 import {harvestSeconds,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
@@ -29,7 +28,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
  <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
- <div class="tools"><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog" title="Ayarlar">${icon('settings')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
+ <div class="tools"><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog">${icon('settings')}</button><button id="restart" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
  <aside id="food-details" hidden role="tooltip"></aside>
@@ -37,6 +36,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
 const get=<E extends HTMLElement=HTMLElement>(selector:string)=>app.querySelector<E>(selector)!;
 const hand=get('#hand'), placement=get('#placement'), log=get('#log'), dialog=get<HTMLDialogElement>('dialog');
 const world=new World(get('#world'));
+new ResizeObserver(()=>world.cameraControl.resize(get('#world').clientWidth,get('#world').clientHeight)).observe(get('.hand-wrap'));
 const thumbs=world.thumbnails();
 const sound=new TableSound();
 world.onSoundFrame=(camera,focus,birds,shore,land)=>sound.updateSpatial(camera,focus,birds,shore,land);
@@ -201,14 +201,16 @@ function showFood(){
   const panel=get('#food-details'),rect=get('[data-resource="food"]').getBoundingClientRect();renderFood();panel.hidden=false;
   panel.style.left=`${Math.max(12,Math.min(innerWidth-panel.offsetWidth-12,rect.left+rect.width/2-panel.offsetWidth/2))}px`;panel.style.top=`${rect.bottom+14}px`;
 }
+const compactCount=new Intl.NumberFormat('tr-TR',{notation:'compact',maximumFractionDigits:1});
+const countLabel=(value:number)=>value>=10000?compactCount.format(value):String(value);
 const counters=new Map<string,{value:number;target:number;frame:number}>();
 function animateCounter(id:string,target:number){
   const el=get(`[data-resource="${id}"] b`),state=counters.get(id);
-  if(!state){el.textContent=String(target);counters.set(id,{value:target,target,frame:0});return}
+  if(!state){el.textContent=countLabel(target);counters.set(id,{value:target,target,frame:0});return}
   if(state.target===target)return;
   cancelAnimationFrame(state.frame);const from=state.value,previous=state.target,start=performance.now();state.target=target;
   el.dataset.change=target>previous?'up':'down';
-  const tick=(now:number)=>{const t=Math.min(1,(now-start)/550);state.value=from+(target-from)*(1-(1-t)**3);el.textContent=String(Math.round(state.value));if(t<1)state.frame=requestAnimationFrame(tick);else{el.textContent=String(target);window.setTimeout(()=>{if(state.target===target)delete el.dataset.change},500)}};
+  const tick=(now:number)=>{const t=Math.min(1,(now-start)/550);state.value=from+(target-from)*(1-(1-t)**3);el.textContent=countLabel(Math.round(state.value));if(t<1)state.frame=requestAnimationFrame(tick);else{el.textContent=countLabel(target);window.setTimeout(()=>{if(state.target===target)delete el.dataset.change},500)}};
   state.frame=requestAnimationFrame(tick);
 }
 function pulseHudResource(target:HTMLElement){
@@ -232,7 +234,7 @@ function renderHud(){
   const details:Record<string,string>={wood:`${actual.wood} oduncu çalışıyor`,stone:`${actual.stone} madenci çalışıyor`,food:`Yaklaşık ${game.foodPerMinute} / dk · %20 toklukta yemek`,gold:'5 altın · yeni el',people:game.immigrationReason,happy:game.happy>=70?'Köylüler mutlu':game.happy>=40?'Köylüler sakin':'Köylüler huzursuz'};
   for(const id of ['wood','stone','food','gold','people','happy'] as const){
     animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
-    get(`[data-resource="${id}"] em`).textContent=details[id];
+    get(`[data-resource="${id}"] em`).textContent=`${id!=='people'&&id!=='food'?`${Math.round(game[id]).toLocaleString('tr-TR')} · `:''}${details[id]}`;
   }
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
   const population=get('[data-resource="people"]');
@@ -291,7 +293,7 @@ function showMilestones(){
 window.addEventListener('resident-arrived',()=>{toast('Yeni bir sakin köyüne yerleşti');renderHud()});
 function openSeasonDetails(selected=game.seasonIndex,arrival=false){
   const season=SEASON_ECONOMY[selected];
-  modal(`<small>${arrival?'YENİ MEVSİM':'MEVSİM REHBERİ'}</small><h1>${arrival?`${season.symbol} ${season.name} başladı`:'Üretim ve kış hazırlığı'}</h1><nav class="season-tabs" aria-label="Mevsimler">${SEASON_ECONOMY.map((item,i)=>`<button data-season="${i}" aria-pressed="${i===selected}">${item.symbol} ${item.name}${i===game.seasonIndex?' · şimdi':''}</button>`).join('')}</nav><p>${season.hint}</p><div class="season-rates">${SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>{const rate=season.rates[work.id];return `<div class="season-rate ${rate===0?'stopped':rate>1?'boosted':rate<1?'slower':''}"><span>${resourceArt(work.graphic)||icon(work.graphic)} ${work.name}</span><b>${rateLabel(rate)}${arrival&&rate!==SEASON_ECONOMY[(selected+3)%4].rates[work.id]?`<small class="season-previous">Önce %${Math.round(SEASON_ECONOMY[(selected+3)%4].rates[work.id]*100)}</small>`:''}</b></div>`}).join('')}</div><p class="season-explanation">Yüzdeler çalışma hızıdır; %100 normal, %0 üretim durur. Kışın tarla yenilenmesi de durur. Stoktaki erzak korunur. Gündelik tüketim sürer.</p><div class="season-renewal"><span>${resourceArt('wood')} Ağaç: ${RENEWAL_SECONDS.wood} sn</span><span>${resourceArt('stone')} Taş: ${RENEWAL_SECONDS.stone} sn</span></div><p class="season-explanation">Her alanın kaynakları ortaktır. Fazladan işçi hasadı hızlandırır; yenilenme süresini kısaltmaz. Yeni sakin: boş yatak, 50 refah ve 90 saniyelik yiyecek. Koşullar sağlanınca evinden hemen çıkar.</p><button data-close>Oyuna dön</button>`,'season-guide');
+  modal(`<header class="dialog-heading"><small>${arrival?'YENİ MEVSİM':'MEVSİM REHBERİ'}</small><h1>${arrival?`${season.symbol} ${season.name} başladı`:'Üretim ve kış hazırlığı'}</h1></header><nav class="season-tabs" aria-label="Mevsimler">${SEASON_ECONOMY.map((item,i)=>`<button data-season="${i}" aria-pressed="${i===selected}">${item.symbol} ${item.name}${i===game.seasonIndex?' · şimdi':''}</button>`).join('')}</nav><div class="season-summary"><p>${season.hint}</p></div><div class="season-rates">${SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>{const rate=season.rates[work.id];return `<div class="season-rate ${rate===0?'stopped':rate>1?'boosted':rate<1?'slower':''}"><span>${resourceArt(work.graphic)||icon(work.graphic)} ${work.name}</span><b>${rateLabel(rate)}${arrival&&rate!==SEASON_ECONOMY[(selected+3)%4].rates[work.id]?`<small class="season-previous">Önce %${Math.round(SEASON_ECONOMY[(selected+3)%4].rates[work.id]*100)}</small>`:''}</b></div>`}).join('')}</div><p class="season-explanation">%100 normal çalışma hızı. Artışlar yeşil, yavaşlamalar kehribar, duran üretimler kırmızı gösterilir.</p><div class="season-renewal"><span>${resourceArt('wood')} Ağaç: ${RENEWAL_SECONDS.wood} sn</span><span>${resourceArt('stone')} Taş: ${RENEWAL_SECONDS.stone} sn</span></div><button data-close>Oyuna dön</button>`,'season-guide');
   dialog.querySelectorAll<HTMLButtonElement>('[data-season]').forEach(button=>button.onclick=()=>openSeasonDetails(Number(button.dataset.season)));
 }
 window.addEventListener('season-details',()=>{if(!dialog.open)openSeasonDetails()});
@@ -315,7 +317,7 @@ function shipCountdown(){return `${String(Math.floor(game.merchantCountdown/60))
 function openTrade(){
   tradeViewSignature=tradeSnapshot();
   const focused=dialog.contains(document.activeElement)?document.activeElement as HTMLElement:null;
-  const focusAttribute=['data-exchange','data-prepare','data-trade-mode','data-quantity','data-close'].find(attribute=>focused?.hasAttribute(attribute));
+  const focusAttribute=['data-exchange','data-prepare','data-trade-mode','data-quantity','data-close','data-dialog-dismiss'].find(attribute=>focused?.hasAttribute(attribute));
   const focusValue=focusAttribute?focused?.getAttribute(focusAttribute):null;
   const continuing=dialog.open&&dialog.dataset.kind==='trade',basketScroll=continuing?dialog.querySelector('.trade-basket')?.scrollTop??0:0;
   dialog.dataset.tradeView=game.harborId===undefined?'harbor':'market';
@@ -481,14 +483,22 @@ dialog.addEventListener('cancel',e=>{if(dialog.dataset.kind==='milestone'){e.pre
 function modal(html:string,kind='standard') {
   modalMotion++;dialog.classList.remove('closing');dialog.getAnimations({subtree:true}).forEach(a=>a.cancel());
   closeWork();game.paused=kind!=='trade';dialog.dataset.kind=kind;
-  drag.cancel();select(null);dialog.innerHTML=html;if(!dialog.open)dialog.showModal();
+  drag.cancel();select(null);const wasOpen=dialog.open;dialog.innerHTML=html;
   const audioButton=dialog.querySelector<HTMLButtonElement>('[data-audio]');
   if(audioButton)audioButton.onclick=()=>{sound.toggle();audioButton.textContent=sound.muted?'Ses kapalı':'Ses açık'};
   dialog.querySelectorAll<HTMLInputElement>('input[data-level]').forEach(input=>{
     input.oninput=()=>sound.set(input.dataset.level as 'master'|'sfx'|'ambience',Number(input.value)/100);
   });
-  dialog.querySelector('[data-close]')?.addEventListener('click',()=>{void closeDialog()});
+  const title=dialog.querySelector('h1');if(title){title.id='active-dialog-title';dialog.setAttribute('aria-labelledby',title.id)}
+  if(!dialog.querySelector('[data-close][aria-label]')){
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.className='ui-icon-button dialog-dismiss';dismiss.dataset.dialogDismiss='';dismiss.setAttribute('aria-label','Pencereyi kapat');dismiss.textContent='×';dialog.prepend(dismiss);
+  }
+  const actions=Array.from(dialog.children).filter((node):node is HTMLButtonElement=>node instanceof HTMLButtonElement&&!node.classList.contains('ui-icon-button'));
+  if(actions.length){const footer=document.createElement('footer');footer.className='dialog-actions';for(const action of actions)footer.append(action);dialog.append(footer)}
+  dialog.querySelectorAll<HTMLButtonElement>('[data-close],[data-dialog-dismiss]').forEach(button=>button.addEventListener('click',()=>{void closeDialog()}));
   dialog.querySelector('[data-new]')?.addEventListener('click',()=>{dialog.close();reset()});
+  if(!wasOpen)dialog.showModal();
+  if(kind==='standard'&&dialog.querySelector('[data-new]'))dialog.querySelector<HTMLButtonElement>('[data-close]')?.focus();
 }
 function reset(){
   pendingSummer=false;

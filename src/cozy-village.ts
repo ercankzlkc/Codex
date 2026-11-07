@@ -34,7 +34,7 @@ export class CozyVillage{
     const fireGeo=new T.BufferGeometry();fireGeo.setAttribute('position',new T.BufferAttribute(this.firePositions,3));
     this.leaves=new T.Points(leafGeo,this.leafMat);this.fireflies=new T.Points(fireGeo,this.fireMat);this.root.add(this.leaves,this.fireflies);
     this.panel=document.createElement('section');this.panel.id='village-journal';this.panel.hidden=true;this.panel.setAttribute('aria-label','Köy defteri');
-    this.toggle=document.createElement('button');this.toggle.id='village-journal-toggle';this.toggle.innerHTML=icon('journal');this.toggle.title='Köy Defteri';this.toggle.setAttribute('aria-label','Köy Defteri');this.toggle.setAttribute('aria-controls','village-journal');this.toggle.setAttribute('aria-expanded','false');
+    this.toggle=document.createElement('button');this.toggle.id='village-journal-toggle';this.toggle.innerHTML=icon('journal');this.toggle.setAttribute('aria-label','Köy Defteri');this.toggle.setAttribute('aria-controls','village-journal');this.toggle.setAttribute('aria-expanded','false');
     this.collect=document.createElement('button');this.collect.className='discovery-pick';this.collect.hidden=true;
     document.querySelector('#app')!.append(this.panel,this.collect);document.querySelector('.tools')!.prepend(this.toggle);
     this.toggle.onclick=()=>{this.panel.hidden=!this.panel.hidden;this.toggle.setAttribute('aria-expanded',String(!this.panel.hidden));this.render()};
