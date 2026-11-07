@@ -153,6 +153,7 @@ export class SeasonCycle{
     this.hud.querySelector('.season-remaining b')!.textContent=`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
     this.hud.querySelectorAll<HTMLElement>('.season-days i').forEach((dot,i)=>{dot.classList.toggle('complete',i<day);dot.style.setProperty('--fill',`${i<day?100:i===day?cycle*100:0}%`)});
     if(season!==this.lastSeason){
+      if(this.lastSeason>=0&&season===1)window.dispatchEvent(new CustomEvent('summer-started'));
       const economy=SEASON_ECONOMY[season];
       const summary=(['berry','farm','fish'] as const).map(work=>`<span>${resourceArt(work==='farm'?'wheat':work)}<b>${rateLabel(economy.rates[work])}</b></span>`).join('');
       const quick=this.hud.querySelector<HTMLButtonElement>('.season-quick')!;quick.innerHTML=summary;quick.title=economy.hint;quick.setAttribute('aria-label',`${economy.name}: Çilek ${rateLabel(economy.rates.berry)}, Buğday ${rateLabel(economy.rates.farm)}, Balık ${rateLabel(economy.rates.fish)}. Tüm etkileri aç.`);

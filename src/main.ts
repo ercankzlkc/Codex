@@ -27,7 +27,7 @@ app.innerHTML=`<div id="world" aria-label="Kartlarla genişleyen altıgen kıyı
  <div class="hud-rail" aria-hidden="true"></div>
  <div class="kingdom-hud" aria-label="Krallığın kaynakları"><div id="stats" aria-label="Krallığın kaynakları"></div></div>
  <div id="log" role="status"></div><div id="placement" aria-live="polite"></div>
- <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><span class="hand-instruction">Bir kart seç ve kıyıya yerleştir</span><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
+ <button id="event-target" hidden>Anlık etkiyi burada kullan</button><div class="hand-wrap"><div class="hand-label"><button id="reroll-toggle" class="card-exchange" title="Bütün kartları 5 altına yenile"><span class="exchange-icon">${icon('reset')}</span><span>Kartları yenile</span><small>${resourceArt('gold')} ${REROLL_COST}</small></button></div><div class="hand-dock"><div id="hand"></div></div></div>
  <div class="tools"><button id="settings" aria-label="Ayarlar" aria-haspopup="dialog" title="Ayarlar">${icon('settings')}</button><button id="restart" title="Yeni krallık" aria-label="Yeni krallık">${icon('reset')}</button></div>
  <section id="tile-editor" hidden aria-label="Yerleşimi düzenle"><div class="tile-editor-heading"><strong></strong><button data-tile-close aria-label="Düzenlemeyi kapat">×</button></div><small></small><div id="storage-upgrade" hidden><div><span id="storage-meter"></span><button id="upgrade-store"></button></div><progress id="storage-progress" value="0" max="1" aria-label="Depo kapasitesi"></progress></div><button id="tile-trade" hidden>Tüccarla ticaret yap</button><div class="tile-editor-actions"><button data-tile-left aria-label="Yerleşimi sola döndür">↶ Döndür</button><button data-tile-right aria-label="Yerleşimi sağa döndür">Döndür ↷</button><button data-tile-delete>Yık ve sil</button></div></section>
  <section id="work-panel" hidden aria-label="Köylü görevleri"><header><div><small>KÖY YÖNETİMİ</small><strong>Köylüler</strong></div><button data-work-close aria-label="Kapat">×</button></header><div id="work-summary"></div><div class="work-mode"><span id="work-mode-label"></span><button data-work-balance>Otomatik dağıt</button></div><div id="work-rows"></div><p id="work-hint"></p><button data-progress>Yerleşim gelişimi <span>→</span></button></section>
@@ -288,12 +288,15 @@ function showMilestones(){
   sound.play('reward');
 }
 window.addEventListener('resident-arrived',()=>{toast('Yeni bir sakin köyüne yerleşti');renderHud()});
-function openSeasonDetails(selected=game.seasonIndex){
+function openSeasonDetails(selected=game.seasonIndex,arrival=false){
   const season=SEASON_ECONOMY[selected];
-  modal(`<small>MEVSİM REHBERİ</small><h1>Üretim ve kış hazırlığı</h1><nav class="season-tabs" aria-label="Mevsimler">${SEASON_ECONOMY.map((item,i)=>`<button data-season="${i}" aria-pressed="${i===selected}">${item.symbol} ${item.name}${i===game.seasonIndex?' · şimdi':''}</button>`).join('')}</nav><p>${season.hint}</p><div class="season-rates">${SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>{const rate=season.rates[work.id];return `<div class="season-rate ${rate===0?'stopped':rate>1?'boosted':rate<1?'slower':''}"><span>${resourceArt(work.graphic)||icon(work.graphic)} ${work.name}</span><b>${rateLabel(rate)}</b></div>`}).join('')}</div><p class="season-explanation">Yüzdeler çalışma hızıdır; %100 normal, %0 üretim durur. Kışın tarla yenilenmesi de durur. Stoktaki erzak korunur. Gündelik tüketim sürer.</p><div class="season-renewal"><span>${resourceArt('wood')} Ağaç: ${RENEWAL_SECONDS.wood} sn</span><span>${resourceArt('stone')} Taş: ${RENEWAL_SECONDS.stone} sn</span></div><p class="season-explanation">Her alanın kaynakları ortaktır. Fazladan işçi hasadı hızlandırır; yenilenme süresini kısaltmaz. Yeni sakin: boş yatak, 50 refah ve 90 saniyelik yiyecek. Koşullar sağlanınca evinden hemen çıkar.</p><button data-close>Oyuna dön</button>`,'season-guide');
+  modal(`<small>${arrival?'YENİ MEVSİM':'MEVSİM REHBERİ'}</small><h1>${arrival?`${season.symbol} ${season.name} başladı`:'Üretim ve kış hazırlığı'}</h1><nav class="season-tabs" aria-label="Mevsimler">${SEASON_ECONOMY.map((item,i)=>`<button data-season="${i}" aria-pressed="${i===selected}">${item.symbol} ${item.name}${i===game.seasonIndex?' · şimdi':''}</button>`).join('')}</nav><p>${season.hint}</p><div class="season-rates">${SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>{const rate=season.rates[work.id];return `<div class="season-rate ${rate===0?'stopped':rate>1?'boosted':rate<1?'slower':''}"><span>${resourceArt(work.graphic)||icon(work.graphic)} ${work.name}</span><b>${rateLabel(rate)}${arrival&&rate!==SEASON_ECONOMY[(selected+3)%4].rates[work.id]?`<small class="season-previous">Önce %${Math.round(SEASON_ECONOMY[(selected+3)%4].rates[work.id]*100)}</small>`:''}</b></div>`}).join('')}</div><p class="season-explanation">Yüzdeler çalışma hızıdır; %100 normal, %0 üretim durur. Kışın tarla yenilenmesi de durur. Stoktaki erzak korunur. Gündelik tüketim sürer.</p><div class="season-renewal"><span>${resourceArt('wood')} Ağaç: ${RENEWAL_SECONDS.wood} sn</span><span>${resourceArt('stone')} Taş: ${RENEWAL_SECONDS.stone} sn</span></div><p class="season-explanation">Her alanın kaynakları ortaktır. Fazladan işçi hasadı hızlandırır; yenilenme süresini kısaltmaz. Yeni sakin: boş yatak, 50 refah ve 90 saniyelik yiyecek. Koşullar sağlanınca evinden hemen çıkar.</p><button data-close>Oyuna dön</button>`,'season-guide');
   dialog.querySelectorAll<HTMLButtonElement>('[data-season]').forEach(button=>button.onclick=()=>openSeasonDetails(Number(button.dataset.season)));
 }
 window.addEventListener('season-details',()=>{if(!dialog.open)openSeasonDetails()});
+let pendingSummer=false;
+window.addEventListener('summer-started',()=>{pendingSummer=true});
+function showSummer(){if(pendingSummer&&!dialog.open){pendingSummer=false;openSeasonDetails(1,true)}}
 function openProgress(){
   modal(`<small>YERLEŞİM YOLCULUĞU</small><h1>Köyden kıyı kasabasına</h1><div class="progress-list">${MILESTONES.map(m=>{
     const reached=game.reached.has(m.population),unlocks=cards.filter(c=>c.unlock===m.population||m.population===60&&c.id==='harbor');
@@ -462,7 +465,7 @@ window.setInterval(()=>{
     if(tradeSnapshot()!==tradeViewSignature)openTrade();
     const countdown=dialog.querySelector('.trade-countdown b');if(countdown)countdown.textContent=shipCountdown();
   }
-  showMilestones();
+  showSummer();showMilestones();
 },200);
 dialog.addEventListener('close',()=>{game.paused=false;window.setTimeout(showMilestones,0)});
 let modalMotion=0;
@@ -487,6 +490,7 @@ function modal(html:string,kind='standard') {
   dialog.querySelector('[data-new]')?.addEventListener('click',()=>{dialog.close();reset()});
 }
 function reset(){
+  pendingSummer=false;
   chestRewardEpoch++;for(const [animation,node] of chestFlights){animation.cancel();node.remove()}chestFlights.clear();
   cancelAnimationFrame(deliveryHudFrame);deliveryHudFrame=0;deliveryPulses.clear();
   handMotion++;handBusy=false;hand.removeAttribute('data-cards');hand.getAnimations({subtree:true}).forEach(a=>a.cancel());

@@ -128,3 +128,7 @@ Her orman/taş alanındaki üç kaynak ortak kullanılır; aynı kaynak iki iş�
 Sağ üst araçlar Köy Defteri (açık kitap), ayarlar ve yeniden başlatmadır. Ayrı ticaret ve oyun rehberi düğmeleri bulunmaz; ticaret iskelesi kartla kurulur, iskele veya gemiden ticaret paneli açılır. Köy Defteri sağ üstte açılır. Sandığın içeriği kaynak ikonuyla, adet ve kısa durum mesajıyla gösterilir; keşif geçmişinde de aynı ikon kullanılır.
 
 Krallık Merkezi diğer evlerden ayrı modellenmiştir: kesme taş temel, çift ahşap kapı, taç mühürü, kiremitli yönetim konağı, arka çan kulesi ve yeşil-altın sancaklar. Köyün malzeme ve renk dilini korur; kapı ve kule mevcut yürüme sınırlarıyla uyumludur. Mevsim rehberi üç sütunludur ve çilek, buğday, balık, odun, taş etkilerini gösterir; bahçe satırı gösterilmez.
+
+Yeni sakinler evden çıktıktan sonra uygun bir işe yönelir. Elle dağılımda mevcut görevler korunur ve yeni sakin için boş bir çalışma yeri ayrılır. Otomatik dağılımda hedeflenen kaynak yenilenmeyi bekliyorsa hazır kaynak bulunan başka uygun iş seçilir. Yalnızca uygun iş, erişilebilir kaynak veya depo alanı olmadığında beklenir.
+
+Her yaz başlangıcında üretim özeti penceresi açılır; yaz hızlarının yanında değişen işlerde önceki mevsimin oranı da gösterilir. Başka pencere açıksa yaz özeti kapanış sonrasına bırakılır. İlkbaharda oyuna başlarken bu pencere açılmaz. Kartların üzerindeki yerleştirme talimatı kaldırılmıştır.

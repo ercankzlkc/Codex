@@ -25,6 +25,7 @@ export interface VillageHooks {
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
+  private newWorkers=new Set<number>();
   private departures=new Map<number,{home:number;from:T.Vector3;to:T.Vector3;age:number;delay:number}>();
   private couriers=new Map<number,{shipment:DockShipment;phase:'pickup'|'carry';handling:number;stalled:number;access:number;destination:T.Vector3|null}>();
   private dockLoads=new T.Group();private dockSignature='';
@@ -90,7 +91,7 @@ export class Villagers {
   reset(game:Game){
     this.residentCard.reset();this.pointer=null;
     for(const c of this.citizens){c.visual?.dispose();c.status.remove();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
-    this.departures.clear();this.couriers.clear();this.dockLoads.clear();this.dockSignature='';this.flights=[];this.root.clear();this.root.add(this.dockLoads);this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
+    this.newWorkers.clear();this.departures.clear();this.couriers.clear();this.dockLoads.clear();this.dockSignature='';this.flights=[];this.root.clear();this.root.add(this.dockLoads);this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
   }
   private neighbors(x:number,z:number){const result:Citizen[]=[];const bx=Math.floor(x/.32),bz=Math.floor(z/.32);for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)result.push(...(this.buckets.get(`${bx+a}:${bz+b}`)??[]));return result}
   private clear(c:Citizen,x:number,z:number){return this.neighbors(x,z).every(other=>other===c||Math.hypot(other.root.position.x-x,other.root.position.z-z)>.21)}
@@ -134,6 +135,7 @@ export class Villagers {
     this.root.add(root,line,bobber,fish);this.spawned.add(id);
     const citizen:Citizen={energy:95,satiety:90,visual:null,restUntil:0,id,root,body,arms,legs,bundle,axe,pickaxe,rod,line,bobber,fish,stage:'idle',unload:null,path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:1,speed:0,walkPhase:0,wait:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]};
     if(id!==0){
+      this.newWorkers.add(id);
       const from=new T.Vector3(p.x+Math.sin(yaw)*.26,LAND_Y,p.z+Math.cos(yaw)*.26),to=root.position.clone();
       const delay=[...this.departures.values()].filter(exit=>exit.home===home).length*.25;
       root.position.copy(from);root.rotation.y=yaw;this.departures.set(id,{home,from,to,age:0,delay});
@@ -174,8 +176,8 @@ export class Villagers {
     if(this.nav!.waiting(c.id))return false;
     const g=this.game!,here=fromWorld(c.root.position.x,c.root.position.z),targets=this.frameTargets??g.workTargets(),counts=this.assignedCounts();
     const options=[...g.board.keys()].map(source=>({source,recipe:g.productAt(source),category:g.categoryFor(source)}))
-      .filter(({source,recipe,category})=>recipe&&g.seasonalWorkRate(source)>0&&this.hooks.resourceReady(source)&&this.hooks.ready(source)&&(category?counts[category]<targets[category]:g.happy<70)&&this.assignedTo(source)<recipe.capacity)
-      .sort((a,b)=>hexDistance(here,a.source)-hexDistance(here,b.source));
+      .filter(({source,recipe,category})=>recipe&&g.seasonalWorkRate(source)>0&&this.hooks.resourceReady(source)&&this.hooks.ready(source)&&(category?(counts[category]<targets[category]||g.autoWorkers||this.newWorkers.has(c.id)):g.happy<70)&&this.assignedTo(source)<recipe.capacity)
+      .sort((a,b)=>Number(!!b.category&&counts[b.category]<targets[b.category])-Number(!!a.category&&counts[a.category]<targets[a.category])||hexDistance(here,a.source)-hexDistance(here,b.source));
     for(const {source,recipe,category} of options){
       const store=g.storageFor(source).find(id=>this.hooks.ready(id)&&g.canStore(id,recipe!.resource));if(store===undefined)continue;
       let tree=(recipe!.resource==='wood'||recipe!.resource==='stone')?-1:c.id%2;
@@ -184,6 +186,13 @@ export class Villagers {
       if((recipe!.resource==='wood'||recipe!.resource==='stone')&&tree<0)continue;
       const fishing=g.board.get(source)==='fisher'?this.hooks.fishingSpot(source):null;if(g.board.get(source)==='fisher'&&!fishing)continue;
       if(!this.route(c,source,fishing?.stand??this.hooks.workPoint(source,tree))){if(this.nav!.waiting(c.id))return false;continue}
+      if(!g.autoWorkers&&this.newWorkers.has(c.id)&&category&&counts[category]>=targets[category]){
+        const planned={...g.workTargets()},used=Object.values(planned).reduce((sum,n)=>sum+n,0);
+        const donor=WORK_CATEGORIES.find(work=>work!==category&&planned[work]>counts[work]);
+        if(used>=g.people&&donor)planned[donor]--;
+        if(used<g.people||donor){planned[category]++;g.assignments=planned;this.frameTargets=g.workTargets()}
+      }
+      this.newWorkers.delete(c.id);
       c.eatUntil=0;c.job={source,store,resource:recipe!.resource,amount:recipe!.amount,tree,category};c.stage='to-work';c.clock=0;return true;
     }
     return false;

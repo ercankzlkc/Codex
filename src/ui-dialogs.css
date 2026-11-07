@@ -568,3 +568,5 @@ dialog .season-tabs button[aria-pressed=true] { background: var(--ui-pine); colo
 .season-rate > span { gap: 5px; }
 .season-rate .resource-art { width: 26px; height: 26px; }
 .season-rate b { white-space: nowrap; font-size: 12px; }
+
+.season-rate .season-previous { display: block; margin-top: 3px; color: var(--ui-muted); font-size: 10px; font-weight: 400; }
