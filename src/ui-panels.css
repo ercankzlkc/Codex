@@ -403,3 +403,10 @@
 .immigration-status .resource-art { width: 23px; height: 23px; }
 .immigration-status small { color: var(--ui-muted); font-size: 11px; }
 .immigration-status progress { width: 100%; height: 5px; accent-color: var(--ui-pine); }
+
+.tools #village-journal-toggle { position: relative; inset: auto; width: 32px; height: 32px; min-height: 0; padding: 7px; margin: 0; border: 0; border-radius: 3px; box-shadow: none; background: none; color: #66766a; }
+.tools #village-journal-toggle:hover, .tools #village-journal-toggle[aria-expanded=true] { background: var(--menu-selected); color: var(--ui-pine); }
+.tools #village-journal-toggle svg { width: 18px; height: 18px; }
+#village-journal { left: auto; right: calc(var(--ui-rail-left) + 9px); }
+.discovery-pick { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+.discovery-pick .resource-art, .discovery-stamp .resource-art { display: inline-block; flex: none; width: 26px; height: 26px; vertical-align: middle; }

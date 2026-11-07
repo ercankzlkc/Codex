@@ -20,7 +20,6 @@ export const placementAudio: Readonly<Record<Kind, PlacementAudioCue>> = {
   manor: { files: ['placement-door'], volume: .26, rate: [.78, .90] },
   fisher: { files: ['placement-timber-1', 'placement-timber-2'], volume: .22, rate: [.96, 1.08] },
   harbor: { files: ['placement-timber-1', 'placement-timber-2'], volume: .26, rate: [.82, .96] },
-  harvest: { files: ['placement-straw-1', 'placement-straw-2'], volume: .26, rate: [1.04, 1.14] },
   festival: { files: ['chips-stack-3'], volume: .20, rate: [1.04, 1.12] },
 };
 

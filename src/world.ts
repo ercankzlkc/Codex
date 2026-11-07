@@ -1,3 +1,4 @@
+import {kingdomCenter} from './models';
 import {RENEWAL_SECONDS} from './season-economy';
 import type {ChestLoot} from './chest-loot';
 import {merchantRouteOpen} from './merchant-route';
@@ -38,22 +39,6 @@ function contactMaterial() {
   ctx.fillStyle=blur;ctx.fillRect(0,0,64,64);
   const map=new T.CanvasTexture(canvas);map.colorSpace=T.SRGBColorSpace;
   return new T.MeshBasicMaterial({map,transparent:true,depthWrite:false});
-}
-
-function villageHouse() {
-  const g=model('house');
-  // The starter home is the harbour hall, identified by its bell tower and pennant.
-  const tower=new T.Group();tower.position.set(-.34,0,-.21);g.add(tower);
-  part(tower,new T.CylinderGeometry(.205,.24,.77,8),0xe5d4ae,0,.405,0);
-  part(tower,new T.CylinderGeometry(.24,.20,.065,8),0x957958,0,.812,0);
-  part(tower,new T.CylinderGeometry(.16,.16,.29,8),0x687c74,0,.99,0);
-  for(let i=0;i<4;i++){let a=i*Math.PI/2+.4;box(tower,0xbba177,Math.cos(a)*.172,.99,Math.sin(a)*.172,.038,.3,.038);}
-  part(tower,new T.ConeGeometry(.29,.37,8),0x578080,0,1.29,0);
-  box(tower,0x8f7856,0,1.58,0,.023,.23,.023);
-  const pennant=new T.BufferGeometry();
-  pennant.setAttribute('position',new T.Float32BufferAttribute([0,1.69,0,.26,1.62,.018,0,1.56,0],3));pennant.computeVertexNormals();
-  const m=new T.Mesh(pennant,new T.MeshLambertMaterial({color:0xdba557,side:T.DoubleSide}));tower.add(m);
-  return g;
 }
 
 export class World {
@@ -568,7 +553,7 @@ export class World {
       if(!kind){if(old){this.root.remove(old);this.buildings.delete(i)}return}
       if(old)return;
       const preview=i===placed&&this.pendingModel?.kind===kind?this.pendingModel.group:null;
-      const g=i===CENTER&&kind==='house'?villageHouse():preview??model(kind);
+      const g=i===CENTER&&kind==='house'?kingdomCenter():preview??model(kind);
       const shadow=new T.Mesh(this.contactGeo,this.contact);shadow.position.y=.0025;shadow.renderOrder=1;g.add(shadow);
       g.scale.setScalar(['house','manor','store','lumber','fisher','harbor'].includes(kind)?BUILDING_SCALE:['berry','farm'].includes(kind)?.75:1);
       g.position.copy(cellPosition(i));this.root.add(g);this.buildings.set(i,g);

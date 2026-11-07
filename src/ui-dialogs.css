@@ -562,3 +562,9 @@ dialog .season-tabs button[aria-pressed=true] { background: var(--ui-pine); colo
 .season-renewal { display: flex; gap: 24px; margin-top: 14px; }
 .season-renewal > span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
 .season-renewal .resource-art { width: 24px; height: 24px; }
+
+.season-rates { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 16px; }
+.season-rate { gap: 5px; font-size: 13px; }
+.season-rate > span { gap: 5px; }
+.season-rate .resource-art { width: 26px; height: 26px; }
+.season-rate b { white-space: nowrap; font-size: 12px; }

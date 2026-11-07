@@ -1,3 +1,5 @@
+import {resourceArt} from './resource-art';
+import {icon} from './icons';
 import {residentIcon} from './resident-card';
 import {cozyFlowerGeometry} from './models';
 import {discoveryModel} from './discovery-model';
@@ -21,7 +23,7 @@ export class CozyVillage{
   private leafPositions=new Float32Array(64*3);private firePositions=new Float32Array(32*3);
   private leaves:T.Points;private fireflies:T.Points;
   private panel:HTMLElement;private toggle:HTMLButtonElement;private collect:HTMLButtonElement;
-  private completed=new Set<number>();private journal:string[]=[];private signature='';private clock=0;private floatClock=0;private nextDiscovery=35;
+  private completed=new Set<number>();private journal:{message:string;good:ChestLoot['good'];amount:number}[]=[];private signature='';private clock=0;private floatClock=0;private nextDiscovery=35;
   private opening=-1;private prizeTime=0;private sinkTime=-1;
   private loot:ChestLoot|null=null;private pendingLoot=false;private lootRequested=false;private generation=0;
   private floatY=0;private floatVelocity=0;private pitch=0;private roll=0;private pitchVelocity=0;private rollVelocity=0;
@@ -32,9 +34,9 @@ export class CozyVillage{
     const fireGeo=new T.BufferGeometry();fireGeo.setAttribute('position',new T.BufferAttribute(this.firePositions,3));
     this.leaves=new T.Points(leafGeo,this.leafMat);this.fireflies=new T.Points(fireGeo,this.fireMat);this.root.add(this.leaves,this.fireflies);
     this.panel=document.createElement('section');this.panel.id='village-journal';this.panel.hidden=true;this.panel.setAttribute('aria-label','Köy defteri');
-    this.toggle=document.createElement('button');this.toggle.id='village-journal-toggle';this.toggle.textContent='✿ Köy Defteri';this.toggle.setAttribute('aria-expanded','false');
+    this.toggle=document.createElement('button');this.toggle.id='village-journal-toggle';this.toggle.innerHTML=icon('journal');this.toggle.title='Köy Defteri';this.toggle.setAttribute('aria-label','Köy Defteri');this.toggle.setAttribute('aria-controls','village-journal');this.toggle.setAttribute('aria-expanded','false');
     this.collect=document.createElement('button');this.collect.className='discovery-pick';this.collect.hidden=true;
-    document.querySelector('#app')!.append(this.panel,this.toggle,this.collect);
+    document.querySelector('#app')!.append(this.panel,this.collect);document.querySelector('.tools')!.prepend(this.toggle);
     this.toggle.onclick=()=>{this.panel.hidden=!this.panel.hidden;this.toggle.setAttribute('aria-expanded',String(!this.panel.hidden));this.render()};
     this.collect.onclick=()=>this.claimDiscovery();
     window.addEventListener('resident-portrait',()=>{if(!this.panel.hidden)this.render()});
@@ -45,7 +47,7 @@ export class CozyVillage{
     });
   }
   bind(game:Game){this.reset();this.game=game;this.render()}
-  reset(){this.game=null;this.completed.clear();this.journal=[];this.signature='';this.clock=0;this.floatClock=0;this.nextDiscovery=15;this.opening=-1;this.prizeTime=0;this.sinkTime=-1;this.panel.hidden=true;this.collect.hidden=true;this.clearBlooms();this.removeDiscovery();this.floatVelocity=this.pitchVelocity=this.rollVelocity=this.pitch=this.roll=0}
+  reset(){this.game=null;this.completed.clear();this.journal=[];this.signature='';this.clock=0;this.floatClock=0;this.nextDiscovery=15;this.opening=-1;this.prizeTime=0;this.sinkTime=-1;this.panel.hidden=true;this.toggle.setAttribute('aria-expanded','false');this.collect.hidden=true;this.clearBlooms();this.removeDiscovery();this.floatVelocity=this.pitchVelocity=this.rollVelocity=this.pitch=this.roll=0}
   private clearBlooms(){for(const child of this.blooms.children){if(child instanceof T.Mesh)child.geometry.dispose()}this.blooms.clear()}
   private removeDiscovery(){
     this.generation++;this.loot=null;this.pendingLoot=false;this.lootRequested=false;
@@ -64,7 +66,7 @@ export class CozyVillage{
       ${residents?`<p class="journal-intro">Komşularını tanı, küçük dileklerine kulak ver.</p><div class="resident-pages">${game.residents.map(r=>{
         const wish=wishes[r.id%3],done=this.completed.has(r.id);
         return `<article class="resident-entry ${done?'wish-done':''}"><div class="resident-avatar tone-${r.id%4}"><img src="${residentIcon(r.id)}" alt="${residentName(r.id)} portresi"></div><div class="resident-story"><strong>${residentName(r.id)}</strong><small class="wish-badge">${done?'♥ Dileği gerçekleşti':'✧ Küçük bir dilek'}</small><p>“${done?wish.thanks:wish.text}”</p><span>${done?'Köyün refahına +3 katkı':`${cards.find(c=>c.id===wish.kind)!.name} kartı yerleştir · +3 refah`}</span></div></article>`
-      }).join('')}</div>`:`<p class="journal-intro">Dalgaların getirdiği küçük erzak sandıkları.</p>${this.journal.length?this.journal.map(entry=>`<article class="discovery-entry"><span class="discovery-stamp">✦</span><div><small>DALGALARDAN GELEN BİR ARMAĞAN</small><p>${entry}</p></div></article>`).join(''):'<div class="journal-empty"><span>✦</span><strong>İlk sandık henüz kıyıya ulaşmadı.</strong><p>Denizde yüzen sandıklara tıkla. İçlerinden odun, taş, yiyecek ve nadiren altın çıkabilir.</p></div>'}`}`;
+      }).join('')}</div>`:`<p class="journal-intro">Dalgaların getirdiği küçük erzak sandıkları.</p>${this.journal.length?this.journal.map(entry=>`<article class="discovery-entry"><span class="discovery-stamp">${resourceArt(entry.good)}</span><div><small>DALGALARDAN GELEN BİR ARMAĞAN</small><p>${entry.message}</p></div></article>`).join(''):'<div class="journal-empty"><span>✦</span><strong>İlk sandık henüz kıyıya ulaşmadı.</strong><p>Denizde yüzen sandıklara tıkla. İçlerinden odun, taş, yiyecek ve nadiren altın çıkabilir.</p></div>'}`}`;
 
   }
   private spawnDiscovery(){
@@ -81,7 +83,7 @@ export class CozyVillage{
     this.loot=rollChestLoot();const group=discoveryModel(this.loot);group.position.copy(location);this.root.add(group);this.discovery=group;
     this.opening=-1;this.prizeTime=0;this.sinkTime=-1;this.lootRequested=false;this.pendingLoot=false;this.floatY=this.sampleSea(location.x,location.z).height;
     this.floatVelocity=this.pitchVelocity=this.rollVelocity=this.pitch=this.roll=0;this.collect.disabled=false;
-    this.collect.textContent='✧ Sürüklenen sandık';this.collect.hidden=false;
+    this.collect.textContent='✧ Sürüklenen sandık';this.collect.setAttribute('aria-label','Sürüklenen sandığı aç');this.collect.hidden=false;
   }
   private claimDiscovery(){
     if(!this.game||!this.discovery||this.pendingLoot||this.sinkTime>=0)return;
@@ -92,22 +94,22 @@ export class CozyVillage{
   private async rewardDiscovery(){
     if(!this.game||!this.discovery||!this.loot||this.pendingLoot||this.sinkTime>=0)return;
     const chest=this.discovery,game=this.game,generation=this.generation,offered={...this.loot};this.pendingLoot=true;this.lootRequested=true;
-    this.collect.disabled=true;this.collect.textContent='✧ Erzaklar köyüne ulaşıyor…';
+    this.collect.disabled=true;this.collect.innerHTML=`${resourceArt(offered.good)}<b>${offered.amount}</b><span>Taşınıyor…</span>`;this.collect.setAttribute('aria-label',`${offered.amount} ${chestLootName[offered.good]} köye taşınıyor`);
     const at=chest.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.34,0));
     let accepted=0;
     try{accepted=await this.onLoot(offered,at)}catch{
       if(generation!==this.generation||this.discovery!==chest||this.game!==game)return;
-      this.pendingLoot=false;this.collect.disabled=false;this.collect.textContent='✧ Sandık seni bekliyor · Tekrar al';return;
+      this.pendingLoot=false;this.collect.disabled=false;this.collect.innerHTML=`${resourceArt(offered.good)}<b>${offered.amount}</b><span>Tekrar al</span>`;return;
     }
     if(generation!==this.generation||this.discovery!==chest||this.game!==game)return;
     accepted=Number.isFinite(accepted)?T.MathUtils.clamp(Math.floor(accepted),0,offered.amount):0;
     this.pendingLoot=false;this.loot!.amount-=accepted;
     if(accepted){
       const message=`Sandıktan ${accepted} ${chestLootName[offered.good]} köyüne ulaştı.`;
-      this.journal.unshift(message);this.journal=this.journal.slice(0,6);this.render();window.dispatchEvent(new CustomEvent('cozy-change',{detail:message}));
+      this.journal.unshift({message,good:offered.good,amount:accepted});this.journal=this.journal.slice(0,6);this.render();window.dispatchEvent(new CustomEvent('cozy-change',{detail:message}));
     }
     if(this.loot!.amount){
-      this.collect.disabled=false;this.collect.textContent=`✧ ${this.loot!.amount} ${chestLootName[offered.good]} sandıkta · Depoda yer açıp al`;
+      this.collect.disabled=false;this.collect.innerHTML=`${resourceArt(offered.good)}<b>${this.loot!.amount}</b><span>sandıkta · Depoda yer aç</span>`;this.collect.setAttribute('aria-label',`${this.loot!.amount} ${chestLootName[offered.good]} sandıkta. Depoda yer açıp al.`);
     }else{
       // The HUD flight must finish before the empty chest gently leaves the surface.
       this.sinkTime=0;this.collect.hidden=true;this.nextDiscovery=this.clock+70+Math.random()*40;

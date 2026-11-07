@@ -142,6 +142,61 @@ function house(p:T.Group,big=false,lumber=false,store=false){
   else if(lumber){for(let j=0;j<5;j++){const log=resourceModel('wood');log.position.set(.36,.02+Math.floor(j/2)*.07,-.17+(j%2)*.13);log.scale.setScalar(.7);p.add(log)}}
   else{const planter=new T.Group();planter.position.set(-.26,0,.42);box(planter,0x92714e,0,.11,0,.19,.12,.095);for(let j=0;j<3;j++){const leaf=ball(planter,0x739458,(j-1)*.05,.195,0,.049);leaf.scale.y=.65;ball(planter,j%2?0xdab677:0xc98268,(j-1)*.05,.225,.006,.018)}p.add(planter)}
 }
+let kingdomTemplate:T.Group|null=null;
+/** A small coastal royal hall, sharing the village's stone, timber and tiled roofs. */
+export function kingdomCenter():T.Group{
+  if(kingdomTemplate)return kingdomTemplate.clone();
+  const hall=new T.Group();hall.name='kingdom-center';
+  const stone=0xc3bea2,wall=0xead9ae,timber=0x806044,teal=0x547f79,gold=0xcfaa58;
+  // Broad dressed-stone base and two low entrance steps keep the door accessible.
+  box(hall,stone,0,.065,0,.86,.13,.72);
+  for(let row=0;row<2;row++)for(let i=0;i<6;i++)box(hall,i%2?0xb8b296:0xd0c8a9,-.36+i*.145,row*.058+.037,.365,.136,.051,.045);
+  box(hall,0xd1c6a4,0,.04,.46,.36,.065,.19);box(hall,0xbab195,0,.075,.39,.29,.07,.14);
+  box(hall,wall,0,.48,0,.79,.72,.62);
+  for(const x of [-.39,.39])for(const z of [-.30,.31])box(hall,timber,x,.48,z,.045,.74,.045);
+  for(const y of [.17,.62,.83])box(hall,timber,0,y,.322,.81,.035,.032);
+  // Tall double door, brass straps and a crown seal distinguish the public entrance.
+  box(hall,0x725336,0,.33,.332,.22,.39,.04);
+  for(const x of [-.055,.055]){
+    box(hall,0x98774b,x,.33,.36,.097,.35,.024);
+    for(const y of [.23,.42])box(hall,gold,x,y,.377,.085,.014,.012);
+    ball(hall,gold,x*.26,.33,.38,.011);
+  }
+  for(const x of [-.137,.137])box(hall,stone,x,.34,.35,.04,.44,.06);
+  box(hall,stone,0,.56,.35,.31,.045,.06);
+  const seal=new T.Group();seal.position.set(0,.735,.354);hall.add(seal);
+  part(seal,new T.CylinderGeometry(.077,.077,.025,8).rotateX(Math.PI/2),teal);
+  box(seal,gold,0,-.015,.023,.085,.032,.016);
+  for(const [x,y] of [[-.033,.022],[0,.036],[.033,.022]]){
+    box(seal,gold,x,y-.018,.023,.016,.055,.016);ball(seal,gold,x,y+.011,.023,.013);
+  }
+  for(const x of [-.275,.275]){
+    windowFrame(hall,x,.45,.328,true);
+    box(hall,0x77866b,x,.355,.354,.17,.035,.09);
+  }
+  tiledRoof(hall,.88,.77,.85,.32,0xa66f50);
+  box(hall,gold,0,1.18,0,.91,.025,.035);
+  // The rear bell tower stays within the centre's existing navigation footprint.
+  const tower=new T.Group();tower.position.set(-.33,0,-.21);hall.add(tower);
+  part(tower,new T.CylinderGeometry(.18,.215,1.03,8),stone,0,.54,0);
+  for(const y of [.22,.58,.94])part(tower,new T.CylinderGeometry(.193,.193,.045,8),0xa49c80,0,y,0);
+  for(const x of [-.115,.115])box(tower,timber,x,1.16,0,.03,.27,.22);
+  box(tower,teal,0,1.3,0,.29,.055,.27);
+  part(tower,new T.CylinderGeometry(.058,.083,.10,8),gold,0,1.13,0);
+  part(tower,new T.ConeGeometry(.265,.35,8),teal,0,1.49,0);
+  box(tower,timber,0,1.82,0,.018,.34,.018);
+  const flag=new T.Shape();flag.moveTo(.01,0);flag.lineTo(.25,-.035);flag.lineTo(.19,-.105);flag.lineTo(.25,-.175);flag.lineTo(.01,-.175);flag.closePath();
+  const banner=part(tower,new T.ShapeGeometry(flag),teal,0,1.95,0);(banner.material as T.MeshStandardMaterial).side=T.DoubleSide;
+  box(tower,gold,.075,1.86,.009,.085,.016,.018);
+  // A matching pair of small pennants frames the royal hall's doorway.
+  for(const x of [-.38,.38]){
+    box(hall,timber,x,.70,.38,.012,.31,.012);
+    box(hall,teal,x,.69,.39,.08,.18,.013);box(hall,gold,x,.72,.40,.05,.013,.008);
+    part(hall,new T.ConeGeometry(.041,.055,3),teal,x,.58,.39);
+  }
+  batchParts(hall);kingdomTemplate=hall;return hall.clone();
+}
+
 function createModel(kind:Kind){let p=new T.Group();if(kind==='forest'){tree(p,-.23,-.2,0,.88);tree(p,.23,-.03,1,.79);tree(p,-.08,.27,2,.7)}else if(kind==='house'||kind==='manor'||kind==='lumber'||kind==='store')house(p,kind==='manor',kind==='lumber',kind==='store');else if(kind==='berry'||kind==='farm'){for(let z of [-.3,0,.3]){box(p,0x816044,0,.035,z,.9,.065,.18);for(let x=-.34;x<.4;x+=.17){if(kind==='berry'){ball(p,0x5f894c,x,.15,z,.12);for(let k=0;k<2;k++)ball(p,0xc25b50,x+(k-.5)*.07,.24,z,.037)}else{for(let k=0;k<3;k++){let a=x+(k-1)*.035;box(p,0xb49d50,a,.2,z,.014,.35,.014);part(p,new T.ConeGeometry(.035,.14,4),0xe6c776,a,.4,z)}}}}if(kind==='farm'){box(p,0xa28b52,.4,.2,.4,.12,.4,.1);box(p,0xd8c596,.4,.35,.4,.34,.12,.1)}}else if(kind==='garden'){part(p,new T.CylinderGeometry(.28,.32,.12,10),0xb8b5a0,0,.07,0);part(p,new T.CylinderGeometry(.22,.22,.04,12),0x7eafb5,0,.15,0);part(p,new T.CylinderGeometry(.05,.08,.28,8),0xc8c2a9,0,.25,0);ball(p,0xced2b5,0,.42,0,.09);for(let j=0;j<8;j++){let a=j/8*Math.PI*2;ball(p,0x678952,Math.cos(a)*.4,.12,Math.sin(a)*.4,.13);ball(p,j%2?0xdfae86:0xe8d7aa,Math.cos(a)*.4,.24,Math.sin(a)*.4,.055)}}else if(kind==='festival'){for(let x of [-.35,.35])box(p,0x8b6748,x,.4,0,.04,.8,.04);box(p,0xd8ba70,0,.73,0,.75,.035,.035);for(let j=0;j<5;j++)part(p,new T.ConeGeometry(.08,.18,3),j%2?0xa86155:0xe4c77a,-.28+j*.14,.64,0)}else{for(let j=0;j<3;j++){ball(p,0xc6a76d,(j-1)*.2,.18,0,.2);box(p,0x7c8d51,(j-1)*.2,.36,0,.04,.15,.04)}}return p}
 
 

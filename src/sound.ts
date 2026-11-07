@@ -380,9 +380,7 @@ export class TableSound {
       case 'festival':
         this.note(523.25*pitch,.055,.24);this.note(659.25*pitch,.045,.25,.11);
         this.note(783.99*pitch,.035,.30,.22);break;
-      case 'harvest':
-        this.rustle(1100,.085,.30);this.note(392*pitch,.045,.17,.06);
-        this.note(523.25*pitch,.035,.22,.18);break;
+
     }
   }
   sequence(kind:Kind,bonus:boolean){
@@ -391,7 +389,7 @@ export class TableSound {
       const token=window.setTimeout(()=>{this.pending.delete(token);action()},delay);
       this.pending.add(token);
     };
-    if(kind==='festival'||kind==='harvest'){this.material(kind);return}
+    if(kind==='festival'){this.material(kind);return}
     // The land rises first; its material voice follows the visible building.
     later(()=>this.play('earth'),LAND_START*1000);
     later(()=>this.material(kind),(BUILD_START+.2)*1000);

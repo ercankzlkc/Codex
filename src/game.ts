@@ -5,7 +5,7 @@ import {SEASON_SECONDS,MERCHANT_ARRIVAL,MERCHANT_DOCKED,MERCHANT_DEPARTURE,MERCH
 import { CENTER, adjacent, canGrow,axial } from './hex.ts';
 export type Kind =
   | 'stone' | 'forest' | 'berry' | 'house' | 'lumber' | 'farm'
-  | 'harbor' | 'fisher' | 'store' | 'garden' | 'manor' | 'festival' | 'harvest';
+  | 'harbor' | 'fisher' | 'store' | 'garden' | 'manor' | 'festival';
 
 export type CostResource='wood'|'stone'|'food'|'gold';
 export const REROLL_COST=5;
@@ -37,7 +37,6 @@ export const cards: Card[] = [
   { id: 'garden',unlock:24, name: 'Bahçe', cost: {stone:4,food:2}, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
   { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 yatak · koşullu yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'festival',unlock:40, name: 'Şenlik', cost: {food:6,gold:2}, workers: 0, desc: '+16 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
-  { id: 'harvest', name: 'Acil Hasat', cost: {wood:2}, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
 ];
 
 export const MILESTONES=[
@@ -252,9 +251,6 @@ export class Game {
   private spendWood(amount:number){
     this.spendStock('wood',amount);
   }
-  private addFood(kind:FoodKind,amount:number){
-    for(const [id,stock] of this.storageStocks){const take=Math.min(amount,this.storageFree(id));stock[kind]+=take;this.foods[kind]+=take;amount-=take;if(!amount)break}
-  }
   grantResources(amount=1000){
     const stock=this.storageStocks.get(CENTER)!;
     this.wood+=amount;this.stone+=amount;this.gold+=amount;stock.wood+=amount;stock.stone+=amount;
@@ -437,7 +433,6 @@ export class Game {
     if(!card.event)this.board.set(i,card.id);
     if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,stone:0,berry:0,wheat:0,fish:0})}
     if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);}
-    if(card.id==='harvest'){this.addFood('berry',12);this.happy=Math.max(0,this.happy-5)}
     if(!this.autoWorkers)this.assignments=this.workTargets();
     this.unlockMilestones();this.draw();return this.production();
   }

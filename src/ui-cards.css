@@ -84,7 +84,7 @@
 .card > * { position: relative; z-index: 1; }
 .card.tone-berry { --card-accent: #a07969; }
 .card.tone-stone { --card-accent: #76837a; }
-.card.tone-farm, .card.tone-harvest { --card-accent: #9b824c; }
+.card.tone-farm { --card-accent: #9b824c; }
 .card.tone-house, .card.tone-manor, .card.tone-store { --card-accent: #967c59; }
 .card.tone-fisher, .card.tone-harbor { --card-accent: #557b7b; }
 .card.tone-festival { --card-accent: #917c84; }
