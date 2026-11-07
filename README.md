@@ -70,6 +70,8 @@ Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele da
 
 ## Yerleştirme ve kıyı sesleri
 
+Kullanıcının sağladığı Island Village Peace arka plan müziği ilk tıklama veya tuş etkileşiminden sonra döngüde çalar. Ayarlar → Ses → Arka plan müziği kaydırıcısı müziği efektlerden ve kıyı ambiyansından bağımsız ayarlar; tercih tarayıcıda saklanır. Genel ses ve sessize alma müziği de etkiler. Sekme gizlendiğinde müzik duraklar, dönüldüğünde kaldığı yerden devam eder.
+
 Tek merkez altıgeni ve bir sakinle başlanır. Kart yerleştirmede tur veya genişleme hakkı sınırı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
 
 Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Ses kıyıya/denize yakınlaşınca artar; kara içinde kıyıdan uzaklaşınca ve kamera uzaklaşınca azalır. Kıyının kamera sağına/soluna dağılımı stereo yönünü etkiler; seviye, pan ve uzaklık filtresi yumuşakça değişir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).

@@ -32,12 +32,12 @@ export function setupSettings(world:World,sound:TableSound,modal:(html:string,ki
   try{apply(palettes.find(p=>p.id===localStorage.getItem('lk-palette-v1'))??palettes[0])}catch{apply(palettes[0])}
   document.querySelector<HTMLButtonElement>('#settings')!.onclick=()=>{
     modal(`<header class="settings-heading"><div><small>YELKEN KOYU</small><h1>Ayarlar</h1></div><button data-close aria-label="Ayarları kapat">×</button></header>
-      <section class="settings-section"><h2>Ses</h2><div class="mixer">${(['master','sfx','ambience'] as const).map((bus,i)=>`<label><span>${['Genel ses','Efektler','Kıyı ambiyansı'][i]}</span><input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"><output>${Math.round(sound.levels[bus]*100)}%</output></label>`).join('')}</div><button data-audio aria-pressed="${sound.muted}">${sound.muted?'Sesi aç':'Sesi kapat'}</button></section>
+      <section class="settings-section"><h2>Ses</h2><div class="mixer">${(['master','sfx','ambience','music'] as const).map((bus,i)=>`<label><span>${['Genel ses','Efektler','Kıyı ambiyansı','Arka plan müziği'][i]}</span><input data-level="${bus}" aria-label="${['Genel ses','Efektler','Kıyı ambiyansı','Arka plan müziği'][i]}" type="range" min="0" max="100" value="${Math.round(sound.levels[bus]*100)}"><output>${Math.round(sound.levels[bus]*100)}%</output></label>`).join('')}</div><button data-audio aria-pressed="${sound.muted}">${sound.muted?'Sesi aç':'Sesi kapat'}</button></section>
       <section class="settings-section"><h2>Renk paleti <span>10 görünüm</span></h2><p>Köyün, doğanın ve kartlardaki modellerin renklerini seç. Değişiklik anında uygulanır.</p><div class="palette-grid" role="group" aria-label="Renk paleti">${palettes.map(p=>`<button class="palette-option" data-palette="${p.id}" aria-pressed="${p.id===selected.id}"><span class="palette-swatches" aria-hidden="true">${p.colors.map(c=>`<i style="background:${c}"></i>`).join('')}</span><span>${p.name}</span></button>`).join('')}</div><p class="settings-saved" role="status">Seçili palet: ${selected.name}</p></section>`,'settings');
     const mute=dialog.querySelector<HTMLButtonElement>('[data-audio]')!;
     mute.onclick=()=>{sound.toggle();mute.textContent=sound.muted?'Sesi aç':'Sesi kapat';mute.setAttribute('aria-pressed',String(sound.muted))};
     dialog.querySelectorAll<HTMLInputElement>('[data-level]').forEach(input=>{
-      input.oninput=()=>{sound.set(input.dataset.level as 'master'|'sfx'|'ambience',Number(input.value)/100);input.nextElementSibling!.textContent=input.value+'%'};
+      input.oninput=()=>{sound.set(input.dataset.level as 'master'|'sfx'|'ambience'|'music',Number(input.value)/100);input.nextElementSibling!.textContent=input.value+'%'};
     });
     dialog.querySelectorAll<HTMLButtonElement>('[data-palette]').forEach(button=>{
       button.onclick=()=>{

@@ -5,7 +5,7 @@ import {harvestAudio,type HarvestCue} from './harvest-audio';
 import {placementAudio} from './placement-audio';
 import { BUILD_START, BUILD_END, LAND_START } from './emergence';
 
-type Bus='master'|'sfx'|'ambience';
+type Bus='master'|'sfx'|'ambience'|'music';
 const cues={
   hover:[['card-slide-1','card-slide-3'],.16], lift:[['card-fan-1','card-fan-2'],.39],
   drop:[['card-place-1','card-place-3'],.45], earth:[['footstep_grass_001','footstep_grass_003'],.46],
@@ -20,10 +20,11 @@ type BirdVoice={source:AudioBufferSourceNode;panner:PannerNode;gain:GainNode;fil
 const clamp=(n:number)=>Math.max(0,Math.min(1,n));
 export class TableSound {
   muted=false;
-  levels:Record<Bus,number>={master:.72,sfx:.7,ambience:.36};
+  levels:Record<Bus,number>={master:.72,sfx:.7,ambience:.36,music:.4};
   private ctx:AudioContext|null=null;
   private buses:Partial<Record<Bus,GainNode>>={};
   private wave:HTMLAudioElement|null=null;
+  private music:HTMLAudioElement|null=null;
   private seaGain:GainNode|null=null;
   private seaPan:StereoPannerNode|null=null;
   private seaFilter:BiquadFilterNode|null=null;
@@ -67,7 +68,9 @@ export class TableSound {
       this.ctx=new AudioContext();
       const master=this.ctx.createGain();master.connect(this.ctx.destination);
       this.buses.master=master;
-      for(const bus of ['sfx','ambience'] as const){const node=this.ctx.createGain();node.connect(master);this.buses[bus]=node}
+      for(const bus of ['sfx','ambience','music'] as const){const node=this.ctx.createGain();node.connect(master);this.buses[bus]=node}
+      const music=new Audio(new URL('audio/island-village-peace.mp3',document.baseURI).href);music.preload='none';music.loop=true;this.music=music;
+      this.ctx.createMediaElementSource(music).connect(this.buses.music!);
       const wave=new Audio(new URL('audio/shore.mp3',document.baseURI).href);wave.preload='none';wave.loop=true;this.wave=wave;
       // Preserve the recording's stereo image and gently widen the side signal.
       // L'=1.1L-.1R, R'=1.1R-.1L. No duplicated mono or rapid autopanning.
@@ -97,17 +100,19 @@ export class TableSound {
       this.apply();
     }
     if(this.ctx.state==='suspended')void this.ctx.resume().catch(()=>{});
-    if(this.wave?.paused&&!this.muted&&!document.hidden&&this.levels.ambience*this.levels.master>0)void this.wave.play().catch(()=>{});
+    this.apply();
   }
   set(bus:Bus,value:number){this.levels[bus]=clamp(value);this.apply();this.save()}
   toggle(){this.muted=!this.muted;if(this.muted)this.cancel();this.apply();this.save()}
   private save(){try{localStorage.setItem('lk-audio-v2',JSON.stringify({...this.levels,muted:this.muted}))}catch{}}
   private apply(){
     if(!this.ctx)return;
-    for(const k of ['master','sfx','ambience'] as const){
+    for(const k of ['master','sfx','ambience','music'] as const){
       const v=k==='master'&&(this.muted||document.hidden)?0:this.levels[k];
       this.buses[k]?.gain.setTargetAtTime(v*v,this.ctx.currentTime,.035);
     }
+    if(this.muted||document.hidden||!this.levels.music||!this.levels.master)this.music?.pause();
+    else if(this.music?.paused)void this.music.play().catch(()=>{});
     if(this.muted||document.hidden||!this.levels.ambience||!this.levels.master){this.wave?.pause();this.stopBird();if(this.ctx)this.nextBirdAt=this.ctx.currentTime+3;}
     else if(this.wave?.paused)void this.wave.play().catch(()=>{});
   }
