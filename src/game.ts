@@ -52,6 +52,16 @@ export const TRADE_GOODS=[
   {id:'berry',name:'Çilek',price:3},{id:'wheat',name:'Buğday',price:5},{id:'fish',name:'Balık',price:8},
 ] as const;
 export type TradeGood=typeof TRADE_GOODS[number]['id'];
+type MerchantPlan={season:number;demand:Record<TradeGood,number>;cargo:Record<TradeGood,number>};
+/** A visit's manifest is announced ahead of time and retained until arrival. */
+function merchantPlan(season:number,capacity:number):MerchantPlan{
+  const demand:Record<TradeGood,number>={wood:0,stone:0,berry:0,wheat:0,fish:0};
+  const cargo:Record<TradeGood,number>={wood:0,stone:0,berry:0,wheat:0,fish:0};
+  const portions=[.5,.3,.2];
+  for(let i=0;i<3;i++)demand[TRADE_GOODS[(season+i)%TRADE_GOODS.length].id]=Math.round(capacity*portions[i]);
+  for(let i=0;i<TRADE_GOODS.length;i++)cargo[TRADE_GOODS[i].id]=10+((season*7+i*11)%5)*5;
+  return {season,demand,cargo};
+}
 
 export interface Production {
   wood: number;
@@ -109,6 +119,11 @@ export class Game {
   tradeClock=0;
   merchantAge=-1;merchantRouteOpen=false;private merchantSeason=0;private visitedSeason=-1;
   tradeSold=0;
+  private upcomingMerchant=merchantPlan(0,40);
+  merchantDemand:Record<TradeGood,number>={wood:0,stone:0,berry:0,wheat:0,fish:0};
+  get merchantDeparting(){return this.merchantAge>=MERCHANT_DEPARTURE}
+  get merchantManifest(){return this.merchantAge>=0?{demand:this.merchantDemand,cargo:this.merchantCargo}:this.upcomingMerchant}
+
   merchantCargo:Record<TradeGood,number>={wood:30,stone:25,berry:20,wheat:20,fish:15};
   /** Discovery contents use the same physical depots as deliveries and purchases. */
   receiveDiscoveryLoot(good:TradeGood|'gold',amount:number){
@@ -127,7 +142,7 @@ export class Game {
   buyPrice(good:TradeGood){return marketPrice(TRADE_GOODS.find(item=>item.id===good)!.price,'buy',this.marketPressure[good])}
   tradeQuote(good:TradeGood,side:MarketSide,amount:number){
     const item=TRADE_GOODS.find(item=>item.id===good);
-    const limit=!item?0:side==='sell'?Math.min(this.tradeStock(good),this.tradeCapacity-this.tradeSold):Math.min(this.merchantCargo[good],this.totalStorageFree);
+    const limit=!item?0:side==='sell'?Math.min(this.tradeStock(good),this.tradeCapacity-this.tradeSold,this.merchantDemand[good]):Math.min(this.merchantCargo[good],this.totalStorageFree);
     return quoteMarket(item?.price??1,side,amount,this.marketPressure[good]??0,limit,this.gold);
   }
   buy(good:TradeGood,amount=1){
@@ -141,7 +156,7 @@ export class Game {
   get harborId(){return [...this.board].find(([,kind])=>kind==='harbor')?.[0]}
   get merchantPresent(){return this.harborId!==undefined&&this.merchantRouteOpen&&this.merchantAge>=MERCHANT_DOCKED&&this.merchantAge<MERCHANT_DEPARTURE}
   get tradeCapacity(){return this.reached.has(100)?80:40}
-  get merchantCountdown(){return Math.ceil(this.merchantPresent?MERCHANT_DEPARTURE-this.merchantAge:this.merchantAge>=0?Math.max(0,MERCHANT_DOCKED-this.merchantAge):(this.tradeClock<MERCHANT_ARRIVAL?MERCHANT_ARRIVAL-this.tradeClock:SEASON_SECONDS-this.tradeClock+MERCHANT_ARRIVAL)/Math.max(1,gameSpeed.value)+MERCHANT_DOCKED)}
+  get merchantCountdown(){return Math.ceil(this.merchantPresent?MERCHANT_DEPARTURE-this.merchantAge:this.merchantAge>=0&&!this.merchantDeparting?Math.max(0,MERCHANT_DOCKED-this.merchantAge):(this.tradeClock<MERCHANT_ARRIVAL?MERCHANT_ARRIVAL-this.tradeClock:SEASON_SECONDS-this.tradeClock+MERCHANT_ARRIVAL)/Math.max(1,gameSpeed.value)+MERCHANT_DOCKED)}
   get nextMilestone(){return MILESTONES.find(m=>!this.reached.has(m.population))}
   private unlockMilestones(){
     this.peakPopulation=Math.max(this.peakPopulation,this.people);
@@ -166,7 +181,7 @@ export class Game {
     if(!this.merchantPresent||!Number.isFinite(amount))return 0;
     const item=TRADE_GOODS.find(g=>g.id===good);if(!item)return 0;
     const quote=this.tradeQuote(good,'sell',amount),count=quote.count;
-    if(!count)return 0;this.spendStock(good,count);this.tradeSold+=count;this.gold+=quote.total;this.merchantCargo[good]+=count;this.marketPressure[good]=quote.pressure;return count;
+    if(!count)return 0;this.spendStock(good,count);this.tradeSold+=count;this.merchantDemand[good]-=count;this.gold+=quote.total;this.merchantCargo[good]+=count;this.marketPressure[good]=quote.pressure;return count;
   }
   private spendStock(good:TradeGood,amount:number){
     if(good==='wood'||good==='stone')this[good]-=amount;else this.foods[good]-=amount;
@@ -216,7 +231,13 @@ export class Game {
   tick(dt:number){
     if(this.paused)return;
     {const next=this.tradeClock+dt;if(next>=SEASON_SECONDS)this.merchantSeason++;this.tradeClock=next%SEASON_SECONDS}
-    if(this.harborId!==undefined&&this.merchantRouteOpen&&this.tradeClock>=MERCHANT_ARRIVAL&&this.visitedSeason!==this.merchantSeason&&this.merchantAge<0){if(this.visitedSeason>=0)for(const item of TRADE_GOODS)this.marketPressure[item.id]*=.6;this.visitedSeason=this.merchantSeason;this.merchantAge=0;this.tradeSold=0;this.merchantCargo={wood:30,stone:25,berry:20,wheat:20,fish:15}}
+    if(this.upcomingMerchant.season<this.merchantSeason)this.upcomingMerchant=merchantPlan(this.merchantSeason,this.tradeCapacity);
+    if(this.harborId!==undefined&&this.merchantRouteOpen&&this.tradeClock>=MERCHANT_ARRIVAL&&this.visitedSeason!==this.merchantSeason&&this.merchantAge<0){
+      if(this.visitedSeason>=0)for(const item of TRADE_GOODS)this.marketPressure[item.id]*=.6;
+      this.visitedSeason=this.merchantSeason;this.merchantAge=0;this.tradeSold=0;
+      this.merchantCargo={...this.upcomingMerchant.cargo};this.merchantDemand={...this.upcomingMerchant.demand};
+      this.upcomingMerchant=merchantPlan(this.merchantSeason+1,this.tradeCapacity);
+    }
     if(!this.merchantRouteOpen&&this.merchantAge>=0)this.merchantAge=-1;
     if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
     this.meal+=dt*this.people/30;

@@ -9,6 +9,8 @@ import {LAND_Y,SEA_Y} from './scenery';
 import {climate} from './climate';
 import {residentName,wishes} from './village-personality';
 
+const CHEST_SINK_SECONDS=8,CHEST_SINK_DEPTH=6;
+
 /** Small, bounded ambient details and optional village stories. */
 export class CozyVillage{
   private game:Game|null=null;
@@ -125,9 +127,9 @@ export class CozyVillage{
       this.pitchVelocity+=((targetPitch-this.pitch)*30-this.pitchVelocity*7)*step;this.pitch+=this.pitchVelocity*step;
       this.rollVelocity+=((targetRoll-this.roll)*30-this.rollVelocity*7)*step;this.roll+=this.rollVelocity*step;
     }
-    const sink=this.sinkTime<0?0:T.MathUtils.smoothstep(this.sinkTime,0,2.6);
-    chest.position.y=SEA_Y+.035+this.floatY-sink*1.2;chest.rotation.set(this.pitch+sink*.18,yaw,this.roll+sink*.1);
-    if(sink>0){const opacity=1-T.MathUtils.smoothstep(sink,.65,1);chest.traverse(object=>{if(object instanceof T.Mesh)for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=opacity;material.depthWrite=opacity>.7}})}
+    const sink=this.sinkTime<0?0:T.MathUtils.smoothstep(this.sinkTime,0,CHEST_SINK_SECONDS);
+    chest.position.y=SEA_Y+.035+this.floatY-sink*CHEST_SINK_DEPTH;chest.rotation.set(this.pitch+sink*.18,yaw,this.roll+sink*.1);
+    if(sink>0){const opacity=1-T.MathUtils.smoothstep(sink,.7,1);chest.traverse(object=>{if(object instanceof T.Mesh)for(const material of Array.isArray(object.material)?object.material:[object.material]){material.transparent=true;material.opacity=opacity;material.depthWrite=true}})}
   }
   update(dt:number,camera:T.Camera,visualDt=dt){
     const game=this.game;if(!game)return;this.clock+=dt;this.floatClock+=visualDt;
@@ -150,7 +152,7 @@ export class CozyVillage{
     this.leaves.visible=this.leafMat.opacity>.01;this.fireflies.visible=this.fireMat.opacity>.01;
     if(!this.discovery&&this.clock>=this.nextDiscovery){this.spawnDiscovery();this.nextDiscovery=this.clock+35}
     if(this.discovery){
-      if(this.sinkTime>=0){this.sinkTime+=visualDt;if(this.sinkTime>=2.6){this.removeDiscovery();this.collect.hidden=true;this.opening=-1;return}}
+      if(this.sinkTime>=0){this.sinkTime+=visualDt;if(this.sinkTime>=CHEST_SINK_SECONDS){this.removeDiscovery();this.collect.hidden=true;this.opening=-1;return}}
       this.floatDiscovery(visualDt);
       if(this.opening>=0){
         this.opening+=visualDt;const t=this.opening,lid=this.discovery.userData.lid as T.Group|undefined,prizes=this.discovery.userData.prizes as T.Group;

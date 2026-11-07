@@ -478,3 +478,13 @@ dialog[data-kind=trade] .merchant-heading { text-align: left; }
     animation-delay: 0ms;
   }
 }
+
+.trade-manifest { padding: 0 0 18px; border-bottom: 1px solid var(--ui-stroke); }
+.trade-manifest h3 { margin: 0 0 8px; font-size: 18px; }
+.trade-manifest p { margin: 8px 0; color: var(--ui-muted); font-size: 12px; line-height: 1.5; }
+.trade-manifest table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.trade-manifest th, .trade-manifest td { padding: 8px 5px; text-align: right; border-bottom: 1px solid var(--ui-stroke); }
+.trade-manifest th:first-child { text-align: left; }
+.trade-manifest thead { color: var(--ui-muted); }
+.trade-layout .trade-basket { grid-auto-rows: auto; }
+.trade-layout .trade-product { min-height: 86px; }
