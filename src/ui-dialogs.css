@@ -545,3 +545,20 @@ dialog[data-kind=trade] .trade-action-group .trade-prepare { margin: 0; white-sp
   .trade-ledger h3 { margin: 0; }
   .trade-good-name small { margin-top: 2px; }
 }
+
+dialog[data-kind=season-guide] { width: min(620px, calc(100vw - 80px)); }
+.season-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 15px 0; }
+dialog .season-tabs button { flex: 1; margin: 0; padding: 8px; border: 1px solid var(--ui-stroke); background: var(--menu-alt); color: var(--ui-ink); font-size: 12px; white-space: nowrap; }
+dialog .season-tabs button[aria-pressed=true] { background: var(--ui-pine); color: white; }
+.season-rates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 20px; margin: 16px 0; }
+.season-rate { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--ui-stroke); font-size: 14px; }
+.season-rate > span { display: inline-flex; align-items: center; gap: 8px; }
+.season-rate .resource-art { width: 30px; height: 30px; }
+.season-rate svg { width: 25px; height: 25px; }
+.season-rate.boosted b { color: #3d7147; }
+.season-rate.slower b { color: #95643d; }
+.season-rate.stopped b { color: #a34e40; }
+.season-explanation { font-size: 12px; line-height: 1.5; color: var(--ui-muted); }
+.season-renewal { display: flex; gap: 24px; margin-top: 14px; }
+.season-renewal > span { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.season-renewal .resource-art { width: 24px; height: 24px; }

@@ -1,3 +1,5 @@
+import {SEASON_ECONOMY,rateLabel} from './season-economy';
+import {resourceArt} from './resource-art';
 import {DAY_SECONDS,DAYS_PER_SEASON,SEASON_SECONDS} from './calendar';
 import * as T from 'three';
 import {gameSpeed} from './game-speed';
@@ -46,7 +48,9 @@ export class SeasonCycle{
   private clearIceChips(){for(const chip of this.iceChips){this.scene.remove(chip.mesh);chip.mesh.material.dispose()}this.iceChips=[]}
   constructor(private scene:T.Scene,private sun:T.DirectionalLight,private ambient:T.HemisphereLight){
     this.hud=document.createElement('section');this.hud.id='season-hud';this.hud.setAttribute('aria-label','Gün ve mevsim');
-    this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><div class="season-copy"><small></small><strong></strong><span></span><div class="season-days"><i></i><i></i><i></i></div></div><div class="season-remaining"><b></b><div class="speed-controls" role="group" aria-label="Oyun hızı"><button type="button" data-speed="0" aria-label="Oyunu durdur" aria-pressed="false">Ⅱ</button><button type="button" data-speed="1" aria-label="Normal hız" aria-pressed="true">1×</button><button type="button" data-speed="2" aria-label="İki kat hız" aria-pressed="false">2×</button><button type="button" data-speed="3" aria-label="Üç kat hız" aria-pressed="false">3×</button></div></div>';
+    this.hud.innerHTML='<div class="season-clock"><span class="clock-orbit">☀</span><span class="clock-center">✿</span></div><button type="button" class="season-copy season-open" aria-haspopup="dialog" aria-label="Mevsim üretim etkilerini aç"><small></small><strong></strong><span></span><span class="season-days"><i></i><i></i><i></i></span></button><div class="season-remaining"><b></b><div class="speed-controls" role="group" aria-label="Oyun hızı"><button type="button" data-speed="0" aria-label="Oyunu durdur" aria-pressed="false">Ⅱ</button><button type="button" data-speed="1" aria-label="Normal hız" aria-pressed="true">1×</button><button type="button" data-speed="2" aria-label="İki kat hız" aria-pressed="false">2×</button><button type="button" data-speed="3" aria-label="Üç kat hız" aria-pressed="false">3×</button></div></div>';
+    this.hud.insertAdjacentHTML('beforeend','<button type="button" class="season-quick" aria-haspopup="dialog" aria-label="Mevsim üretim özeti"></button>');
+    this.hud.querySelectorAll<HTMLButtonElement>('.season-open,.season-quick').forEach(button=>button.onclick=()=>window.dispatchEvent(new CustomEvent('season-details')));
     document.querySelector('#app')!.append(this.hud);
     this.hud.querySelectorAll<HTMLButtonElement>('[data-speed]').forEach(button=>{
       button.onclick=()=>{
@@ -149,7 +153,10 @@ export class SeasonCycle{
     this.hud.querySelector('.season-remaining b')!.textContent=`${String(Math.floor(minutes/60)).padStart(2,'0')}:${String(minutes%60).padStart(2,'0')}`;
     this.hud.querySelectorAll<HTMLElement>('.season-days i').forEach((dot,i)=>{dot.classList.toggle('complete',i<day);dot.style.setProperty('--fill',`${i<day?100:i===day?cycle*100:0}%`)});
     if(season!==this.lastSeason){
-      this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${current.hint}</p>`;
+      const economy=SEASON_ECONOMY[season];
+      const summary=(['berry','farm','fish'] as const).map(work=>`<span>${resourceArt(work==='farm'?'wheat':work)}<b>${rateLabel(economy.rates[work])}</b></span>`).join('');
+      const quick=this.hud.querySelector<HTMLButtonElement>('.season-quick')!;quick.innerHTML=summary;quick.title=economy.hint;quick.setAttribute('aria-label',`${economy.name}: Çilek ${rateLabel(economy.rates.berry)}, Buğday ${rateLabel(economy.rates.farm)}, Balık ${rateLabel(economy.rates.fish)}. Tüm etkileri aç.`);
+      this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${economy.hint}</p>`;
       this.notice.getAnimations().forEach(a=>a.cancel());this.notice.animate([{opacity:0,transform:'translate(-50%,-12px)'},{opacity:1,transform:'translate(-50%,0)',offset:.12},{opacity:1,transform:'translate(-50%,0)',offset:.72},{opacity:0,transform:'translate(-50%,8px)'}],{duration:2600,fill:'both'});
       this.hud.animate([{transform:'translateY(-5px)',opacity:.5},{transform:'translateY(0)',opacity:1}],{duration:500});
     }

@@ -1,3 +1,4 @@
+import {RENEWAL_SECONDS} from './season-economy';
 import type {ChestLoot} from './chest-loot';
 import {merchantRouteOpen} from './merchant-route';
 import {ShippingIce,shipIce} from './shipping-ice';
@@ -286,14 +287,14 @@ export class World {
         const pieces=logs.children.map(mesh=>({mesh,velocity:new T.Vector3((Math.random()-.5)*.14,1+Math.random()*.35,(Math.random()-.5)*.14),spin:new T.Vector3(Math.random()*3,Math.random()*2,Math.random()*3)}));
         group.visible=false;this.scene.add(group);this.drops.set(key,{group,age:0,claimed:false,pieces});
       }
-      tree.updateWorldMatrix(true,false);this.makeLoader(key,id,tree.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.5,0)),30);
+      tree.updateWorldMatrix(true,false);this.makeLoader(key,id,tree.getWorldPosition(new T.Vector3()).add(new T.Vector3(0,.5,0)),resource==='stone'?RENEWAL_SECONDS.stone:RENEWAL_SECONDS.wood);
     }else if(this.board.get(id)==='berry'||this.board.get(id)==='farm'||this.board.get(id)==='garden'){
       const field=this.fieldState(id);if(field.stock<=0)return false;field.stock--;
       const p=this.workPoint(id,index);this.onWorkSound(this.board.get(id)==='farm'?'wheatHarvest':'berryPick',p);this.dust(p,6);if(this.board.get(id)==='berry'){
         const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined)??[];
         plants.slice(Math.floor(field.stock/field.max*plants.length),Math.ceil((field.stock+1)/field.max*plants.length)).forEach(plant=>plant.userData.hitAt=this.time);
       }
-      if(field.stock===0){field.age=0;const p=position(id);this.makeLoader(`field:${id}`,id,new T.Vector3(p.x,LAND_Y+.6,p.z),30)}
+      if(field.stock===0){field.age=0;const p=position(id);this.makeLoader(`field:${id}`,id,new T.Vector3(p.x,LAND_Y+.6,p.z),RENEWAL_SECONDS.field)}
     }else if(this.board.get(id)==='fisher'&&!this.fishingSpot(id))return false;
     return true;
   }
@@ -368,12 +369,12 @@ export class World {
   private makeLoader(key:string,id:number,point:T.Vector3,total:number){
     this.loaders.get(key)?.el.remove();const el=document.createElement('div');el.className='regrowth-loader';el.hidden=true;el.innerHTML='<i></i><span></span>';el.setAttribute('aria-label','Yeniden büyüyor');this.el.append(el);this.loaders.set(key,{id,el,point,total});
   }
-  private updateLoader(key:string,age:number){
+  private updateLoader(key:string,age:number,rate=1){
     const loader=this.loaders.get(key);if(!loader)return;
     if(!this.board.has(loader.id)||age>=loader.total){loader.el.remove();this.loaders.delete(key);return}
     const camera=this.cameraControl.camera,pixels=this.el.clientHeight/((camera.top-camera.bottom)/camera.zoom),fade=T.MathUtils.smoothstep(pixels,42,100);loader.el.style.opacity=String(fade);loader.el.hidden=fade<.01||loader.id!==this.detailTile;
     const p=loader.point.clone().project(camera);loader.el.style.left=`${(p.x+1)*this.el.clientWidth/2}px`;loader.el.style.top=`${(1-p.y)*this.el.clientHeight/2}px`;
-    loader.el.style.setProperty('--progress',`${age/loader.total*360}deg`);loader.el.querySelector('span')!.textContent=`${Math.ceil(loader.total-age)}s`;
+    loader.el.style.setProperty('--progress',`${age/loader.total*360}deg`);loader.el.querySelector('span')!.textContent=rate===0?'❄':`${Math.ceil((loader.total-age)/rate)}s`;
   }
   private addTrail(points:WalkPoint[]){
     const object=new T.Object3D();
@@ -790,17 +791,18 @@ export class World {
     for(const [tree,left] of this.woodHits){const remaining=left-dt;tree.rotation.x=Math.sin(remaining*45)*.035*Math.max(0,remaining/.2);if(remaining<=0){tree.rotation.x=0;this.woodHits.delete(tree)}else this.woodHits.set(tree,remaining)}
     for(const [key,cycle] of this.treeCycles){
       if(!this.board.has(cycle.id)){this.updateLoader(key,99);this.treeCycles.delete(key);continue}
+      const duration=this.board.get(cycle.id)==='stone'?RENEWAL_SECONDS.stone:RENEWAL_SECONDS.wood;
       cycle.age+=dt;this.updateLoader(key,cycle.age);
       if(this.board.get(cycle.id)==='stone'&&cycle.age<.85){cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-easeBetween(cycle.age,0,.85));cycle.tree.position.y=-.08*easeBetween(cycle.age,0,.85)}
       else if(cycle.age<.85){cycle.tree.rotation.z=easeBetween(cycle.age,0,.85)*1.5;cycle.tree.scale.copy(cycle.scale).multiplyScalar(1-.12*cycle.age/.85)}
-      else if(cycle.age<26){cycle.tree.visible=false}
-      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.position.y=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,26,30)))}
-      if(cycle.age>=30){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key);this.villagers.refreshNavigation()}
+      else if(cycle.age<duration-4){cycle.tree.visible=false}
+      else{cycle.tree.visible=true;cycle.tree.rotation.z=0;cycle.tree.position.y=0;cycle.tree.scale.copy(cycle.scale).multiplyScalar(Math.max(.01,easeBetween(cycle.age,duration-4,duration)))}
+      if(cycle.age>=duration){cycle.tree.scale.copy(cycle.scale);this.treeCycles.delete(key);this.villagers.refreshNavigation()}
     }
     for(const [id,field] of this.fields){
       if(!this.board.has(id)){this.updateLoader(`field:${id}`,99);this.fields.delete(id);continue}
-      const kind=this.board.get(id),duration=30;
-      if(field.stock===0){field.age+=dt;this.updateLoader(`field:${id}`,field.age);if(field.age>=duration){field.stock=field.max;field.age=0}}
+      const kind=this.board.get(id),duration=RENEWAL_SECONDS.field,rate=this.game?.seasonalWorkRate(id)??1;
+      if(field.stock===0){field.age+=dt*rate;this.updateLoader(`field:${id}`,field.age,rate);if(field.age>=duration){field.stock=field.max;field.age=0}}
       const partial=[...this.harvestParts.values()].filter(p=>p.id===id).reduce((n,p)=>n+p.progress,0);
       const available=field.stock===0?easeBetween(field.age,duration-4,duration):Math.max(0,(field.stock-partial)/field.max);
       const plants=this.buildings.get(id)?.children.filter(p=>p.userData.plantOrder!==undefined||p.userData.cropOrder!==undefined||p.userData.flowerOrder!==undefined)??[];

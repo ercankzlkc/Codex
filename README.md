@@ -8,9 +8,9 @@ Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build`.
 
 ## Serbest oyun
 
-Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Her ev iki, büyük ev dört yeni sakin getirir. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini uygun depoya taşır. Kaynaklar sadece teslimatta eklenir. Her sakin dakikada 4 yiyecek tüketir. Çilek, buğday ve balık ayrı stoklanır; toplam ve tüketim HUD’da, döküm ise yiyeceğin üzerine gelince görünür. Yiyecek yoksa refah yavaşça azalır; oyun sona ermez.
+Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Ev iki, büyük ev dört yatak sağlar; inşaat nüfusu anında artırmaz. Yeni sakinler boş yatak, en az 65 refah ve gelecek nüfusun 90 saniyelik tüketimine yetecek yiyecek varsa iki dakikalık hazırlıkla birer birer yerleşir. Koşullar bozulduğunda hazırlık yavaşça geriler. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini uygun depoya taşır. Kaynaklar sadece teslimatta eklenir. Her sakin dakikada 4 yiyecek tüketir. Çilek, buğday ve balık ayrı stoklanır; toplam ve tüketim HUD’da, döküm ise yiyeceğin üzerine gelince görünür. Yiyecek yoksa refah yavaşça azalır; oyun sona ermez.
 
-Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebilir. Merkez deposu 80, yeni depolar 60 ürün alır; depo panelinden odunla yükseltmek kapasiteyi aynı miktarda artırır. Dolu depoya giden sakin başka uygun depo arar; dolu deponun üzerinde hareketli bir uyarı görünür. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Ağaçlar, taş damarları, çilekler, buğday ve çiçekler 30 saniyede yenilenir; küçük halkalar kalan süreyi gösterir. Hasatta ürünler kademeli azalır. Balıkçı iskelesi açık denize yönelir; son su komşusu yapı ile kapatılamaz. Balıkçılar kıyıdaki iskelelerinden olta atar; yakalanan balık teslimatta stoğa eklenir.
+Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebilir. Merkez deposu 80, yeni depolar 60 ürün alır; depo panelinden odunla yükseltmek kapasiteyi aynı miktarda artırır. Dolu depoya giden sakin başka uygun depo arar; dolu deponun üzerinde hareketli bir uyarı görünür. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Ağaçlar 90, taş damarları 150 saniyede yenilenir. Çilek, buğday ve çiçeklerin temel yenilenmesi 30 saniyedir ve mevsim hızına uyar; küçük halkalar kalan süreyi gösterir. Hasatta ürünler kademeli azalır. Balıkçı iskelesi açık denize yönelir; son su komşusu yapı ile kapatılamaz. Balıkçılar kıyıdaki iskelelerinden olta atar; yakalanan balık teslimatta stoğa eklenir.
 
 Taş Ocağı kartında köylüler kazmayla çalışır; vuruşlarda kaya sallanır, küçük kıvılcım ve taş parçaları çıkar. Ağaç kesimi 6, taş çıkarma 6,8 saniye sürer. Taş, odun ve yiyecekle birlikte HUD’da ve depolarda ayrı stoklanır. Kaynak sayaçları yumuşak geçişlerle değişir; artış yeşil, azalış kırmızı görünür.
 
@@ -72,7 +72,7 @@ Ormanlar 10 farklı ağaç çeşidinden üç ağacın çimenli alana rastgele da
 
 Kullanıcının sağladığı Island Village Peace arka plan müziği ilk tıklama veya tuş etkileşiminden sonra döngüde çalar. Ayarlar → Ses → Arka plan müziği kaydırıcısı müziği efektlerden ve kıyı ambiyansından bağımsız ayarlar; tercih tarayıcıda saklanır. Genel ses ve sessize alma müziği de etkiler. Sekme gizlendiğinde müzik duraklar, dönüldüğünde kaldığı yerden devam eder.
 
-Tek merkez altıgeni ve bir sakinle başlanır. Kart yerleştirmede tur veya genişleme hakkı sınırı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinleri doğrudan getirir. Depolar odunla yükseltilir.
+Tek merkez altıgeni ve bir sakinle başlanır. Kart yerleştirmede tur veya genişleme hakkı sınırı yoktur. Yapı kartları kıyıya bırakıldığında kendi altıgenlerini ekler; yakın bir uygun hücreye hafifçe oturur. Evler yeni sakinler için boş yatak açar; göç koşulları sağlanınca nüfus zamanla artar. Depolar odunla yükseltilir.
 
 Dalga kaydının iki kanalı korunur ve stereo alanı hafifçe genişletilir. Ses kıyıya/denize yakınlaşınca artar; kara içinde kıyıdan uzaklaşınca ve kamera uzaklaşınca azalır. Kıyının kamera sağına/soluna dağılımı stereo yönünü etkiler; seviye, pan ve uzaklık filtresi yumuşakça değişir. Kullanıcının sağladığı üç martı kaydının belirgin çağrı bölümleri sırayla çalınır; çağrı başlangıçları arasında 22–26 saniye vardır, yaklaşık dakikada 2–3 çağrı. Ses uçan martıyı izler, kamera yönüyle sağa/sola kayar ve yakınlaştırmayla belirginleşir. Aynı anda tek çağrı duyulur. Sessize alma, gizli sekme ve yeni oyunda ses temizlenir. Martı kayıtları: [ses künyesi](public/audio/CREDITS.txt).
 
@@ -107,3 +107,20 @@ Oyun hızları soldan sağa durdur (Ⅱ), 1×, 2× ve 3× şeklindedir. Durdurma
 Ticaret ekranında Teslim et düğmesi, stok yeterliyse ürünün kalan talebinin tamamını tek seferde iskele için ayırır; 1/5/10 seçimi yalnızca doğrudan alış/satış içindir. Ayrılmış yiyecekler tüketilmez ve başka işlerde harcanmaz. Köylüler uygun iş teslimatlarından sonra küçük yüklerle depoya gider, ürünü alır ve ticaret iskelesine taşır. Depodaki ayrılmış ürünler alınana kadar kapasite kullanır; taşıma başlayınca depoda yer açılır. Hazır yükler iskelede görünür ve gemi yanaşınca talep sınırında otomatik satılır. Gemi kaçırılırsa veya ilgili iskele/depo kaldırılırsa ayrılan ürünler merkez stoğuna iade edilir. Panelde yoldaki ve hazır miktarlar ayrı gösterilir. Orta fare sürüklemesi ekran yönünde, gecikmesiz harita tutup çekme hareketidir.
 
 Köylü görevleri, kart açıklamaları ve yerleşim gelişim ödülleri aynı renkli kaynak ikonlarını kullanır. Gelişim ekranında açılacak binalar kart görselleriyle, nüfus eşikleri ve altın ödülleri ayrı simgelerle gösterilir.
+
+## Mevsim ekonomisi ve büyüme
+
+Normal hızda bir mevsim 10 dakikadır. Mevsim adının altındaki çilek, buğday ve balık ikonları güncel iş hızlarını özetler. Mevsim adına veya özete tıklayarak dört mevsimin tüm iş etkileri görülebilir. Görsel kar yumuşak değişse de ekonomik etkiler takvim sınırında değişir.
+
+| İş | İlkbahar | Yaz | Sonbahar | Kış |
+| --- | --- | --- | --- | --- |
+| Çilek | %120 | %100 | %75 | %25 |
+| Buğday | %100 | %125 | %110 | Durur |
+| Balık | %100 | %115 | %100 | %80 |
+| Odun | %110 | %100 | %90 | %75 |
+| Taş | %100 | %100 | %100 | %90 |
+| Bahçe | %120 | %100 | %80 | Durur |
+
+Yüzdeler çalışma hızıdır; teslimat başına miktarlar değişmez. Yürüme ve taşıma mevsimden etkilenmez. Tarlalar ve bahçeler kışın yeni iş almaz; başlamış hasatlar bırakılır, eldeki ürünler depoya teslim edilir. Alan yenilenmesi de aynı mevsim hızını kullanır. Otomatik dağılımda kışın durdurulan işler diğer alanlara aktarılır; yiyecek stoku düşükse önce besin işlerine öncelik verilir.
+
+Her orman/taş alanındaki üç kaynak ortak kullanılır; aynı kaynak iki işçiye birden verilmez. Ek çalışanlar bu kaynakları daha çabuk tüketir, yenilenmeyi hızlandırmaz. Yeni alan kurmak daha fazla sürdürülebilir üretim sağlar. Köylüler panelinde dolu/toplam yatak, göçün bekleme nedeni, yiyecek/refah koşulları ve hazırlık çubuğu görünür. Merkezde yalnızca başlangıç sakininin yatağı vardır.

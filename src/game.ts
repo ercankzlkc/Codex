@@ -1,3 +1,4 @@
+import {seasonalRate} from './season-economy';
 import {marketPrice,quoteMarket,type MarketSide} from './market';
 import {gameSpeed} from './game-speed';
 import {SEASON_SECONDS,MERCHANT_ARRIVAL,MERCHANT_DOCKED,MERCHANT_DEPARTURE,MERCHANT_VOYAGE_END} from './calendar';
@@ -29,12 +30,12 @@ export const cards: Card[] = [
   { id:'fisher',name:'Balıkçı Kulübesi',cost:{wood:7,stone:2},workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
   { id: 'forest', name: 'Orman', cost: {wood:2}, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
   { id: 'berry', name: 'Çilek Bahçesi', cost: {wood:3}, workers: 1, desc: '+4 çilek / teslimat · 6 sn', bonus: 'Komşu orman: +1 çilek · +1,5 sn' },
-  { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 nüfus · +2 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 yatak · zamanla yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'lumber',unlock:10, name: 'Oduncu Kulübesi', cost: {wood:6,stone:2}, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
   { id: 'farm',unlock:24, name: 'Çiftlik', cost: {wood:7,stone:3}, workers: 2, desc: '+4 buğday / teslimat · 8 sn', bonus: 'Komşu depo: +2 buğday · +4 sn' },
   { id: 'store',unlock:10, name: 'Depo', cost: {wood:8,stone:4}, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
   { id: 'garden',unlock:24, name: 'Bahçe', cost: {stone:4,food:2}, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
-  { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 nüfus · +4 işçi', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 yatak · zamanla yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'festival',unlock:40, name: 'Şenlik', cost: {food:6,gold:2}, workers: 0, desc: '+16 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
   { id: 'harvest', name: 'Acil Hasat', cost: {wood:2}, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
 ];
@@ -105,6 +106,23 @@ export class Game {
   torchLit(id:number){return this.litTorchTiles.has(id)}
   nightWorkRate(id:number){return this.torchNightActive&&!this.torchLit(id) ? .65 : 1}
 
+  readonly immigrationSeconds=120;
+  private immigrationClock=0;
+  get housingCapacity(){return [...this.board].reduce((sum,[id,kind])=>sum+(id===CENTER?1:kind==='house'?2:kind==='manor'?4:0),0)}
+  get immigrationFoodRequired(){return Math.ceil((this.people+1)*4*1.5)}
+  get immigrationReason(){return this.people>=this.housingCapacity?'Boş yatak yok':this.happy<65?'En az 65 refah gerekli':this.food<this.immigrationFoodRequired?`${this.immigrationFoodRequired} yiyecek gerekli`:'Yeni sakin hazırlanıyor'}
+  get immigrationRemaining(){return Math.ceil(this.immigrationSeconds-this.immigrationClock)}
+  private updateImmigration(dt:number){
+    const eligible=this.people<this.housingCapacity&&this.happy>=65&&this.food>=this.immigrationFoodRequired;
+    this.immigrationClock=Math.max(0,Math.min(this.immigrationSeconds,this.immigrationClock+(eligible?dt:-dt*.5)));
+    if(!eligible||this.immigrationClock<this.immigrationSeconds)return;
+    const home=[...this.board].find(([id,kind])=>(kind==='house'||kind==='manor')&&this.residents.filter(r=>r.home===id).length<(id===CENTER?1:kind==='manor'?4:2));
+    if(!home)return;
+    this.residents.push({id:this.residents.length,home:home[0]});this.immigrationClock=0;this.unlockMilestones();
+    window.dispatchEvent(new CustomEvent('resident-arrived'));
+  }
+  get seasonIndex(){return this.merchantSeason%4}
+  seasonalWorkRate(id:number){return seasonalRate(this.seasonIndex,this.categoryFor(id))}
   peakPopulation=1;
   reached=new Set<number>();
   milestoneQueue:Milestone[]=[];
@@ -271,6 +289,7 @@ export class Game {
     }
     if(!this.merchantRouteOpen&&this.merchantAge>=0)this.merchantAge=-1;
     if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
+    this.updateImmigration(dt);
     this.updateDock();
     this.meal+=dt*this.foodPerMinute/60;
     const due=Math.floor(this.meal);if(!due)return;
@@ -283,13 +302,14 @@ export class Game {
   categoryFor(id:number):WorkCategory|null{
     const kind=this.board.get(id);return kind==='stone'?'stone':kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':kind==='garden'?'garden':null;
   }
+  private capacitySeason=-1;
   private capacitySize=-1;
   private capacities:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
   workCapacity(category:WorkCategory){
-    if(this.capacitySize!==this.board.size){
+    if(this.capacitySize!==this.board.size||this.capacitySeason!==this.seasonIndex){
       this.capacities={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
-      for(const id of this.board.keys()){const kind=this.categoryFor(id);if(kind)this.capacities[kind]+=this.productAt(id)?.capacity??0}
-      this.capacitySize=this.board.size;
+      for(const id of this.board.keys()){const kind=this.categoryFor(id);if(kind&&this.seasonalWorkRate(id)>0)this.capacities[kind]+=this.productAt(id)?.capacity??0}
+      this.capacitySize=this.board.size;this.capacitySeason=this.seasonIndex;
     }
     return this.capacities[category];
   }
@@ -301,7 +321,9 @@ export class Game {
       return result;
     }
     // Assign whole people, one place at a time. A single resident can fill only one job.
-    const order:WorkCategory[]=['wood','berry','stone','farm','fish','garden'];
+    const foodOrder:WorkCategory[]=['berry','farm','fish'];
+    foodOrder.sort((a,b)=>seasonalRate(this.seasonIndex,b)-seasonalRate(this.seasonIndex,a));
+    const order:WorkCategory[]=this.food<=Math.max(this.immigrationFoodRequired,this.foodPerMinute*2)?[...foodOrder,'wood','stone','garden']:['wood',...foodOrder,'stone','garden'];
     const capacity=new Map(order.map(c=>[c,this.workCapacity(c)]));
     while(left>0){
       let assigned=false;
@@ -418,8 +440,6 @@ export class Game {
     if(card.id==='harbor')this.harborReward=false;
     if(!card.event)this.board.set(i,card.id);
     if(card.id==='store'){this.storageLevels.set(i,1);this.storageStocks.set(i,{wood:0,stone:0,berry:0,wheat:0,fish:0})}
-    const count=card.id==='house'?2:card.id==='manor'?4:0;
-    for(let j=0;j<count;j++)this.residents.push({id:this.residents.length,home:i});
     if(card.id==='festival'){this.happy=Math.min(100,this.happy+16);}
     if(card.id==='harvest'){this.addFood('berry',12);this.happy=Math.max(0,this.happy-5)}
     if(!this.autoWorkers)this.assignments=this.workTargets();

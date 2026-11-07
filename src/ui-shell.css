@@ -290,3 +290,11 @@ svg { flex-shrink: 0; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; animation-iteration-count: 1 !important; }
 }
+
+#season-hud .season-open { pointer-events: auto; margin: 0; padding: 0; border: 0; border-radius: 3px; background: none; text-align: left; cursor: pointer; box-shadow: none; }
+#season-hud .season-open:hover strong { text-decoration: underline; text-underline-offset: 3px; }
+#season-hud .season-open:focus-visible, #season-hud .season-quick:focus-visible { outline: 2px solid var(--ui-pine); outline-offset: 3px; }
+#season-hud .season-quick { position: absolute; left: 0; top: calc(100% + 6px); display: flex; align-items: center; gap: 10px; margin: 0; padding: 4px 8px; pointer-events: auto; border: 1px solid var(--ui-stroke); border-radius: 4px; background: var(--ui-paper); color: var(--ui-ink); box-shadow: 0 2px 5px #243f3520; cursor: pointer; }
+.season-quick > span { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.season-quick .resource-art { width: 19px; height: 19px; }
+.season-quick b { font-size: 10px; font-weight: 600; }
