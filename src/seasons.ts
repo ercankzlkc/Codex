@@ -157,7 +157,7 @@ export class SeasonCycle{
       if(this.lastSeason>=0&&season===1)window.dispatchEvent(new CustomEvent('summer-started'));
       const economy=SEASON_ECONOMY[season];
       const summary=SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>{
-        const rate=economy.rates[work.id],label=rate===1?'—':`${rate>1?'+':'−'}${Math.round(Math.abs(rate-1)*100)}%`;
+        const rate=economy.rates[work.id],label=rateLabel(rate,true);
         return `<span class="${rate>1?'rate-up':rate<1?'rate-down':'rate-normal'}" title="${work.name}: ${rateLabel(rate)}">${resourceArt(work.graphic)}<b>${label}</b></span>`;
       }).join('');
       const quick=this.hud.querySelector<HTMLButtonElement>('.season-quick')!;quick.innerHTML=summary;quick.setAttribute('aria-label',`${economy.name}: ${SEASON_WORKS.filter(work=>work.id!=='garden').map(work=>`${work.name} ${rateLabel(economy.rates[work.id])}`).join(', ')}. Tüm etkileri aç.`);

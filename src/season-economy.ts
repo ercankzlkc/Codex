@@ -13,4 +13,9 @@ export const SEASON_ECONOMY:readonly {name:string;symbol:string;hint:string;rate
 ];
 export const RENEWAL_SECONDS={wood:90,stone:150,field:30} as const;
 export function seasonalRate(season:number,work:SeasonalWork|null){return work?SEASON_ECONOMY[season%4].rates[work]:1}
-export function rateLabel(rate:number){return rate===0?'Durur':rate===1?'Normal':`${rate>1?'↑':'↓'} %${Math.round(rate*100)}`}
+/** Display the change from normal speed consistently in every interface. */
+export function rateLabel(rate:number,compact=false){
+  if(rate===1)return compact?'—':'Normal';
+  if(rate===0&&!compact)return 'Durur';
+  return `${rate>1?'+':'−'}${Math.round(Math.abs(rate-1)*100)}%`;
+}
