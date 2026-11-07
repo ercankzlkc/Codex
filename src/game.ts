@@ -123,9 +123,11 @@ export class Game {
   private get preparationSeason(){return this.merchantAge>=0?this.visitedSeason:this.upcomingMerchant.season}
   dockAmount(good:TradeGood,stagedOnly=false){return this.dockShipments.filter(s=>s.season===this.preparationSeason&&s.good===good&&(!stagedOnly||s.state==='staged')).reduce((sum,s)=>sum+s.amount,0)}
   get dockPending(){return this.dockShipments.filter(s=>s.state!=='staged').reduce((sum,s)=>sum+s.amount,0)}
-  prepareDock(good:TradeGood,requested:number){
-    const harbor=this.harborId;if(harbor===undefined||!Number.isFinite(requested)||!TRADE_GOODS.some(item=>item.id===good)||this.merchantDeparting)return 0;
-    let left=Math.min(Math.max(0,Math.floor(requested)),this.tradeStock(good),Math.max(0,this.merchantManifest.demand[good]-this.dockAmount(good)));
+  prepareDock(good:TradeGood){
+    const harbor=this.harborId;if(harbor===undefined||!TRADE_GOODS.some(item=>item.id===good)||this.merchantDeparting)return 0;
+    const needed=Math.max(0,this.merchantManifest.demand[good]-this.dockAmount(good));
+    if(!needed||this.tradeStock(good)<needed)return 0;
+    let left=needed;
     const total=left;
     for(const [store,stock] of this.storageStocks){
       const take=Math.min(left,stock[good]);if(!take)continue;
@@ -248,7 +250,7 @@ export class Game {
   takeMeals(){const events=this.meals;this.meals=[];return events}
   wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>(kind==='fisher'||kind==='harbor')&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
   get food(){return this.foods.berry+this.foods.wheat+this.foods.fish}
-  get foodPerMinute(){return this.people*2}
+  get foodPerMinute(){return this.people*4}
   consumeFood(amount:number){
     let eaten=0;
     while(eaten<amount&&this.food>0){
@@ -270,7 +272,7 @@ export class Game {
     if(!this.merchantRouteOpen&&this.merchantAge>=0)this.merchantAge=-1;
     if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
     this.updateDock();
-    this.meal+=dt*this.people/30;
+    this.meal+=dt*this.foodPerMinute/60;
     const due=Math.floor(this.meal);if(!due)return;
     this.meal-=due;
     for(let i=0;i<due;i++){

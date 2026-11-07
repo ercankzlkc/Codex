@@ -25,7 +25,7 @@ export interface VillageHooks {
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
-  private couriers=new Map<number,{shipment:DockShipment;phase:'pickup'|'carry';handling:number}>();
+  private couriers=new Map<number,{shipment:DockShipment;phase:'pickup'|'carry';handling:number;stalled:number;access:number;destination:T.Vector3|null}>();
   private dockLoads=new T.Group();private dockSignature='';
   private residentCard=new ResidentCard();private pointer:{x:number;y:number}|null=null;
 
@@ -187,7 +187,7 @@ export class Villagers {
     if(c.job||c.energy<22)return false;
     for(const shipment of g.dockShipments){
       if(shipment.state!=='reserved'||[...this.couriers.values()].some(task=>task.shipment===shipment)||!this.hooks.ready(shipment.harbor)||!this.hooks.ready(shipment.store))continue;
-      this.releaseJob(c);c.eatUntil=0;c.clock=0;this.couriers.set(c.id,{shipment,phase:'pickup',handling:0});return true;
+      this.releaseJob(c);c.eatUntil=0;c.clock=0;this.couriers.set(c.id,{shipment,phase:'pickup',handling:0,stalled:0,access:0,destination:null});return true;
     }
     return false;
   }
@@ -198,20 +198,37 @@ export class Villagers {
     const tile=task.phase==='pickup'?shipment.store:shipment.harbor;
     if(!c.path.length){
       const arrived=c.target&&Math.hypot(c.target.x-c.root.position.x,c.target.z-c.root.position.z)<.18;
-      if(!arrived){if(c.retry<=0){this.route(c,tile);c.retry=.5}}
+      if(!arrived){
+        if(c.retry<=0){
+          if(!task.destination){
+            const p=position(tile),yaw=this.hooks.yaw(tile),angles=[0,Math.PI/3,-Math.PI/3,Math.PI/2,-Math.PI/2,Math.PI,2*Math.PI/3,-2*Math.PI/3];
+            const doors=angles.map(angle=>new T.Vector3(p.x+Math.sin(yaw+angle)*.67,LAND_Y,p.z+Math.cos(yaw+angle)*.67)).filter(door=>this.nav!.free(door.x,door.z));
+            task.destination=doors[task.access%Math.max(1,doors.length)]??null;
+          }
+          if(task.destination&&this.route(c,tile,task.destination,true)){c.waitReason='';c.retry=.1}
+          else if(this.nav!.waiting(c.id)){c.retry=.12;c.waitReason='path'}
+          else{task.access++;task.destination=null;c.target=null;task.handling=0;c.retry=.2;c.waitReason='path'}
+        }
+      }
       else{
         task.handling+=dt;
         if(task.handling>=.65){
           task.handling=0;
           if(task.phase==='pickup'){
-            shipment.state='carrying';task.phase='carry';c.bundle.clear();c.bundle.add(resourceModel(shipment.good));c.bundle.scale.setScalar(1);c.bundle.visible=true;c.target=null;c.retry=0;
+            shipment.state='carrying';task.phase='carry';task.destination=null;task.access=0;c.bundle.clear();c.bundle.add(resourceModel(shipment.good));c.bundle.scale.setScalar(1);c.bundle.visible=true;c.target=null;c.retry=0;
           }else{shipment.state='staged';this.couriers.delete(c.id);this.releaseJob(c);return true}
         }
       }
     }
-    const travel=()=>{const before=c.root.position.clone();this.move(c,dt);return dt?before.distanceTo(c.root.position)/dt:0};
+    let moved=0;
+    const travel=()=>{const before=c.root.position.clone();this.move(c,dt);moved=before.distanceTo(c.root.position);return dt?moved/dt:0};
     const motion=c.path.length?(c.bundle.visible?'carry':'walk'):task.handling?'pick':'hold';
     if(c.visual)c.visual.animate(dt,motion,0,travel);else travel();
+    task.stalled=task.handling===0&&moved<.0001?task.stalled+dt:0;
+    if(task.stalled>4){
+      this.nav!.cancel(c.id);c.path=[];c.target=null;c.retry=.1;
+      task.access++;task.destination=null;task.handling=0;task.stalled=0;
+    }
     c.root.position.y=LAND_Y;c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;
     if(c.bundle.visible)c.arms.forEach(arm=>arm.rotation.x=-.8);
     this.updateVisual(c);return true;
