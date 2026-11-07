@@ -25,6 +25,7 @@ export interface VillageHooks {
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
+  private waitingGoals=new Map<number,T.Vector3>();
   private newWorkers=new Set<number>();
   private departures=new Map<number,{home:number;from:T.Vector3;to:T.Vector3;age:number;delay:number}>();
   private couriers=new Map<number,{shipment:DockShipment;phase:'pickup'|'carry';handling:number;stalled:number;access:number;destination:T.Vector3|null}>();
@@ -87,17 +88,40 @@ export class Villagers {
     if(!this.game)return;const targets=this.game.workTargets(),counts=this.assignedCounts();
     for(const c of [...this.citizens].reverse())if(c.job?.category&&!['to-store','to-pickup','picking','unloading'].includes(c.stage)&&counts[c.job.category]>targets[c.job.category]){counts[c.job.category]--;this.releaseJob(c)}
   }
-  private releaseJob(c:Citizen){this.nav?.cancel(c.id);if(c.job)this.hooks.harvestProgress(c.job.source,c.id,0);c.job=null;c.unload=null;c.bundle.scale.setScalar(1);c.stage='idle';c.path=[];c.retry=.1;c.bundle.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.waitReason='';c.target=null}
+  private releaseJob(c:Citizen){this.waitingGoals.delete(c.id);this.nav?.cancel(c.id);if(c.job)this.hooks.harvestProgress(c.job.source,c.id,0);c.job=null;c.unload=null;c.bundle.scale.setScalar(1);c.stage='idle';c.path=[];c.retry=.1;c.bundle.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.waitReason='';c.target=null}
   reset(game:Game){
     this.residentCard.reset();this.pointer=null;
     for(const c of this.citizens){c.visual?.dispose();c.status.remove();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
-    this.newWorkers.clear();this.departures.clear();this.couriers.clear();this.dockLoads.clear();this.dockSignature='';this.flights=[];this.root.clear();this.root.add(this.dockLoads);this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
+    this.waitingGoals.clear();this.newWorkers.clear();this.departures.clear();this.couriers.clear();this.dockLoads.clear();this.dockSignature='';this.flights=[];this.root.clear();this.root.add(this.dockLoads);this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
   }
   private neighbors(x:number,z:number){const result:Citizen[]=[];const bx=Math.floor(x/.32),bz=Math.floor(z/.32);for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)result.push(...(this.buckets.get(`${bx+a}:${bz+b}`)??[]));return result}
   private clear(c:Citizen,x:number,z:number){return this.neighbors(x,z).every(other=>other===c||Math.hypot(other.root.position.x-x,other.root.position.z-z)>.21)}
+  private isWaiting(c:Citizen){return c.stage==='idle'&&!c.job&&!c.path.length&&!this.couriers.has(c.id)&&!this.departures.has(c.id)}
+  private waitingSpace(c:Citizen,x:number,z:number){
+    return this.citizens.every(other=>other===c||Math.hypot(other.root.position.x-x,other.root.position.z-z)>.46)
+      &&[...this.waitingGoals].every(([id,point])=>id===c.id||Math.hypot(point.x-x,point.z-z)>.46)
+      &&this.citizens.every(other=>other===c||other.stage!=='idle'||!other.path.length||!other.target||Math.hypot(other.target.x-x,other.target.z-z)>.46);
+  }
+  private updateWaitingSpace(c:Citizen,dt:number){
+    if(!this.isWaiting(c)){this.waitingGoals.delete(c.id);return false}
+    let goal=this.waitingGoals.get(c.id);
+    if(!goal){
+      const crowded=this.citizens.some(other=>other!==c&&Math.hypot(other.root.position.x-c.root.position.x,other.root.position.z-c.root.position.z)<(this.isWaiting(other)?.46:.38)&&(!this.isWaiting(other)||other.id<c.id));
+      if(!crowded)return false;
+      const free=this.nav!.nearest(c.root.position.x,c.root.position.z,(x,z)=>this.waitingSpace(c,x,z),1.3);
+      if(!free)return false;
+      goal=new T.Vector3(free.x,LAND_Y,free.z);this.waitingGoals.set(c.id,goal);this.nav!.cancel(c.id);c.retry=0;
+    }
+    if(c.retry<=0){
+      if(this.route(c,fromWorld(goal.x,goal.z),goal,true)){this.waitingGoals.delete(c.id);c.retry=.5;return false}
+      if(!this.nav!.waiting(c.id))this.waitingGoals.delete(c.id);
+      c.retry=.12;
+    }
+    c.visual?.animate(dt,'hold',0);return true;
+  }
   private route(c:Citizen,to:number,end?:T.Vector3,strict=false){
     const p=position(to),yaw=this.hooks.yaw(to),target=end??new T.Vector3(p.x+Math.sin(yaw)*.65,LAND_Y,p.z+Math.cos(yaw)*.65);
-    const path=this.nav!.path(c.root.position,target,(x,z)=>c.avoid.reduce((n,p)=>n+(Math.hypot(p.x-x,p.z-z)<.26?8:0),0),strict?.18:.65,c.id);
+    const path=this.nav!.path(c.root.position,target,(x,z)=>c.avoid.reduce((n,p)=>n+(Math.hypot(p.x-x,p.z-z)<.26?8:0),0)+this.citizens.reduce((cost,other)=>cost+(other!==c&&this.isWaiting(other)&&Math.hypot(other.root.position.x-x,other.root.position.z-z)<.4?12:0),0),strict?.18:.65,c.id);
     if(!path?.length)return false;c.nodeMarker='';c.stuck=0;c.bestDistance=Infinity;c.path=path;c.target=new T.Vector3(path[path.length-1].x,LAND_Y,path[path.length-1].z);this.hooks.trail(path);return true;
   }
   private spawn(id:number,home:number){
@@ -265,7 +289,8 @@ export class Villagers {
     const pool=destinations.length?destinations:choices;
     const tile=pool[Math.floor((Math.sin(this.time*.2+c.phase)+1)*.499*pool.length)],p=position(tile),angle=this.time*.7+c.phase;
     c.restUntil=this.time+12+Math.random()*8;
-    this.route(c,tile,new T.Vector3(p.x+Math.sin(angle)*.70,LAND_Y,p.z+Math.cos(angle)*.70));
+    const free=this.nav!.nearest(p.x+Math.sin(angle)*.6,p.z+Math.cos(angle)*.6,(x,z)=>this.waitingSpace(c,x,z),.8);
+    if(free){this.nav!.cancel(c.id);this.waitingGoals.set(c.id,new T.Vector3(free.x,LAND_Y,free.z));c.retry=0}
   }
   private move(c:Citizen,dt:number){
     if(!c.path.length){c.speed*=Math.exp(-10*dt);return false}
@@ -281,7 +306,12 @@ export class Villagers {
     const step=Math.min(d,c.speed*dt),ux=dx/d,uz=dz/d,origin={x:c.root.position.x,z:c.root.position.z};
     const dodge=Math.min(.06,dt*.8);
     const candidates=[{x:origin.x+ux*step,z:origin.z+uz*step},{x:origin.x+ux*step-uz*dodge,z:origin.z+uz*step+ux*dodge},{x:origin.x+ux*step+uz*dodge,z:origin.z+uz*step-ux*dodge},{x:origin.x-uz*dodge,z:origin.z+ux*dodge},{x:origin.x+uz*dodge,z:origin.z-ux*dodge}];
-    const walkable=candidates.filter(n=>this.nav!.segment(origin,n));
+    const walkable=candidates.filter(n=>this.nav!.segment(origin,n)&&this.citizens.every(other=>{
+      if(other===c||!this.isWaiting(other))return true;
+      const before=Math.hypot(origin.x-other.root.position.x,origin.z-other.root.position.z),after=Math.hypot(n.x-other.root.position.x,n.z-other.root.position.z);
+      // Let already-overlapping arrivals separate instead of locking each other in place.
+      return after>=.36||before<.36&&after>before+.00001;
+    }));
     const next=walkable[0];
     if(!next){c.wait+=dt;c.speed*=.9;if(c.wait>.6)this.recover(c);return false}
     c.wait=0;c.root.position.x=next.x;c.root.position.z=next.z;c.root.rotation.y+=difference*(1-Math.exp(-15*dt));
@@ -440,6 +470,7 @@ export class Villagers {
       if(this.updateCourier(c,dt))continue;
       if(!c.job&&this.startCourier(c)){this.updateCourier(c,dt);continue;}
       if(c.stage==='unloading'){this.unload(c,dt);continue}
+      if(this.updateWaitingSpace(c,dt)){this.updateVisual(c);continue;}
       if(c.eatUntil>this.time&&!c.job&&!c.path.length){c.visual?.animate(dt,'eat',0);c.axe.visible=false;c.pickaxe.visible=false;c.rod.visible=false;c.line.visible=false;c.bobber.visible=false;c.fish.visible=false;c.body.rotation.x=.06;c.arms[0].rotation.x=-1.9+Math.sin(this.time*7)*.12;c.arms[1].rotation.x=c.bundle.visible?-.8:-.2;c.legs.forEach(leg=>leg.rotation.x=0);this.updateVisual(c);continue}
       if(c.stage==='idle'&&c.retry<=0){
         c.retry=1.5+(c.id%7)*.10;
