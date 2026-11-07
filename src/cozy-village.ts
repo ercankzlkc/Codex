@@ -6,7 +6,7 @@ import {discoveryModel} from './discovery-model';
 import {chestLootName,rollChestLoot,type ChestLoot} from './chest-loot';
 import * as T from 'three';
 import {Game,cards} from './game';
-import {position,fromWorld} from './hex';
+import {position,fromWorld,RADIUS} from './hex';
 import {LAND_Y,SEA_Y} from './scenery';
 import {climate} from './climate';
 import {residentName,wishes} from './village-personality';
@@ -69,15 +69,24 @@ export class CozyVillage{
       }).join('')}</div>`:`<p class="journal-intro">Dalgaların getirdiği küçük erzak sandıkları.</p>${this.journal.length?this.journal.map(entry=>`<article class="discovery-entry"><span class="discovery-stamp">${resourceArt(entry.good)}</span><div><small>DALGALARDAN GELEN BİR ARMAĞAN</small><p>${entry.message}</p></div></article>`).join(''):'<div class="journal-empty"><span>✦</span><strong>İlk sandık henüz kıyıya ulaşmadı.</strong><p>Denizde yüzen sandıklara tıkla. İçlerinden odun, taş, yiyecek ve nadiren altın çıkabilir.</p></div>'}`}`;
 
   }
+  private clearSea(x:number,z:number){
+    return !!this.game&&[...this.game.board.keys()].every(id=>{const p=position(id);return Math.hypot(p.x-x,p.z-z)>RADIUS+.8});
+  }
+  private keepDiscoveryAtSea(){
+    const chest=this.discovery;if(!chest||this.clearSea(chest.position.x,chest.position.z))return;
+    const origin=chest.position.clone(),limit=4+this.game!.board.size*RADIUS*2;
+    for(let radius=.8;radius<=limit;radius+=.4)for(let i=0;i<36;i++){
+      const angle=i*Math.PI/18,x=origin.x+Math.cos(angle)*radius,z=origin.z+Math.sin(angle)*radius;
+      if(!this.clearSea(x,z))continue;
+      chest.position.x=x;chest.position.z=z;this.floatY=this.sampleSea(x,z).height;this.floatVelocity=0;return;
+    }
+  }
   private spawnDiscovery(){
     const game=this.game!;const points=[...game.board.keys()].map(position);if(!points.length)return;
     let location:T.Vector3|null=null;
     for(let i=0;i<30;i++){
       const p=points[Math.floor(Math.random()*points.length)],a=Math.random()*Math.PI*2,x=p.x+Math.cos(a)*2.6,z=p.z+Math.sin(a)*2.6;
-      // Keep the box and its bobbing corners away from the beach, not just its centre.
-      if(game.board.has(fromWorld(x,z)))continue;
-      let clear=true;for(let side=0;side<8;side++){const angle=side*Math.PI/4;if(game.board.has(fromWorld(x+Math.cos(angle)*.44,z+Math.sin(angle)*.44))){clear=false;break}}
-      if(clear){location=new T.Vector3(x,SEA_Y+.08,z);break}
+      if(this.clearSea(x,z)){location=new T.Vector3(x,SEA_Y+.08,z);break}
     }
     if(!location)return;
     this.loot=rollChestLoot();const group=discoveryModel(this.loot);group.position.copy(location);this.root.add(group);this.discovery=group;
@@ -137,7 +146,7 @@ export class CozyVillage{
     const game=this.game;if(!game)return;this.clock+=dt;this.floatClock+=visualDt;
     const signature=[...game.board].map(([id,k])=>`${id}:${k}`).join('|');
     if(signature!==this.signature){
-      this.signature=signature;this.clearBlooms();
+      this.signature=signature;this.keepDiscoveryAtSea();this.clearBlooms();
       const tiles=[...game.board.keys()].slice(0,40),flowers=new T.InstancedMesh(cozyFlowerGeometry(),this.flowerMat,tiles.length*5),pose=new T.Object3D();let index=0;
       for(const id of tiles){const p=position(id);for(let j=0;j<5;j++){const a=j*2.4+id,r=.58+(j%2)*.08;pose.position.set(p.x+Math.cos(a)*r,LAND_Y+.005,p.z+Math.sin(a)*r);pose.scale.setScalar(.85+(j%3)*.12);pose.updateMatrix();flowers.setMatrixAt(index++,pose.matrix)}}
       flowers.instanceMatrix.needsUpdate=true;flowers.computeBoundingSphere();this.blooms.add(flowers);
@@ -169,7 +178,14 @@ export class CozyVillage{
         });
         if(t>.8&&!this.lootRequested)void this.rewardDiscovery();
       }
-      const p=this.discovery.position.clone().add(new T.Vector3(0,.35,0)).project(camera);this.collect.hidden=this.sinkTime>=0||p.z< -1||p.z>1;this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
+      const p=this.discovery.position.clone().add(new T.Vector3(0,.35,0)).project(camera);
+      this.collect.style.left=`${(p.x+1)*50}%`;this.collect.style.top=`${(1-p.y)*50}%`;
+      this.collect.hidden=this.sinkTime>=0||p.z< -1||p.z>1||!!document.querySelector('dialog[open]');
+      if(!this.collect.hidden){
+        const label=this.collect.getBoundingClientRect(),hud=document.querySelector('.hud-rail')?.getBoundingClientRect();
+        const overlapsHud=hud&&label.left<hud.right+8&&label.right>hud.left-8&&label.top<hud.bottom+8&&label.bottom>hud.top-8;
+        this.collect.hidden=!!overlapsHud||label.left<8||label.right>innerWidth-8||label.top<8||label.bottom>innerHeight-8;
+      }
     }
     
   }
