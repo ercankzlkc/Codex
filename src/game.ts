@@ -30,12 +30,12 @@ export const cards: Card[] = [
   { id:'fisher',name:'Balıkçı Kulübesi',cost:{wood:7,stone:2},workers:1,desc:'+3 balık / teslimat',bonus:'Kıyıda iskele · olta balıkçılığı' },
   { id: 'forest', name: 'Orman', cost: {wood:2}, workers: 1, desc: '+2 odun / teslimat', bonus: 'Komşu orman +1 · oduncu kulübesi +2 odun' },
   { id: 'berry', name: 'Çilek Bahçesi', cost: {wood:3}, workers: 1, desc: '+4 çilek / teslimat · 6 sn', bonus: 'Komşu orman: +1 çilek · +1,5 sn' },
-  { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 yatak · zamanla yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'house', name: 'Ev', cost: {wood:5}, workers: 0, desc: '+2 yatak · koşullu yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'lumber',unlock:10, name: 'Oduncu Kulübesi', cost: {wood:6,stone:2}, workers: 0, desc: 'Komşu ormanlara +2 odun', bonus: 'Her komşu ormana +2 odun' },
   { id: 'farm',unlock:24, name: 'Çiftlik', cost: {wood:7,stone:3}, workers: 2, desc: '+4 buğday / teslimat · 8 sn', bonus: 'Komşu depo: +2 buğday · +4 sn' },
   { id: 'store',unlock:10, name: 'Depo', cost: {wood:8,stone:4}, workers: 0, desc: '60 ürün kapasitesi', bonus: 'Ürünler teslim edilince depoya eklenir' },
   { id: 'garden',unlock:24, name: 'Bahçe', cost: {stone:4,food:2}, workers: 1, desc: '+2 refah / teslimat', bonus: 'Komşu ev başına +1 refah' },
-  { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 yatak · zamanla yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
+  { id: 'manor',unlock:40, name: 'Büyük Ev', cost: {wood:14,stone:10}, workers: 0, desc: '+4 yatak · koşullu yerleşim', bonus: 'Komşu bahçe: +1 refah / teslimat' },
   { id: 'festival',unlock:40, name: 'Şenlik', cost: {food:6,gold:2}, workers: 0, desc: '+16 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
   { id: 'harvest', name: 'Acil Hasat', cost: {wood:2}, workers: 0, desc: '+12 yiyecek · −5 refah', bonus: 'Anında uygulanır · yer kaplamaz', event: true },
 ];
@@ -106,19 +106,15 @@ export class Game {
   torchLit(id:number){return this.litTorchTiles.has(id)}
   nightWorkRate(id:number){return this.torchNightActive&&!this.torchLit(id) ? .65 : 1}
 
-  readonly immigrationSeconds=120;
-  private immigrationClock=0;
   get housingCapacity(){return [...this.board].reduce((sum,[id,kind])=>sum+(id===CENTER?1:kind==='house'?2:kind==='manor'?4:0),0)}
   get immigrationFoodRequired(){return Math.ceil((this.people+1)*4*1.5)}
-  get immigrationReason(){return this.people>=this.housingCapacity?'Boş yatak yok':this.happy<65?'En az 65 refah gerekli':this.food<this.immigrationFoodRequired?`${this.immigrationFoodRequired} yiyecek gerekli`:'Yeni sakin hazırlanıyor'}
-  get immigrationRemaining(){return Math.ceil(this.immigrationSeconds-this.immigrationClock)}
-  private updateImmigration(dt:number){
-    const eligible=this.people<this.housingCapacity&&this.happy>=65&&this.food>=this.immigrationFoodRequired;
-    this.immigrationClock=Math.max(0,Math.min(this.immigrationSeconds,this.immigrationClock+(eligible?dt:-dt*.5)));
-    if(!eligible||this.immigrationClock<this.immigrationSeconds)return;
+  get immigrationReason(){return this.people>=this.housingCapacity?'Boş yatak yok':this.happy<50?'En az 50 refah gerekli':this.food<this.immigrationFoodRequired?`${this.immigrationFoodRequired} yiyecek gerekli`:'Koşullar tamam · yeni sakin geliyor'}
+  private updateImmigration(){
+    const eligible=this.people<this.housingCapacity&&this.happy>=50&&this.food>=this.immigrationFoodRequired;
+    if(!eligible)return;
     const home=[...this.board].find(([id,kind])=>(kind==='house'||kind==='manor')&&this.residents.filter(r=>r.home===id).length<(id===CENTER?1:kind==='manor'?4:2));
     if(!home)return;
-    this.residents.push({id:this.residents.length,home:home[0]});this.immigrationClock=0;this.unlockMilestones();
+    this.residents.push({id:this.residents.length,home:home[0]});this.unlockMilestones();
     window.dispatchEvent(new CustomEvent('resident-arrived'));
   }
   get seasonIndex(){return this.merchantSeason%4}
@@ -159,7 +155,7 @@ export class Game {
   private refundDock(shipment:DockShipment){
     const stock=this.storageStocks.get(CENTER)!;stock[shipment.good]+=shipment.amount;
     if(shipment.good==='wood'||shipment.good==='stone')this[shipment.good]+=shipment.amount;else this.foods[shipment.good]+=shipment.amount;
-    this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.ceil(this.storageUsed(CENTER)/80)));
+    this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.max(1,1+Math.ceil((this.storageUsed(CENTER)-240)/80))));
   }
   private updateDock(){
     this.dockShipments=this.dockShipments.filter(shipment=>{
@@ -244,7 +240,7 @@ export class Game {
   private meals:{id:number;ate:boolean}[]=[];
   storageLevels=new Map<number,number>([[CENTER,1]]);
   storageStocks=new Map<number,{wood:number;stone:number;berry:number;wheat:number;fish:number}>([[CENTER,{wood:18,stone:0,berry:8,wheat:4,fish:0}]]);
-  storageCapacity(id:number){return this.storageStocks.has(id)?(id===CENTER?80:60)*(this.storageLevels.get(id)??1):0}
+  storageCapacity(id:number){return this.storageStocks.has(id)?(id===CENTER?240:60)+((this.storageLevels.get(id)??1)-1)*(id===CENTER?80:60):0}
   storageUsed(id:number){const stock=this.storageStocks.get(id);return (stock?Object.values(stock).reduce((a,b)=>a+b,0):0)+this.dockShipments.filter(s=>s.store===id&&s.state==='reserved').reduce((sum,s)=>sum+s.amount,0)}
   storageFree(id:number){return Math.max(0,this.storageCapacity(id)-this.storageUsed(id))}
   canStore(id:number,resource:Resource){return this.storageStocks.has(id)&&(resource==='happy'||this.storageFree(id)>0)}
@@ -263,7 +259,7 @@ export class Game {
     const stock=this.storageStocks.get(CENTER)!;
     this.wood+=amount;this.stone+=amount;this.gold+=amount;stock.wood+=amount;stock.stone+=amount;
     for(const food of ['berry','wheat','fish'] as const){this.foods[food]+=amount;stock[food]+=amount}
-    this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.ceil(this.storageUsed(CENTER)/80)));
+    this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.max(1,1+Math.ceil((this.storageUsed(CENTER)-240)/80))));
   }
   takeMeals(){const events=this.meals;this.meals=[];return events}
   wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>(kind==='fisher'||kind==='harbor')&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
@@ -289,7 +285,7 @@ export class Game {
     }
     if(!this.merchantRouteOpen&&this.merchantAge>=0)this.merchantAge=-1;
     if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
-    this.updateImmigration(dt);
+    this.updateImmigration();
     this.updateDock();
     this.meal+=dt*this.foodPerMinute/60;
     const due=Math.floor(this.meal);if(!due)return;

@@ -25,6 +25,7 @@ export interface VillageHooks {
   deliver(source:number,store:number,resource:Resource,amount:number):number;
 }
 export class Villagers {
+  private departures=new Map<number,{home:number;from:T.Vector3;to:T.Vector3;age:number;delay:number}>();
   private couriers=new Map<number,{shipment:DockShipment;phase:'pickup'|'carry';handling:number;stalled:number;access:number;destination:T.Vector3|null}>();
   private dockLoads=new T.Group();private dockSignature='';
   private residentCard=new ResidentCard();private pointer:{x:number;y:number}|null=null;
@@ -89,7 +90,7 @@ export class Villagers {
   reset(game:Game){
     this.residentCard.reset();this.pointer=null;
     for(const c of this.citizens){c.visual?.dispose();c.status.remove();c.line.geometry.dispose();(c.line.material as T.Material).dispose();c.bobber.geometry.dispose();(c.bobber.material as T.Material).dispose()}
-    this.couriers.clear();this.dockLoads.clear();this.dockSignature='';this.flights=[];this.root.clear();this.root.add(this.dockLoads);this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
+    this.departures.clear();this.couriers.clear();this.dockLoads.clear();this.dockSignature='';this.flights=[];this.root.clear();this.root.add(this.dockLoads);this.citizens=[];this.spawned.clear();this.game=game;this.time=0;this.spawnClock=0;this.nav=new Walkways(game,id=>this.hooks.ready(id),id=>this.hooks.yaw(id),id=>this.hooks.obstacles(id));
   }
   private neighbors(x:number,z:number){const result:Citizen[]=[];const bx=Math.floor(x/.32),bz=Math.floor(z/.32);for(let a=-1;a<=1;a++)for(let b=-1;b<=1;b++)result.push(...(this.buckets.get(`${bx+a}:${bz+b}`)??[]));return result}
   private clear(c:Citizen,x:number,z:number){return this.neighbors(x,z).every(other=>other===c||Math.hypot(other.root.position.x-x,other.root.position.z-z)>.21)}
@@ -131,7 +132,12 @@ export class Villagers {
     root.position.set(free.x,LAND_Y,free.z);root.rotation.y=yaw+Math.PI;
     const status=document.createElement('div');status.className='citizen-status';status.hidden=true;status.setAttribute('role','img');this.overlay.append(status);
     this.root.add(root,line,bobber,fish);this.spawned.add(id);
-    const citizen:Citizen={energy:95,satiety:90,visual:null,restUntil:0,id,root,body,arms,legs,bundle,axe,pickaxe,rod,line,bobber,fish,stage:'idle',unload:null,path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:id===0?1:0,speed:0,walkPhase:0,wait:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]};
+    const citizen:Citizen={energy:95,satiety:90,visual:null,restUntil:0,id,root,body,arms,legs,bundle,axe,pickaxe,rod,line,bobber,fish,stage:'idle',unload:null,path:[],target:null,job:null,clock:0,retry:.6+(id%7)*.10,phase:id*1.73,birth:1,speed:0,walkPhase:0,wait:0,status,lastStatus:'',eatUntil:0,hungry:false,waitReason:'',searchUntil:0,stuck:0,bestDistance:Infinity,nodeMarker:'',avoid:[]};
+    if(id!==0){
+      const from=new T.Vector3(p.x+Math.sin(yaw)*.26,LAND_Y,p.z+Math.cos(yaw)*.26),to=root.position.clone();
+      const delay=[...this.departures.values()].filter(exit=>exit.home===home).length*.25;
+      root.position.copy(from);root.rotation.y=yaw;this.departures.set(id,{home,from,to,age:0,delay});
+    }
     this.citizens.push(citizen);
     void this.people.ready.then(()=>{
       if(!this.citizens.includes(citizen))return;
@@ -355,7 +361,7 @@ export class Villagers {
     }
     if(hovered&&this.pointer){
       const eating=hovered.eatUntil>this.time&&!hovered.job&&!hovered.path.length;
-      const state=this.couriers.has(hovered.id)?(hovered.bundle.visible?'Ürünleri ticaret iskelesine taşıyor':'İskele siparişini almaya gidiyor'):eating?(hovered.hungry?'Yiyecek bulamadı':'Yemek yiyor'):hovered.stage==='unloading'?'Ürünleri depoya bırakıyor':hovered.stage==='to-store'?'Ürünleri depoya taşıyor':hovered.stage==='to-work'?'İş yerine yürüyor':hovered.stage==='to-pickup'?'Ürünleri almaya gidiyor':hovered.stage==='picking'?'Ürünleri topluyor':hovered.stage==='working'?(statusNames[hovered.job?.category??'garden']??'Çalışıyor'):hovered.path.length?'Köyde yürüyüş yapıyor':'Dinleniyor';
+      const state=this.departures.has(hovered.id)?'Evinden köye katılıyor':this.couriers.has(hovered.id)?(hovered.bundle.visible?'Ürünleri ticaret iskelesine taşıyor':'İskele siparişini almaya gidiyor'):eating?(hovered.hungry?'Yiyecek bulamadı':'Yemek yiyor'):hovered.stage==='unloading'?'Ürünleri depoya bırakıyor':hovered.stage==='to-store'?'Ürünleri depoya taşıyor':hovered.stage==='to-work'?'İş yerine yürüyor':hovered.stage==='to-pickup'?'Ürünleri almaya gidiyor':hovered.stage==='picking'?'Ürünleri topluyor':hovered.stage==='working'?(statusNames[hovered.job?.category??'garden']??'Çalışıyor'):hovered.path.length?'Köyde yürüyüş yapıyor':'Dinleniyor';
       this.residentCard.show(hovered.id,hovered.visual?.root??null,state,this.pointer.x,this.pointer.y,hovered.energy,hovered.satiety);
     }else this.residentCard.hide();
     const v=new T.Vector3();
@@ -401,6 +407,17 @@ export class Villagers {
       c.satiety=T.MathUtils.clamp(c.satiety-dt*(c.stage==='working'?.22:.12),0,100);
       c.avoid=c.avoid.filter(p=>p.until>this.time);
       c.birth=Math.min(1,c.birth+dt*2);c.root.scale.setScalar(Math.max(.01,c.birth*c.birth*(3-2*c.birth)));
+      const exit=this.departures.get(c.id);
+      if(exit){
+        if(!g.board.has(exit.home)){this.departures.delete(c.id);c.root.position.copy(exit.to)}
+        else{
+          exit.age+=dt;const progress=T.MathUtils.clamp((exit.age-exit.delay)/.85,0,1),before=c.root.position.clone();
+          c.root.position.lerpVectors(exit.from,exit.to,progress);
+          c.visual?.animate(dt,progress>0&&progress<1?'walk':'hold',dt?before.distanceTo(c.root.position)/dt:0);
+          this.updateVisual(c);if(progress===1){this.departures.delete(c.id);c.retry=0}
+          continue;
+        }
+      }
       const current=fromWorld(c.root.position.x,c.root.position.z);
       if(!this.nav.free(c.root.position.x,c.root.position.z)){
         const home=position(g.residents[c.id]?.home??CENTER),p=this.nav.nearest(g.board.has(current)?c.root.position.x:home.x,g.board.has(current)?c.root.position.z:home.z,()=>true,1.2);

@@ -156,12 +156,15 @@ const workNames:Record<WorkCategory,string>={stone:'Taş çıkarma',wood:'Oduncu
 const workIcons:Record<WorkCategory,string>={stone:'stone',wood:'wood',berry:'berry',farm:'wheat',fish:'fish',garden:'garden'};
 get('#work-summary').insertAdjacentHTML('afterend','<div id="immigration-status" class="immigration-status"></div>');
 get('#work-rows').innerHTML=WORK_CATEGORIES.map(category=>`<div class="work-row" data-work="${category}"><span class="work-symbol">${resourceArt(workIcons[category])||icon(workIcons[category])}</span><div class="work-description"><b>${workNames[category]}</b><small></small></div><div class="worker-stepper" role="group" aria-label="${workNames[category]} işçi sayısı"><button data-worker="${category}" data-delta="-1" aria-label="${workNames[category]} görevinden bir kişi çıkar">−</button><output aria-label="${workNames[category]} için ayrılan kişi">0</output><button data-worker="${category}" data-delta="1" aria-label="${workNames[category]} görevine bir kişi ekle">+</button></div></div>`).join('');
+function immigrationSummary(){
+  return `<span class="immigration-beds">${resourceArt('people')} ${game.people} / ${game.housingCapacity} yatak</span><small>${game.immigrationReason}</small><small class="immigration-needs">${resourceArt('food')} ${game.food} / ${game.immigrationFoodRequired} erzak · ${resourceArt('happy')} ${Math.round(game.happy)} (≥50)</small>`;
+}
 function renderWork(){
   const counts=world.villagers.assignedCounts(),targets=game.workTargets();
   const allocated=Object.values(targets).reduce((a,b)=>a+b,0),free=game.people-allocated;
   get('#work-summary').innerHTML=`<span>${resourceArt('people')}<b>${game.people}</b> köylü</span><span class="free-workers">${icon('rest')}<b>${free}</b> boşta</span>`;
   const migration=get('#immigration-status');
-  migration.innerHTML=`<span>${resourceArt('people')} ${game.people} / ${game.housingCapacity} yatak</span><small>${game.immigrationReason}${game.immigrationReason==='Yeni sakin hazırlanıyor'?` · ${game.immigrationRemaining} sn`:''}</small><small>${resourceArt('food')} ${game.food} / ${game.immigrationFoodRequired} erzak · ${resourceArt('happy')} ${Math.round(game.happy)} (≥65)</small><progress value="${game.immigrationSeconds-game.immigrationRemaining}" max="${game.immigrationSeconds}" aria-label="Yeni sakin hazırlığı"></progress>`;
+  migration.innerHTML=immigrationSummary();
   get('#work-mode-label').textContent=game.autoWorkers?'Otomatik dağılım':'Elle dağılım';
   get<HTMLButtonElement>('[data-work-balance]').disabled=game.autoWorkers;
   get('#work-hint').textContent=game.dockPending?`${game.dockPending} ürün iskeleye taşınmak için ayrıldı.`:WORK_CATEGORIES.some(c=>game.workCapacity(c))?'＋ Bir köylü ata · − Görevden çıkar. Boşta kimse yoksa + başka işten aktarır.':'Önce bir orman, bahçe veya üretim alanı kur.';
@@ -225,15 +228,16 @@ function renderHud(){
   foodStat.onmouseenter=showFood;foodStat.onmouseleave=()=>get('#food-details').hidden=true;foodStat.onfocus=showFood;foodStat.onblur=()=>get('#food-details').hidden=true;foodStat.tabIndex=0;foodStat.setAttribute('aria-describedby','food-details');
   get('[data-resource="people"]').onclick=toggleWork;
   const actual=world.villagers.assignedCounts();
-  const details:Record<string,string>={wood:`${actual.wood} oduncu çalışıyor`,stone:`${actual.stone} madenci çalışıyor`,food:`Tüketim ${game.foodPerMinute} / dk`,gold:'5 altın · yeni el',people:game.nextMilestone?`Sonraki ödül · ${game.nextMilestone.population}`:'Tüm ödüller açık',happy:game.happy>=70?'Köylüler mutlu':game.happy>=40?'Köylüler sakin':'Köylüler huzursuz'};
+  const details:Record<string,string>={wood:`${actual.wood} oduncu çalışıyor`,stone:`${actual.stone} madenci çalışıyor`,food:`Tüketim ${game.foodPerMinute} / dk`,gold:'5 altın · yeni el',people:game.immigrationReason,happy:game.happy>=70?'Köylüler mutlu':game.happy>=40?'Köylüler sakin':'Köylüler huzursuz'};
   for(const id of ['wood','stone','food','gold','people','happy'] as const){
     animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
     get(`[data-resource="${id}"] em`).textContent=details[id];
   }
   hand.querySelectorAll<HTMLButtonElement>('[data-card]').forEach(b=>{const c=game.hand[Number(b.dataset.card)];b.disabled=!c||!affordable(c)});
-  const next=game.nextMilestone,population=get('[data-resource="people"]');
-  population.title=`Köylü görevleri${next?` · ${next.population} nüfusta ${next.name}`:' · Tüm gelişim ödülleri açıldı'}`;
-  population.querySelector<HTMLElement>('.population-track i')!.style.width=`${next?Math.min(100,game.people/next.population*100):100}%`;
+  const population=get('[data-resource="people"]');
+  population.removeAttribute('title');population.setAttribute('aria-label',`Köylüler: ${game.people} / ${game.housingCapacity} yatak. ${game.immigrationReason}`);
+  const summary=population.querySelector('em')!;summary.innerHTML=immigrationSummary();summary.id='population-conditions';population.setAttribute('aria-describedby','population-conditions');
+  population.querySelector<HTMLElement>('.population-track i')!.style.width=`${Math.min(100,game.people/game.housingCapacity*100)}%`;
   const trade=get('#trade-open');
   const tradeState=game.harborId===undefined?'unbuilt':!game.merchantRouteOpen?'blocked':game.merchantPresent?'ready':'waiting';
   const tradeLabel=tradeState==='ready'?'Deniz ticareti · Gemi iskelende':tradeState==='blocked'?'Deniz ticareti · Gemi yolu kapalı':tradeState==='unbuilt'?'Deniz ticareti · İskele kur':'Deniz ticareti · Gemi bekleniyor';
@@ -290,7 +294,7 @@ function showMilestones(){
 window.addEventListener('resident-arrived',()=>{toast('Yeni bir sakin köyüne yerleşti');renderHud()});
 function openSeasonDetails(selected=game.seasonIndex){
   const season=SEASON_ECONOMY[selected];
-  modal(`<small>MEVSİM REHBERİ</small><h1>Üretim ve kış hazırlığı</h1><nav class="season-tabs" aria-label="Mevsimler">${SEASON_ECONOMY.map((item,i)=>`<button data-season="${i}" aria-pressed="${i===selected}">${item.symbol} ${item.name}${i===game.seasonIndex?' · şimdi':''}</button>`).join('')}</nav><p>${season.hint}</p><div class="season-rates">${SEASON_WORKS.map(work=>{const rate=season.rates[work.id];return `<div class="season-rate ${rate===0?'stopped':rate>1?'boosted':rate<1?'slower':''}"><span>${resourceArt(work.graphic)||icon(work.graphic)} ${work.name}</span><b>${rateLabel(rate)}</b></div>`}).join('')}</div><p class="season-explanation">Yüzdeler çalışma hızıdır; %100 normal, %0 üretim durur. Kışın tarla ve bahçe yenilenmesi de durur. Stoktaki erzak korunur. Gündelik tüketim sürer.</p><div class="season-renewal"><span>${resourceArt('wood')} Ağaç: ${RENEWAL_SECONDS.wood} sn</span><span>${resourceArt('stone')} Taş: ${RENEWAL_SECONDS.stone} sn</span></div><p class="season-explanation">Her alanın kaynakları ortaktır. Fazladan işçi hasadı hızlandırır; yenilenme süresini kısaltmaz. Yeni sakin: boş yatak, 65 refah, 90 saniyelik yiyecek ve 2 dakikalık hazırlık.</p><button data-close>Oyuna dön</button>`,'season-guide');
+  modal(`<small>MEVSİM REHBERİ</small><h1>Üretim ve kış hazırlığı</h1><nav class="season-tabs" aria-label="Mevsimler">${SEASON_ECONOMY.map((item,i)=>`<button data-season="${i}" aria-pressed="${i===selected}">${item.symbol} ${item.name}${i===game.seasonIndex?' · şimdi':''}</button>`).join('')}</nav><p>${season.hint}</p><div class="season-rates">${SEASON_WORKS.map(work=>{const rate=season.rates[work.id];return `<div class="season-rate ${rate===0?'stopped':rate>1?'boosted':rate<1?'slower':''}"><span>${resourceArt(work.graphic)||icon(work.graphic)} ${work.name}</span><b>${rateLabel(rate)}</b></div>`}).join('')}</div><p class="season-explanation">Yüzdeler çalışma hızıdır; %100 normal, %0 üretim durur. Kışın tarla ve bahçe yenilenmesi de durur. Stoktaki erzak korunur. Gündelik tüketim sürer.</p><div class="season-renewal"><span>${resourceArt('wood')} Ağaç: ${RENEWAL_SECONDS.wood} sn</span><span>${resourceArt('stone')} Taş: ${RENEWAL_SECONDS.stone} sn</span></div><p class="season-explanation">Her alanın kaynakları ortaktır. Fazladan işçi hasadı hızlandırır; yenilenme süresini kısaltmaz. Yeni sakin: boş yatak, 50 refah ve 90 saniyelik yiyecek. Koşullar sağlanınca evinden hemen çıkar.</p><button data-close>Oyuna dön</button>`,'season-guide');
   dialog.querySelectorAll<HTMLButtonElement>('[data-season]').forEach(button=>button.onclick=()=>openSeasonDetails(Number(button.dataset.season)));
 }
 window.addEventListener('season-details',()=>{if(!dialog.open)openSeasonDetails()});
@@ -435,7 +439,7 @@ world.onInspect=(id,x,y,bounds)=>{
   if(id===CENTER)lines.push('Merkez deposu',`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`);
   else if(kind==='store')lines.push(`${game.storageUsed(id)} / ${game.storageCapacity(id)} dolu`,'Tıkla · kapasiteyi yükselt');
   else if(product){lines.push(`+${product.amount} ${product.resource==='stone'?'taş':product.resource==='wood'?'odun':product.resource==='food'?(kind==='fisher'?'balık':kind==='farm'?'buğday':'çilek'):'refah'} / teslimat`,`${world.villagers.assignedTo(id)} / ${product.capacity} çalışan`,...(['berry','farm'].includes(kind??'')?[game.seasonalWorkRate(id)===0?'Hasat bu mevsimde durur':`Toplama: ${(harvestSeconds(kind==='farm'?'farm':'berry',product.amount)/game.seasonalWorkRate(id)).toLocaleString('tr-TR',{maximumFractionDigits:1})} sn / çalışan · yol hariç`]:[]),'Ürünler depoya taşınır');}
-  else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} / ${kind==='manor'?4:2} yatak dolu`,game.immigrationReason,'Yeni sakinler koşullar sağlanınca 2 dakikada bir gelir');
+  else if(kind==='house'||kind==='manor')lines.push(`${game.residents.filter(r=>r.home===id).length} / ${kind==='manor'?4:2} yatak dolu`,game.immigrationReason,'Yeni sakinler koşullar sağlanınca evin kapısından çıkar');
   else if(kind==='harbor')lines.push(!game.merchantRouteOpen?'Su yolu kapalı · İskele yönünde geniş bir geçit aç':game.merchantPresent?'Tüccar limanda':`Gemi ${game.merchantCountdown} saniye sonra`,`${game.tradeCapacity-game.tradeSold} ürünlük alış kapasitesi`,'Limanı seçerek ticaret yap');
   else if(kind==='lumber')lines.push('Komşu ormanlara +2 odun','Oduncular komşu ormanlarda çalışır');
   else if(card)lines.push(card.desc,card.bonus);
@@ -499,7 +503,7 @@ function reset(){
 get('#restart').onclick=()=>modal('<h1>Yeni krallık?</h1><p>Mevcut koşu sona erecek.</p><button data-new>Yeniden başla</button><button data-close>Oyuna dön</button>');
 get('#help').onclick=()=>modal(`<small>YELKEN KOYU</small><h1>Yaşayan bir köy</h1>
  <p>Sol alttaki Köy Defteri’nden köylülerin portrelerini, isimlerini, dileklerini ve kıyı keşiflerini görebilirsin. Dilekleri gerçekleştirmek refah kazandırır. Denizde beliren sandıklara tıklayarak kaynaklar ve nadiren altın toplayabilirsin.</p><p>Kartların üstündeki Kartları yenile düğmesi, bütün eli 5 altın karşılığında animasyonla yeniler. Nüfus eşikleri 10, 24, 40, 60 ve 100: yeni kartlar ve altın ödülleri açılır. Deniz ticareti düğmesinden iskele kartını alıp kıyıya kurabilirsin. Her mevsimin 3. günü gemi gelir; gemiye tıklayıp alış ve satış yapabilirsin. Kartların üstünde odun, taş, yiyecek ve altın maliyetleri gösterilir.</p>
- <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Ev iki, büyük ev dört yatak sağlar; boş yatak, yeterli yiyecek ve refah varsa yeni sakinler zamanla gelir. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
+ <p>Tur veya süre sınırı yok. Kartları kıyıdaki boş altıgenlere bırak. Ev iki, büyük ev dört yatak sağlar; boş yatak, yeterli yiyecek ve refah varsa yeni sakinler beklemeden evin kapısından çıkar. Boşta kalanlar dolaşır; uygun iş varsa yürüyerek çalışmaya giderler.</p>
  <p>Sakinler ormanda ağaç keser, çilek ve tarladan ürün toplar. Ağaçlar ve meyveler yeniden büyür. Depolar adanın her yerinden ürün kabul eder. Yalnızca depoya ulaşan ürünler kaynaklarına eklenir. Her sakin dakikada 4 yiyecek tüketir; yiyecek göstergesinin üzerine gelerek stokları görebilirsin.</p>
  <p>Üstteki nüfus göstergesine tıklayarak köylüleri yönetebilirsin. Her sayı bir kişidir. + bir köylüyü o işe geçirir, − boşta bırakır; boşta kimse yoksa + başka işten birini aktarır. Otomatik dağıt düğmesi açık işlere köylüleri kendisi yerleştirir. Limanı seçerek ticaret ekranını açabilirsin. Balıkçı kulübesini kıyıya bakacak şekilde yerleştir.</p>
  <p>Depoyu seçerek kapasitesini görebilir, odunla yükseltebilirsin. Altıgenin üzerine gelince bilgisi farenin yanında görünür. Tıklayarak döndürebilir ya da yıkabilirsin; yıkım kaynak vermez.</p>
