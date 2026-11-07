@@ -8,7 +8,7 @@ Node 24 ile `npm ci` ve `npm run dev`. Yayın derlemesi: `npm run build`.
 
 ## Serbest oyun
 
-Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Ev iki, büyük ev dört yatak sağlar; inşaat nüfusu anında artırmaz. Yeni sakinler boş yatak, en az 50 refah ve gelecek nüfusun 90 saniyelik tüketimine yetecek yiyecek varsa beklemeden yerleşir ve evin kapısından köye çıkar. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini uygun depoya taşır. Kaynaklar sadece teslimatta eklenir. Her sakin dakikada 4 yiyecek tüketir. Çilek, buğday ve balık ayrı stoklanır; toplam ve tüketim HUD’da, döküm ise yiyeceğin üzerine gelince görünür. Yiyecek yoksa refah yavaşça azalır; oyun sona ermez.
+Tur, hedef veya 15 hamle sınırı yoktur. Başlangıçta merkez önünde bir sakin bulunur. Ev iki, büyük ev dört yatak sağlar; inşaat nüfusu anında artırmaz. Yeni sakinler boş yatak, en az 50 refah ve gelecek nüfusun 90 saniyelik tüketimine yetecek yiyecek varsa beklemeden yerleşir ve evin kapısından köye çıkar. Sakinler kara üzerinden yürür; yakındaki işlere gider, çilek toplar veya ağaç keser, yüklerini uygun depoya taşır. Kaynaklar sadece teslimatta eklenir. Her sakinin hedef tüketimi yaklaşık dakikada 4 yiyecektir; tokluk %20’ye düşünce depoya gidip öğün başına en fazla 4 yiyecek yer. Stoklar yalnızca gerçekten yenen miktar kadar azalır. Çilek, buğday ve balık ayrı stoklanır; toplam ve tüketim HUD’da, döküm ise yiyeceğin üzerine gelince görünür. Yiyecek yoksa refah yavaşça azalır; oyun sona ermez.
 
 Depolarda kapsama yarıçapı yoktur; adanın her yerinden ürün teslim edilebilir. Merkez deposu 240, yeni depolar 60 ürün alır; depo panelinden odunla yükseltmek kapasiteyi merkezde 80, diğer depolarda 60 artırır. Dolu depoya giden sakin başka uygun depo arar; dolu deponun üzerinde hareketli bir uyarı görünür. Ormanlar ve oduncu kulübeleri odun miktarını, komşu ormanlar çilek verimini artırır. Ağaçlar 90, taş damarları 150 saniyede yenilenir. Çilek, buğday ve çiçeklerin temel yenilenmesi 30 saniyedir ve mevsim hızına uyar; küçük halkalar kalan süreyi gösterir. Hasatta ürünler kademeli azalır. Balıkçı iskelesi açık denize yönelir; son su komşusu yapı ile kapatılamaz. Balıkçılar kıyıdaki iskelelerinden olta atar; yakalanan balık teslimatta stoğa eklenir.
 
@@ -92,7 +92,7 @@ Gelişim modalları yumuşak ölçek ve kayma animasyonuyla açılır; ödül ka
 
 Balta ve kazmanın görselleri, el kemiğindeki tutuş noktaları korunarak yüzde 62 ölçeğe indirilmiştir; yeniden tutuş hesapları bu iç görsel ölçeğini değiştirmez.
 
-Köylüler iş başındayken yemek animasyonu işi ve alet görünürlüğünü kesmez; yiyecek tüketimi sürer, yemek pozu yalnız boşta oynar. Depoya ulaşınca köylü boşaltma pozuna girer; ürünler 0,14 saniye aralıklarla eldeki yükten çıkar, yarım saniyelik yumuşak bir yay çizerek depoya uçar. Stok her ürün vardığında artar, eldeki yük kademeli azalır. Depo dolarsa kabul edilmeyen ürün geri döner ve kalan yük başka uygun depoya götürülür. Aynı karedeki HUD güncellemeleri birleştirilir.
+Tokluk %20’ye düşünce köylüler işi bırakıp yiyecek bulunan depoya gider. Toplanmış/taşınan ürünler varsa önce teslim edilir. Yemek depoda yenir; yiyecek yoksa üretime devam edilerek kilitlenme önlenir. Depoya ulaşınca köylü boşaltma pozuna girer; ürünler 0,14 saniye aralıklarla eldeki yükten çıkar, yarım saniyelik yumuşak bir yay çizerek depoya uçar. Stok her ürün vardığında artar, eldeki yük kademeli azalır. Depo dolarsa kabul edilmeyen ürün geri döner ve kalan yük başka uygun depoya götürülür. Aynı karedeki HUD güncellemeleri birleştirilir.
 
 ## Erzak sandıkları ve meşale sıcaklığı
 
@@ -132,3 +132,9 @@ Krallık Merkezi diğer evlerden ayrı modellenmiştir: kesme taş temel, çift 
 Yeni sakinler evden çıktıktan sonra uygun bir işe yönelir. Elle dağılımda mevcut görevler korunur ve yeni sakin için boş bir çalışma yeri ayrılır. Otomatik dağılımda hedeflenen kaynak yenilenmeyi bekliyorsa hazır kaynak bulunan başka uygun iş seçilir. Yalnızca uygun iş, erişilebilir kaynak veya depo alanı olmadığında beklenir.
 
 Her yaz başlangıcında üretim özeti penceresi açılır; yaz hızlarının yanında değişen işlerde önceki mevsimin oranı da gösterilir. Başka pencere açıksa yaz özeti kapanış sonrasına bırakılır. İlkbaharda oyuna başlarken bu pencere açılmaz. Kartların üzerindeki yerleştirme talimatı kaldırılmıştır.
+
+## İhtiyaçlar ve parşömen arayüz
+
+Enerji yalnız çalışırken/yürürken azalır; iş beklerken yenilenmez ve oturma başlamaz. Enerji sıfıra düşünce köylü topladığı ürünü teslim edip dinlenir, enerji %100 olunca işe döner. Oturma animasyonu yalnız bu dinlenme durumunda kullanılır. Tokluk saniyede 80/60 puan azalır; %20 eşiğinde depoya gidilir, her yenilen ürün 20 puan tokluk verir, en fazla dört ürünlük öğün tüketilir. Aç köylü yiyecek bulamazsa üretime devam eder; tokluğu sıfırsa refah zamanla azalır. Ayrılmış ticaret erzağı yenmez. HUD tüketimi yaklaşık planlama değeridir; fiili düşüşler yemek sırasında olur.
+
+Üst HUD tek yatay satırda 44 piksel yüksekliğindedir. Tarih, saat, hız ve kısa mevsim etkileri kaynaklarla aynı şerittedir; ayrı mevsim alt şeridi kaldırılmıştır. Oyun kamerasının üst arayüz payı da azaltılmıştır. Parşömen, taçlı balmumu mühür ve ahşap/yeşil deri düğme görselleri bu proje için üretilmiş ve public/ui/medieval altında kaydedilmiştir. Menüler ve kartlar parşömen kullanır; seçili kartlar ve tamamlanan gelişim ödülleri mühürlenir. Tüm yazılar HTML olarak kalır. Görsel künyesi: public/ui/medieval/CREDITS.txt.

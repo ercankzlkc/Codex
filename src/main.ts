@@ -7,6 +7,7 @@ import './ui-cards.css';
 import './ui-dialogs.css';
 import './ui-panels.css';
 import './ui-materials.css';
+import './ui-medieval.css';
 import {Vector3} from 'three';
 import {CENTER,position} from './hex';
 import {harvestSeconds,cards,MILESTONES,REROLL_COST,TRADE_GOODS,WORK_CATEGORIES,type WorkCategory,type Resource,type Card,type TradeGood} from './game';
@@ -194,7 +195,7 @@ app.querySelectorAll<HTMLButtonElement>('[data-worker]').forEach(button=>button.
 });
 document.addEventListener('pointerdown',e=>{if(!(e.target as Element).closest('#work-panel,[data-resource="people"]'))closeWork()});
 function renderFood(){
-  const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${resourceArt(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>−${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
+  const panel=get('#food-details');panel.innerHTML=(['berry','wheat','fish'] as const).map(kind=>`<span>${resourceArt(kind)}<small>${kind==='berry'?'Çilek':kind==='wheat'?'Buğday':'Balık'}</small><b>${game.foods[kind]}</b></span>`).join('')+`<em>≈${game.foodPerMinute} / dk · ${game.people} sakin</em>`;
 }
 function showFood(){
   const panel=get('#food-details'),rect=get('[data-resource="food"]').getBoundingClientRect();renderFood();panel.hidden=false;
@@ -228,7 +229,7 @@ function renderHud(){
   foodStat.onmouseenter=showFood;foodStat.onmouseleave=()=>get('#food-details').hidden=true;foodStat.onfocus=showFood;foodStat.onblur=()=>get('#food-details').hidden=true;foodStat.tabIndex=0;foodStat.setAttribute('aria-describedby','food-details');
   get('[data-resource="people"]').onclick=toggleWork;
   const actual=world.villagers.assignedCounts();
-  const details:Record<string,string>={wood:`${actual.wood} oduncu çalışıyor`,stone:`${actual.stone} madenci çalışıyor`,food:`Tüketim ${game.foodPerMinute} / dk`,gold:'5 altın · yeni el',people:game.immigrationReason,happy:game.happy>=70?'Köylüler mutlu':game.happy>=40?'Köylüler sakin':'Köylüler huzursuz'};
+  const details:Record<string,string>={wood:`${actual.wood} oduncu çalışıyor`,stone:`${actual.stone} madenci çalışıyor`,food:`Yaklaşık ${game.foodPerMinute} / dk · %20 toklukta yemek`,gold:'5 altın · yeni el',people:game.immigrationReason,happy:game.happy>=70?'Köylüler mutlu':game.happy>=40?'Köylüler sakin':'Köylüler huzursuz'};
   for(const id of ['wood','stone','food','gold','people','happy'] as const){
     animateCounter(id,id==='happy'?Math.round(game.happy):game[id]);
     get(`[data-resource="${id}"] em`).textContent=details[id];

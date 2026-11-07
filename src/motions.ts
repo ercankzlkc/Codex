@@ -1,9 +1,9 @@
 import * as T from 'three';
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
-export type PersonMotion='idle'|'hold'|'walk'|'carry'|'wood'|'stone'|'farm'|'berry'|'fish_cast'|'fish_idle'|'pick'|'eat';
+export type PersonMotion='rest'|'idle'|'hold'|'walk'|'carry'|'wood'|'stone'|'farm'|'berry'|'fish_cast'|'fish_idle'|'pick'|'eat';
 type Bind={quaternion:T.Quaternion;position:T.Vector3};
-type ClipState=Exclude<PersonMotion,'hold'|'carry'|'pick'|'eat'>|'sit'|'stand'|'sit_down';
+type ClipState=Exclude<PersonMotion,'rest'|'hold'|'carry'|'pick'|'eat'>|'sit'|'stand'|'sit_down';
 
 export async function loadCompressedGLTF(url:string){
   const response=await fetch(url);if(!response.ok)throw new Error(`Asset download: ${response.status}`);
@@ -117,10 +117,10 @@ export class PersonPlayback {
     this.action=next;this.state=state;this.finished=false;
   }
   step(dt:number,requested:PersonMotion,speed:number,move?:()=>number){
-    this.idleTime=requested==='idle'?this.idleTime+dt:0;
-    let desired:ClipState=requested==='carry'?'walk':requested==='hold'||requested==='eat'||requested==='pick'?'idle':requested;
+    this.idleTime=requested==='rest'?this.idleTime+dt:0;
+    let desired:ClipState=requested==='carry'?'walk':requested==='rest'||requested==='hold'||requested==='eat'||requested==='pick'?'idle':requested;
     if((this.state==='sit'||this.state==='sit_down')&&requested==='eat')desired='sit';
-    if((this.state==='sit'||this.state==='sit_down')&&(requested==='hold'||desired!=='idle'&&desired!=='sit'))this.play('stand',this.state==='sit_down'?this.action?.time:undefined);
+    if((this.state==='sit'||this.state==='sit_down')&&(requested==='hold'||requested==='idle'||desired!=='idle'&&desired!=='sit'))this.play('stand',this.state==='sit_down'?this.action?.time:undefined);
     if(this.state==='sit_down'){
       this.mixer.update(dt);this.cleanup();
       if(this.finished)this.play('sit');return false;
@@ -130,7 +130,7 @@ export class PersonPlayback {
       if(!this.finished)return true;
       this.idleTime=0;this.play(desired);return false;
     }
-    if(desired==='idle'&&(this.state==='sit'||this.idleTime>3.5))desired=this.state==='sit'?'sit':'sit_down';
+    if(requested==='rest'&&desired==='idle'&&(this.state==='sit'||this.idleTime>3.5))desired=this.state==='sit'?'sit':'sit_down';
     if(desired!==this.state)this.play(desired);
     const actualSpeed=move?.()??speed;
     if(this.action)this.action.timeScale=desired==='sit_down'?-1:desired==='walk'?Math.max(0,actualSpeed)/this.walkSpeed:1;

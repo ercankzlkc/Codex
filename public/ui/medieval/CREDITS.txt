@@ -1,0 +1,7 @@
+Yelken Koyu — özgün ortaçağ arayüz görselleri
+
+parchment.png: Arayüz için üretilmiş açık parşömen dokusu.
+royal-seal.png: Şeffaf zeminli kırmızı balmumu taç mührü.
+wood-button.png: Şeffaf zeminli ahşap/pirinç çerçeveli yeşil düğme.
+
+Bu üç görsel bu proje için OpenAI görsel üretim aracıyla oluşturulmuştur. Arayüz metinleri kodda tutulur; görsellere gömülü değildir. Kaynak görseller değiştirilmeden kullanılır.

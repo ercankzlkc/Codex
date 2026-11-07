@@ -234,9 +234,6 @@ export class Game {
   foods:Record<FoodKind,number>={berry:8,wheat:4,fish:0};
   autoWorkers=true;
   assignments:Record<WorkCategory,number>={wood:0,stone:0,berry:0,farm:0,fish:0,garden:0};
-  private meal=0;
-  private mealPerson=0;
-  private meals:{id:number;ate:boolean}[]=[];
   storageLevels=new Map<number,number>([[CENTER,1]]);
   storageStocks=new Map<number,{wood:number;stone:number;berry:number;wheat:number;fish:number}>([[CENTER,{wood:18,stone:0,berry:8,wheat:4,fish:0}]]);
   storageCapacity(id:number){return this.storageStocks.has(id)?(id===CENTER?240:60)+((this.storageLevels.get(id)??1)-1)*(id===CENTER?80:60):0}
@@ -257,10 +254,18 @@ export class Game {
     for(const food of ['berry','wheat','fish'] as const){this.foods[food]+=amount;stock[food]+=amount}
     this.storageLevels.set(CENTER,Math.max(this.storageLevels.get(CENTER)??1,Math.max(1,1+Math.ceil((this.storageUsed(CENTER)-240)/80))));
   }
-  takeMeals(){const events=this.meals;this.meals=[];return events}
   wouldSealFishery(id:number){return [...this.board].some(([cell,kind])=>(kind==='fisher'||kind==='harbor')&&adjacent(cell).every(n=>n===id||this.board.has(n)))}
   get food(){return this.foods.berry+this.foods.wheat+this.foods.fish}
   get foodPerMinute(){return this.people*4}
+  eatAt(store:number,amount=4){
+    const stock=this.storageStocks.get(store);if(!stock)return 0;
+    let eaten=0;
+    while(eaten<amount){
+      const kind=(Object.keys(this.foods) as FoodKind[]).sort((a,b)=>stock[b]-stock[a])[0];
+      if(stock[kind]<=0)break;stock[kind]--;this.foods[kind]--;eaten++;
+    }
+    return eaten;
+  }
   consumeFood(amount:number){
     let eaten=0;
     while(eaten<amount&&this.food>0){
@@ -283,13 +288,7 @@ export class Game {
     if(this.merchantAge>=0){this.merchantAge+=dt/Math.max(1,gameSpeed.value);if(this.merchantAge>=MERCHANT_VOYAGE_END)this.merchantAge=-1}
     this.updateImmigration();
     this.updateDock();
-    this.meal+=dt*this.foodPerMinute/60;
-    const due=Math.floor(this.meal);if(!due)return;
-    this.meal-=due;
-    for(let i=0;i<due;i++){
-      const ate=this.consumeFood(1)>0,id=this.residents[this.mealPerson++%this.people].id;this.meals.push({id,ate});
-      if(!ate)this.happy=Math.max(0,this.happy-.35);
-    }
+
   }
   categoryFor(id:number):WorkCategory|null{
     const kind=this.board.get(id);return kind==='stone'?'stone':kind==='forest'?'wood':kind==='berry'?'berry':kind==='farm'?'farm':kind==='fisher'?'fish':kind==='garden'?'garden':null;

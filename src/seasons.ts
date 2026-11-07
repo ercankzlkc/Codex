@@ -145,8 +145,9 @@ export class SeasonCycle{
     this.hud.querySelector('.clock-orbit')!.textContent=night>.5?'☾':'☀';
     (this.hud.querySelector('.clock-orbit') as HTMLElement).style.transform=`rotate(${cycle*360}deg) translateY(-19px) rotate(${-cycle*360}deg)`;
     this.hud.querySelector('.clock-center')!.textContent=current.symbol;
-    this.hud.querySelector('.season-copy small')!.textContent=`YIL ${Math.floor(this.elapsed/YEAR_SECONDS)+1} · GÜN ${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
+    this.hud.querySelector('.season-copy small')!.textContent=`Y${Math.floor(this.elapsed/YEAR_SECONDS)+1} · G${Math.floor(this.elapsed/DAY_SECONDS)+1}`;
     this.hud.querySelector('.season-copy strong')!.textContent=current.name;
+    this.hud.querySelector<HTMLButtonElement>('.season-copy')!.title=`${current.name} · ${Math.floor(this.elapsed/YEAR_SECONDS)+1}. yıl · ${day+1}. gün / 3. Üretim rehberini aç.`;
     this.hud.querySelector('.season-copy>span')!.textContent=`${day+1}. gün / 3 · ${day+1}. ay`;
     // The daylight curve begins at dawn, so 06:00 is the start of each game day.
     const minutes=Math.floor((cycle*1440+360)%1440);
@@ -155,7 +156,7 @@ export class SeasonCycle{
     if(season!==this.lastSeason){
       if(this.lastSeason>=0&&season===1)window.dispatchEvent(new CustomEvent('summer-started'));
       const economy=SEASON_ECONOMY[season];
-      const summary=(['berry','farm','fish'] as const).map(work=>`<span>${resourceArt(work==='farm'?'wheat':work)}<b>${rateLabel(economy.rates[work])}</b></span>`).join('');
+      const summary=(['berry','farm','fish'] as const).map(work=>`<span>${resourceArt(work==='farm'?'wheat':work)}<b>${economy.rates[work]===1?'—':economy.rates[work]===0?'×':`${economy.rates[work]>1?'+':'−'}${Math.round(Math.abs(economy.rates[work]-1)*100)}%`}</b></span>`).join('');
       const quick=this.hud.querySelector<HTMLButtonElement>('.season-quick')!;quick.innerHTML=summary;quick.title=economy.hint;quick.setAttribute('aria-label',`${economy.name}: Çilek ${rateLabel(economy.rates.berry)}, Buğday ${rateLabel(economy.rates.farm)}, Balık ${rateLabel(economy.rates.fish)}. Tüm etkileri aç.`);
       this.lastSeason=season;this.notice.innerHTML=`<span>${current.symbol}</span><small>${Math.floor(this.elapsed/YEAR_SECONDS)+1}. YIL</small><strong>${current.name}</strong><p>${economy.hint}</p>`;
       this.notice.getAnimations().forEach(a=>a.cancel());this.notice.animate([{opacity:0,transform:'translate(-50%,-12px)'},{opacity:1,transform:'translate(-50%,0)',offset:.12},{opacity:1,transform:'translate(-50%,0)',offset:.72},{opacity:0,transform:'translate(-50%,8px)'}],{duration:2600,fill:'both'});

@@ -74,7 +74,7 @@ export class CameraController {
     const safeWidth = Math.max(1, width);
     const safeHeight = Math.max(1, height);
     const aspect = safeWidth / safeHeight;
-    const topReserved = safeWidth < 700 ? 100 : 72;
+    const topReserved = safeWidth < 700 ? 68 : 48;
     const cardHeight = Math.min(212, Math.max(188, safeHeight * .22));
     const bottomReserved = safeWidth < 700 ? 205 : cardHeight + 28;
     const availableHeight = Math.max(safeHeight * 0.43, safeHeight - topReserved - bottomReserved);
